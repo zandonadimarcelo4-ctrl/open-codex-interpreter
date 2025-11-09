@@ -158,27 +158,43 @@ if errorlevel 1 (
 echo.
 
 :: ============================================
-:: PASSO 4: Instalar Dependencias Python Basicas
+:: PASSO 4: Instalar Dependencias Python
 :: ============================================
 echo [4/8] Verificando dependencias Python...
 %PYTHON_VENV% -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
-    echo Instalando dependencias basicas
-    echo FastAPI, Uvicorn, Pydantic
-    %PYTHON_VENV% -m pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
-    if errorlevel 1 (
-        echo ERRO: Falha ao instalar dependencias basicas!
-        echo Tentando instalar sem cache e sem quiet...
-        %PYTHON_VENV% -m pip install --no-cache-dir fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
+    echo Instalando dependencias Python do requirements.txt
+    echo Isso pode demorar alguns minutos...
+    if exist "requirements.txt" (
+        %PYTHON_VENV% -m pip install --no-cache-dir --quiet -r requirements.txt
+        if errorlevel 1 (
+            echo AVISO: Falha ao instalar com quiet. Tentando sem quiet...
+            %PYTHON_VENV% -m pip install --no-cache-dir -r requirements.txt
+            if errorlevel 1 (
+                echo ERRO: Falha ao instalar dependencias do requirements.txt!
+                echo Tentando instalar dependencias basicas...
+                %PYTHON_VENV% -m pip install --no-cache-dir fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20 sqlalchemy==2.0.38
+                if errorlevel 1 (
+                    echo ERRO: Falha ao instalar dependencias basicas!
+                    pause
+                    exit /b 1
+                )
+            )
+        )
+        echo Dependencias Python instaladas.
+    ) else (
+        echo AVISO: requirements.txt nao encontrado!
+        echo Instalando dependencias basicas...
+        %PYTHON_VENV% -m pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20 sqlalchemy==2.0.38
         if errorlevel 1 (
             echo ERRO: Falha ao instalar dependencias basicas!
             pause
             exit /b 1
         )
+        echo Dependencias basicas instaladas.
     )
-    echo Dependencias basicas instaladas.
 ) else (
-    echo Dependencias basicas OK.
+    echo Dependencias Python OK.
 )
 echo.
 

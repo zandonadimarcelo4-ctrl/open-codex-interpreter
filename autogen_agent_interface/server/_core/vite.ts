@@ -14,8 +14,8 @@ export async function setupVite(app: Express, server: Server) {
   };
 
   // Criar configuração do Vite sem plugins problemáticos
-  const { plugins, ...restConfig } = viteConfig;
-  const safePlugins = plugins.filter((p: any) => {
+  const { plugins, server: serverConfig, ...restConfig } = viteConfig;
+  const safePlugins = (plugins || []).filter((p: any) => {
     // Filtrar plugins que podem causar problemas
     const pluginName = p?.name || '';
     return !pluginName.includes('jsxLoc') && !pluginName.includes('manusRuntime');
@@ -25,7 +25,12 @@ export async function setupVite(app: Express, server: Server) {
     ...restConfig,
     plugins: safePlugins,
     configFile: false,
-    server: serverOptions,
+    server: {
+      ...serverOptions,
+      ...(serverConfig || {}),
+      // Desabilitar HTML proxy explicitamente
+      proxy: undefined,
+    },
     appType: "custom",
   });
 

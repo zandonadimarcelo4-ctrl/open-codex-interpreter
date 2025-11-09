@@ -564,6 +564,14 @@ https://github.com/open-webui/open-webui
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Criar tabelas do banco de dados se não existirem
+    from open_webui.internal.db import Base, engine
+    from open_webui.config import Config
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created/verified successfully")
+    except Exception as e:
+        logger.warning(f"Could not create database tables: {e}")
     app.state.instance_id = INSTANCE_ID
     start_logger()
 

@@ -2011,6 +2011,8 @@ VECTOR_DB = os.environ.get("VECTOR_DB", "chroma")
 
 # Chroma
 CHROMA_DATA_PATH = f"{DATA_DIR}/vector_db"
+# Garantir que o diretório do ChromaDB existe
+os.makedirs(CHROMA_DATA_PATH, exist_ok=True)
 
 if VECTOR_DB == "chroma":
     import chromadb

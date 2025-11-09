@@ -49,27 +49,44 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
+  const isConnectingRef = useRef(false);
   const maxReconnectAttempts = 5;
+  const reconnectDelayRef = useRef(1000); // Delay inicial de 1 segundo
 
   const connect = useCallback(() => {
-    if (!enabled || wsRef.current?.readyState === WebSocket.OPEN) {
+    // Evitar múltiplas tentativas simultâneas
+    if (!enabled || isConnectingRef.current || wsRef.current?.readyState === WebSocket.OPEN || wsRef.current?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
+    // Limpar timeout anterior se existir
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+
+    isConnectingRef.current = true;
     setIsConnecting(true);
     setError(null);
 
     try {
-      const clientId = `client_${Math.random().toString(36).substr(2, 9)}`;
       // WebSocket URL format: ws://host:port/ws (sem clientId na URL, será extraído no servidor)
       const wsUrl = url.includes('/ws') ? url : `${url}/ws`;
-      console.log(`[WebSocket] Conectando a: ${wsUrl}`);
+      
+      // Log apenas na primeira tentativa ou após sucesso
+      if (reconnectAttemptsRef.current === 0) {
+        console.log(`[WebSocket] Conectando a: ${wsUrl}`);
+      }
+      
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
         setIsConnected(true);
         setIsConnecting(false);
+        isConnectingRef.current = false;
         reconnectAttemptsRef.current = 0;
+        reconnectDelayRef.current = 1000; // Reset delay
+        console.log('[WebSocket] ✅ Conectado com sucesso');
         onOpen?.();
       };
 
@@ -83,41 +100,77 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
       };
 
       ws.onerror = (event) => {
+        // Não logar erro repetidamente - apenas na primeira tentativa
+        if (reconnectAttemptsRef.current === 0) {
+          console.warn('[WebSocket] ⚠️ Erro na conexão:', event);
+        }
         setError(event);
         setIsConnecting(false);
+        isConnectingRef.current = false;
         onError?.(event);
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false);
         setIsConnecting(false);
+        isConnectingRef.current = false;
         onClose?.();
 
-        // Tentar reconectar
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+        // Não tentar reconectar se foi fechado intencionalmente (código 1000)
+        if (event.code === 1000) {
+          console.log('[WebSocket] Conexão fechada intencionalmente');
+          return;
+        }
+
+        // Tentar reconectar apenas se não excedeu o limite
+        if (reconnectAttemptsRef.current < maxReconnectAttempts && enabled) {
           reconnectAttemptsRef.current++;
+          // Backoff exponencial com limite máximo de 30 segundos
+          const delay = Math.min(reconnectDelayRef.current * Math.pow(2, reconnectAttemptsRef.current - 1), 30000);
+          reconnectDelayRef.current = delay;
+          
+          // Log apenas a cada 5 tentativas para evitar spam
+          if (reconnectAttemptsRef.current % 5 === 0 || reconnectAttemptsRef.current === 1) {
+            console.log(`[WebSocket] Tentando reconectar (${reconnectAttemptsRef.current}/${maxReconnectAttempts}) em ${delay}ms...`);
+          }
+          
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
-          }, 1000 * reconnectAttemptsRef.current);
+          }, delay);
+        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
+          console.warn(`[WebSocket] ❌ Limite de tentativas de reconexão atingido (${maxReconnectAttempts}). Parando tentativas.`);
         }
       };
 
       wsRef.current = ws;
     } catch (err) {
-      console.error('Erro ao criar WebSocket:', err);
+      console.error('[WebSocket] ❌ Erro ao criar WebSocket:', err);
       setIsConnecting(false);
+      isConnectingRef.current = false;
     }
   }, [url, enabled, onMessage, onError, onOpen, onClose]);
 
   const disconnect = useCallback(() => {
+    // Limpar timeout de reconexão
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
+    
+    // Resetar contadores
+    reconnectAttemptsRef.current = 0;
+    reconnectDelayRef.current = 1000;
+    isConnectingRef.current = false;
+    
+    // Fechar WebSocket se existir
     if (wsRef.current) {
-      wsRef.current.close();
+      // Fechar com código 1000 (normal closure) para evitar reconexão automática
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close(1000, 'Desconexão intencional');
+      }
       wsRef.current = null;
     }
+    
     setIsConnected(false);
     setIsConnecting(false);
   }, []);
@@ -132,13 +185,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
   useEffect(() => {
     if (enabled) {
-      connect();
-    }
-
-    return () => {
+      // Pequeno delay para evitar múltiplas tentativas no mount
+      const timeoutId = setTimeout(() => {
+        connect();
+      }, 100);
+      
+      return () => {
+        clearTimeout(timeoutId);
+        disconnect();
+      };
+    } else {
       disconnect();
-    };
-  }, [enabled, connect, disconnect]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]); // Apenas 'enabled' nas dependências para evitar loops
 
   return {
     isConnected,

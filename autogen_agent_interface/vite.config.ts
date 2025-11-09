@@ -8,10 +8,13 @@ import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 
 // Configurar plugins com tratamento de erros
+// Nota: jsxLocPlugin pode causar problemas com Vite 7
+// Se o erro "No matching HTML proxy module" persistir, desabilite jsxLocPlugin()
 const plugins = [
   react(),
   tailwindcss(),
-  // jsxLocPlugin pode causar problemas com Vite 7, desabilitar temporariamente se necessário
+  // Desabilitar jsxLocPlugin temporariamente se causar problemas
+  // jsxLocPlugin(),
   jsxLocPlugin(),
   vitePluginManusRuntime(),
 ].filter(Boolean);

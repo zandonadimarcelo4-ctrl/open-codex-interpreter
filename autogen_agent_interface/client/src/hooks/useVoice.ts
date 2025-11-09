@@ -58,6 +58,25 @@ export function useVoice(options: UseVoiceOptions = {}) {
       return;
     }
 
+    // Parar qualquer áudio anterior antes de iniciar um novo
+    if (audioElementRef.current) {
+      try {
+        audioElementRef.current.pause();
+        audioElementRef.current.currentTime = 0;
+        audioElementRef.current.src = '';
+      } catch (e) {
+        // Ignorar erros ao parar áudio anterior
+      }
+    }
+
+    // Se já está falando, parar antes de iniciar novo
+    if (isSpeaking) {
+      console.log('[TTS] Parando áudio anterior antes de iniciar novo');
+      setIsSpeaking(false);
+      // Aguardar um pouco para garantir que o áudio anterior parou
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
     try {
       setIsSpeaking(true);
       setError(null);
@@ -134,10 +153,28 @@ export function useVoice(options: UseVoiceOptions = {}) {
             throw new Error('Elemento de áudio não está disponível');
           }
 
-          // Limpar event listeners anteriores
-          const audioElement = audioElementRef.current;
-          const newAudioElement = audioElement.cloneNode() as HTMLAudioElement;
+          // Parar e limpar elemento anterior se existir
+          if (audioElementRef.current) {
+            try {
+              audioElementRef.current.pause();
+              audioElementRef.current.currentTime = 0;
+              audioElementRef.current.src = '';
+              // Remover todos os event listeners
+              audioElementRef.current.onended = null;
+              audioElementRef.current.onerror = null;
+              audioElementRef.current.onloadeddata = null;
+              audioElementRef.current.onloadstart = null;
+            } catch (e) {
+              // Ignorar erros
+            }
+          }
+
+          // Criar novo elemento de áudio (não clonar para evitar problemas)
+          const newAudioElement = new Audio();
           audioElementRef.current = newAudioElement;
+          
+          // Flag para garantir que só reproduz uma vez
+          let hasPlayed = false;
           
           newAudioElement.src = audioUrl;
           
@@ -145,6 +182,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
           newAudioElement.onended = () => {
             console.log('[TTS] ✅ Áudio reproduzido com sucesso');
             setIsSpeaking(false);
+            hasPlayed = false;
             URL.revokeObjectURL(audioUrl);
           };
           
@@ -152,6 +190,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
             console.error('❌ Erro ao reproduzir áudio:', error);
             console.error(`[TTS] Erro no elemento de áudio:`, newAudioElement.error);
             setIsSpeaking(false);
+            hasPlayed = false;
             const errorMsg = newAudioElement.error 
               ? `Erro ao reproduzir áudio: ${newAudioElement.error.message || 'Erro desconhecido'}`
               : 'Erro ao reproduzir áudio. Verifique se o formato de áudio é suportado.';
@@ -160,19 +199,24 @@ export function useVoice(options: UseVoiceOptions = {}) {
           };
           
           newAudioElement.onloadeddata = async () => {
-            console.log('[TTS] Áudio carregado, tentando reproduzir...');
-            try {
-              await newAudioElement.play();
-              console.log('[TTS] ✅ Áudio reproduzido com sucesso');
-              onAudioReady?.(audioUrl);
-            } catch (playError) {
-              console.error('❌ Erro ao reproduzir áudio:', playError);
-              setIsSpeaking(false);
-              const errorMsg = playError instanceof Error 
-                ? `Erro ao reproduzir áudio: ${playError.message}`
-                : 'Erro ao reproduzir áudio. Verifique as permissões do navegador.';
-              setError(errorMsg);
-              URL.revokeObjectURL(audioUrl);
+            // Só reproduzir se ainda não reproduziu
+            if (!hasPlayed) {
+              console.log('[TTS] Áudio carregado, tentando reproduzir...');
+              try {
+                hasPlayed = true;
+                await newAudioElement.play();
+                console.log('[TTS] ✅ Áudio reproduzido com sucesso');
+                onAudioReady?.(audioUrl);
+              } catch (playError) {
+                hasPlayed = false;
+                console.error('❌ Erro ao reproduzir áudio:', playError);
+                setIsSpeaking(false);
+                const errorMsg = playError instanceof Error 
+                  ? `Erro ao reproduzir áudio: ${playError.message}`
+                  : 'Erro ao reproduzir áudio. Verifique as permissões do navegador.';
+                setError(errorMsg);
+                URL.revokeObjectURL(audioUrl);
+              }
             }
           };
           
@@ -180,14 +224,16 @@ export function useVoice(options: UseVoiceOptions = {}) {
             console.log('[TTS] Iniciando carregamento do áudio...');
           };
           
-          // Se o áudio já estiver carregado, reproduzir imediatamente
-          if (newAudioElement.readyState >= 2) {
+          // Se o áudio já estiver carregado, reproduzir imediatamente (mas só uma vez)
+          if (newAudioElement.readyState >= 2 && !hasPlayed) {
             console.log(`[TTS] Áudio já carregado (readyState=${newAudioElement.readyState}), reproduzindo imediatamente...`);
             try {
+              hasPlayed = true;
               await newAudioElement.play();
               console.log('[TTS] ✅ Áudio reproduzido com sucesso');
               onAudioReady?.(audioUrl);
             } catch (playError) {
+              hasPlayed = false;
               console.error('❌ Erro ao reproduzir áudio:', playError);
               setIsSpeaking(false);
               const errorMsg = playError instanceof Error 

@@ -58,8 +58,30 @@ if errorlevel 1 (
     python -m venv .venv
     call .venv\Scripts\activate.bat
 )
+
+:: Verificar se pip existe (ambiente virtual pode estar corrompido)
+echo Verificando pip...
+python -c "import pip" >nul 2>&1
+if errorlevel 1 (
+    echo AVISO: pip nao encontrado no ambiente virtual!
+    echo Recriando ambiente virtual...
+    rmdir /s /q .venv 2>nul
+    python -m venv .venv
+    call .venv\Scripts\activate.bat
+    if errorlevel 1 (
+        echo ERRO: Falha ao recriar ambiente virtual!
+        pause
+        exit /b 1
+    )
+)
+
 echo Atualizando pip...
 python -m pip install --upgrade pip setuptools wheel --quiet
+if errorlevel 1 (
+    echo AVISO: Falha ao atualizar pip. Tentando reinstalar...
+    python -m ensurepip --upgrade
+    python -m pip install --upgrade pip setuptools wheel --quiet
+)
 echo.
 
 :: ============================================
@@ -68,12 +90,18 @@ echo.
 echo [4/8] Verificando dependencias Python...
 python -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
-    echo Instalando dependencias basicas (FastAPI, Uvicorn, Pydantic)...
+    echo Instalando dependencias basicas...
+    echo (FastAPI, Uvicorn, Pydantic)
     pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
     if errorlevel 1 (
         echo ERRO: Falha ao instalar dependencias basicas!
-        pause
-        exit /b 1
+        echo Tentando instalar sem cache...
+        pip install --no-cache-dir fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
+        if errorlevel 1 (
+            echo ERRO: Falha ao instalar dependencias basicas!
+            pause
+            exit /b 1
+        )
     )
     echo Dependencias basicas instaladas.
 ) else (

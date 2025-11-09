@@ -208,40 +208,69 @@ Sugira comandos diretos como:
         const interpreterPath = path.join(projectRoot, "interpreter");
         
         // Executar via Python usando Open Interpreter original
+        // IMPORTANTE: Usar execução como módulo para evitar problemas com imports relativos
         const { spawn } = await import("child_process");
         
-        // Escapar task para uso seguro no Python
-        const taskEscaped = task.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"');
+        // Escapar task para uso seguro no Python (usar base64 para evitar problemas com caracteres especiais)
+        const taskBase64 = Buffer.from(task, 'utf-8').toString('base64');
         
-        // Construir script Python de forma segura
+        // Construir script Python que será executado como módulo
+        // Usar arquivo temporário para evitar problemas com imports relativos
+        const tempScriptPath = path.join(projectRoot, "temp_interpreter_exec.py");
         const pythonScript = [
+          "#!/usr/bin/env python3",
+          "# -*- coding: utf-8 -*-",
           "import sys",
           "import os",
           "import json",
-          `sys.path.insert(0, "${projectRoot.replace(/\\/g, '/')}")`,
-          `sys.path.insert(0, "${interpreterPath.replace(/\\/g, '/')}")`,
+          "import base64",
           "",
-          "from interpreter.interpreter import Interpreter",
+          `# Adicionar caminhos ao sys.path`,
+          `project_root = "${projectRoot.replace(/\\/g, '/')}"`,
+          `interpreter_path = "${interpreterPath.replace(/\\/g, '/')}"`,
+          `sys.path.insert(0, project_root)`,
+          `sys.path.insert(0, interpreter_path)`,
           "",
-          "interpreter = Interpreter()",
-          "interpreter.auto_run = True",
-          "interpreter.local = True",
+          `# Mudar para o diretório do projeto para que os imports relativos funcionem`,
+          `os.chdir(project_root)`,
           "",
-          "# Open Interpreter já executa código automaticamente",
-          `result = interpreter.chat("${taskEscaped}", return_messages=False)`,
+          `# Importar Interpreter (agora os imports relativos funcionarão)`,
+          `from interpreter.interpreter import Interpreter`,
           "",
-          "# Extrair última mensagem do assistente",
-          "if interpreter.messages:",
-          "    last_msg = interpreter.messages[-1]",
-          "    if last_msg.get('role') == 'assistant':",
-          "        print(json.dumps({\"success\": True, \"output\": last_msg.get('content', '')}))",
-          "    else:",
-          "        print(json.dumps({\"success\": False, \"output\": \"Nenhuma resposta do assistente\"}))",
-          "else:",
-          "    print(json.dumps({\"success\": False, \"output\": \"Nenhuma mensagem gerada\"}))"
+          `# Decodificar task de base64`,
+          `task_encoded = "${taskBase64}"`,
+          `task = base64.b64decode(task_encoded).decode('utf-8')`,
+          "",
+          `# Inicializar Interpreter`,
+          `interpreter = Interpreter()`,
+          `interpreter.auto_run = True`,
+          `interpreter.local = True`,
+          "",
+          `# Open Interpreter já executa código automaticamente`,
+          `try:`,
+          `    result = interpreter.chat(task, return_messages=False)`,
+          `    `,
+          `    # Extrair última mensagem do assistente`,
+          `    if interpreter.messages:`,
+          `        last_msg = interpreter.messages[-1]`,
+          `        if last_msg.get('role') == 'assistant':`,
+          `            output = last_msg.get('content', '')`,
+          `            print(json.dumps({"success": True, "output": output}))`,
+          `        else:`,
+          `            print(json.dumps({"success": False, "output": "Nenhuma resposta do assistente"}))`,
+          `    else:`,
+          `        print(json.dumps({"success": False, "output": "Nenhuma mensagem gerada"}))`,
+          `except Exception as e:`,
+          `    import traceback`,
+          `    error_msg = f"Erro ao executar: {str(e)}\\n{traceback.format_exc()}"`,
+          `    print(json.dumps({"success": False, "output": error_msg}))`,
         ].join('\n');
         
-        const python = spawn("python", ["-c", pythonScript], {
+        // Salvar script temporário
+        fs.writeFileSync(tempScriptPath, pythonScript, 'utf-8');
+        
+        // Executar script Python
+        const python = spawn("python", [tempScriptPath], {
           cwd: projectRoot,
           env: { ...process.env, PYTHONUNBUFFERED: "1" },
         });
@@ -259,26 +288,62 @@ Sugira comandos diretos como:
         
         const result = await new Promise<string>((resolve, reject) => {
           python.on("close", (code) => {
+            // Limpar arquivo temporário
+            try {
+              if (fs.existsSync(tempScriptPath)) {
+                fs.unlinkSync(tempScriptPath);
+              }
+            } catch (e) {
+              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
+            }
+            
             if (code === 0 && output) {
               try {
-                const parsed = JSON.parse(output.trim());
-                if (parsed.success) {
-                  resolve(parsed.output);
+                // Tentar encontrar JSON no output (pode ter logs antes)
+                const outputLines = output.trim().split('\n');
+                let jsonLine = '';
+                for (let i = outputLines.length - 1; i >= 0; i--) {
+                  const line = outputLines[i].trim();
+                  if (line.startsWith('{') && line.endsWith('}')) {
+                    jsonLine = line;
+                    break;
+                  }
+                }
+                
+                if (jsonLine) {
+                  const parsed = JSON.parse(jsonLine);
+                  if (parsed.success) {
+                    resolve(parsed.output);
+                  } else {
+                    resolve(parsed.output || "Erro desconhecido");
+                  }
                 } else {
-                  resolve(parsed.output || "Erro desconhecido");
+                  console.warn("[AutoGen] Nenhum JSON encontrado no output");
+                  resolve(output || "Erro ao processar resposta");
                 }
               } catch (e) {
                 console.warn("[AutoGen] Erro ao parsear resultado do Open Interpreter:", e);
+                console.warn("[AutoGen] Output completo:", output);
                 resolve(output || "Erro ao processar resposta");
               }
             } else {
               console.warn("[AutoGen] Open Interpreter retornou código:", code);
               console.warn("[AutoGen] stderr:", errorOutput);
+              console.warn("[AutoGen] stdout:", output);
               resolve(errorOutput || output || "Erro ao executar Open Interpreter");
             }
           });
           
           python.on("error", (error) => {
+            // Limpar arquivo temporário em caso de erro
+            try {
+              if (fs.existsSync(tempScriptPath)) {
+                fs.unlinkSync(tempScriptPath);
+              }
+            } catch (e) {
+              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
+            }
+            
             console.warn("[AutoGen] Erro ao executar Open Interpreter:", error);
             reject(error);
           });

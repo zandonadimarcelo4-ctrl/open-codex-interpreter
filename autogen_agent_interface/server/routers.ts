@@ -399,40 +399,19 @@ export const appRouter = router({
           userMessageId = Date.now(); // ID temporário
         }
         
-        // Processar usando AutoGen Framework
+        // Processar usando AutoGen Framework (ÚNICO FRAMEWORK)
         // AutoGen controla tudo - orquestra todos os agentes
         let response: string = "";
         let agentName = "Super Agent (AutoGen)";
         
         try {
-          // Tentar usar Super Agent Framework Python (com todas as funcionalidades)
-          let useSuperAgent = false;
-          try {
-            const { executeWithSuperAgent, checkSuperAgentAvailable } = await import("./utils/super_agent_bridge");
-            useSuperAgent = await checkSuperAgentAvailable();
-            
-            if (useSuperAgent) {
-              // Usar Super Agent Framework Python (com AutoGen, Open Interpreter, UFO, Multimodal, ChromaDB, etc.)
-              response = await executeWithSuperAgent(
-                input.message,
-                intent,
-                { conversationId, userId }
-              );
-            }
-          } catch (error) {
-            console.warn("[Chat] Super Agent Framework não disponível, usando fallback:", error);
-            useSuperAgent = false;
-          }
-          
-          // Fallback: usar AutoGen simplificado (apenas Ollama)
-          if (!useSuperAgent) {
-            const { executeWithAutoGen } = await import("./utils/autogen");
-            response = await executeWithAutoGen(
-              input.message,
-              intent,
-              { conversationId, userId }
-            );
-          }
+          // Usar APENAS AutoGen Framework (único framework)
+          const { executeWithAutoGen } = await import("./utils/autogen");
+          response = await executeWithAutoGen(
+            input.message,
+            intent,
+            { conversationId, userId }
+          );
           
           // Adicionar resultados de execução de código se houver
           if (codeExecutionResults.length > 0) {

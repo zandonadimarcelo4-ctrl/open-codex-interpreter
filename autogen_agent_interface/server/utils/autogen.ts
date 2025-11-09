@@ -193,31 +193,90 @@ Sugira comandos diretos como:
       images.length > 0 ? images : undefined
     );
 
-    // Se a resposta contém código e não foi executado via function calling, executar automaticamente
+    // Se a resposta contém código e não foi executado via function calling, usar Open Interpreter existente
     if (intent.type === "action" || intent.type === "command") {
-      const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
+      const { extractCodeBlocks } = await import("./code_executor");
       const codeBlocks = extractCodeBlocks(ollamaResponse);
 
-      // Só executar se não foi executado via function calling
+      // Se houver código e não foi executado via function calling, usar Open Interpreter do projeto
       if (codeBlocks.length > 0 && !ollamaResponse.includes("✅ Código executado")) {
-        // Executar código automaticamente (estilo Open Interpreter)
-        const executionResults = await executeCodeBlocks(codeBlocks, {
-          autoApprove: true,
-          timeout: 30000,
-        });
+        try {
+          // Usar Open Interpreter existente do projeto (como ferramenta dentro do AutoGen)
+          const projectRoot = path.resolve(__dirname, "../../../");
+          const interpreterPath = path.join(projectRoot, "interpreter");
+          
+          // Executar via Python usando Open Interpreter original
+          const { spawn } = await import("child_process");
+          const pythonScript = `
+import sys
+import os
+import json
+sys.path.insert(0, "${projectRoot.replace(/\\/g, '/')}")
+sys.path.insert(0, "${interpreterPath.replace(/\\/g, '/')}")
 
-        // Adicionar resultados da execução à resposta
-        const executionOutput = executionResults
-          .map((result, idx) => {
-            if (result.success) {
-              return `\n\n**✅ Código ${idx + 1} executado (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
-            } else {
-              return `\n\n**❌ Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
-            }
-          })
-          .join("\n");
+from interpreter.interpreter import Interpreter
 
-        ollamaResponse += executionOutput;
+interpreter = Interpreter()
+interpreter.auto_run = True
+interpreter.local = True
+
+# Executar código usando Open Interpreter
+code_blocks = ${JSON.stringify(codeBlocks)}
+for block in code_blocks:
+    result = interpreter.chat(f"Execute this {block['language']} code:\\n\\`\\`\\`{block['language']}\\n{block['code']}\\n\\`\\`\\`", return_messages=False)
+    if interpreter.messages:
+        last_msg = interpreter.messages[-1]
+        if last_msg.get('role') == 'assistant':
+            print(json.dumps({"success": True, "output": last_msg.get('content', '')}))
+`;
+          
+          const python = spawn("python", ["-c", pythonScript], {
+            cwd: projectRoot,
+            env: { ...process.env, PYTHONUNBUFFERED: "1" },
+          });
+          
+          let output = "";
+          python.stdout.on("data", (data) => {
+            output += data.toString();
+          });
+          
+          await new Promise((resolve, reject) => {
+            python.on("close", (code) => {
+              if (code === 0 && output) {
+                try {
+                  const result = JSON.parse(output.trim());
+                  if (result.success) {
+                    ollamaResponse += `\n\n**✅ Código executado via Open Interpreter:**\n\`\`\`\n${result.output}\n\`\`\``;
+                  }
+                } catch (e) {
+                  // Ignorar erro de parsing
+                }
+              }
+              resolve(null);
+            });
+            python.on("error", reject);
+          });
+        } catch (error) {
+          console.warn("[AutoGen] Erro ao usar Open Interpreter:", error);
+          // Fallback: usar code_executor
+          const { executeCodeBlocks } = await import("./code_executor");
+          const executionResults = await executeCodeBlocks(codeBlocks, {
+            autoApprove: true,
+            timeout: 30000,
+          });
+          
+          const executionOutput = executionResults
+            .map((result, idx) => {
+              if (result.success) {
+                return `\n\n**✅ Código ${idx + 1} executado (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
+              } else {
+                return `\n\n**❌ Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
+              }
+            })
+            .join("\n");
+          
+          ollamaResponse += executionOutput;
+        }
       }
     }
 

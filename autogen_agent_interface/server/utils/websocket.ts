@@ -7,7 +7,6 @@ import { Server } from "http";
 import { IncomingMessage } from "http";
 import { detectIntent } from "../../client/src/utils/intentDetector";
 import { executeWithAutoGen } from "./autogen";
-import { executeWithSuperAgent, checkSuperAgentAvailable } from "./super_agent_bridge";
 
 export interface WebSocketMessage {
   type: "text" | "audio" | "assistant" | "system" | "status" | "error" | "stream" | "agent_update";
@@ -103,24 +102,8 @@ export class ChatWebSocketServer {
       });
 
       try {
-        // Tentar usar Super Agent Framework primeiro
-        let response: string = "";
-        let useSuperAgent = false;
-
-        try {
-          useSuperAgent = await checkSuperAgentAvailable();
-          if (useSuperAgent) {
-            response = await executeWithSuperAgent(text, intent, { clientId });
-          }
-        } catch (error) {
-          console.warn("[WebSocket] Super Agent não disponível, usando fallback:", error);
-          useSuperAgent = false;
-        }
-
-        // Fallback: usar AutoGen simplificado
-        if (!useSuperAgent || !response) {
-          response = await executeWithAutoGen(text, intent, { clientId });
-        }
+        // Usar APENAS AutoGen Framework (único framework)
+        const response = await executeWithAutoGen(text, intent, { clientId });
 
         // Enviar resposta completa
         this.send(ws, {

@@ -5,7 +5,6 @@
  */
 
 import { EventEmitter } from 'events';
-import { executeWithSuperAgent } from '../../utils/super_agent_bridge';
 import { executeWithAutoGen } from '../../utils/autogen';
 
 export interface ScheduledTask {
@@ -273,20 +272,11 @@ class BackgroundWorker extends EventEmitter {
         reason: `Scheduled task: ${task.name}`,
       };
 
-      // Executar usando Super Agent Framework ou AutoGen
-      let result: string;
-      try {
-        result = await executeWithSuperAgent(
-          task.payload.prompt || task.description,
-          intent,
-          task.payload.context || {}
-        );
-      } catch (superAgentError) {
-        // Fallback para AutoGen
-        console.warn('Super Agent Framework not available, using AutoGen fallback');
-        result = await executeWithAutoGen(
-          task.payload.prompt || task.description,
-          intent
+      // Executar usando APENAS AutoGen Framework (único framework)
+      const result = await executeWithAutoGen(
+        task.payload.prompt || task.description,
+        intent,
+        task.payload.context || {}
         );
       }
 

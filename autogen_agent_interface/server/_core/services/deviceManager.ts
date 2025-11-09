@@ -6,7 +6,6 @@
 
 import axios, { AxiosInstance } from 'axios';
 import * as os from 'os';
-import { executeWithSuperAgent } from '../../utils/super_agent_bridge';
 import { executeWithAutoGen } from '../../utils/autogen';
 
 export type ExecutionMode = 'local' | 'remote';
@@ -274,20 +273,11 @@ class DeviceManager {
         reason: `Task execution: ${task.taskType}`,
       };
 
-      // Executar usando Super Agent Framework ou AutoGen
-      let result: string;
-      try {
-        result = await executeWithSuperAgent(
-          task.payload.prompt || task.payload.message || '',
-          intent,
-          task.payload.context || {}
-        );
-      } catch (superAgentError) {
-        // Fallback para AutoGen
-        console.warn('Super Agent Framework not available, using AutoGen fallback');
-        result = await executeWithAutoGen(
-          task.payload.prompt || task.payload.message || '',
-          intent
+      // Executar usando APENAS AutoGen Framework (único framework)
+      const result = await executeWithAutoGen(
+        task.payload.prompt || task.payload.message || '',
+        intent,
+        task.payload.context || {}
         );
       }
 

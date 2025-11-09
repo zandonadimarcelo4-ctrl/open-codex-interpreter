@@ -746,11 +746,15 @@ async function callOllamaWithAutoGenPrompt(
 
     if (!response.ok) {
       const errorText = await response.text();
+      console.error(`[AutoGen] ❌ Ollama API error: ${response.status} - ${errorText}`);
       throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
     }
 
+    console.log(`[AutoGen] ✅ Resposta OK, parseando JSON...`);
     const data = await response.json();
-    let responseContent = data.message.content || "";
+    console.log(`[AutoGen] ✅ JSON parseado, extraindo conteúdo...`);
+    let responseContent = data.message?.content || "";
+    console.log(`[AutoGen] ✅ Conteúdo extraído (${responseContent.length} chars)`);
     
     // Se houver function calls, executar automaticamente (estilo Open Interpreter)
     if (data.message.tool_calls && Array.isArray(data.message.tool_calls)) {
@@ -784,9 +788,14 @@ async function callOllamaWithAutoGenPrompt(
       }
     }
     
+    console.log(`[AutoGen] ✅ Retornando resposta final (${responseContent.length} chars)`);
     return responseContent;
   } catch (error) {
-    console.error("[AutoGen] Erro ao chamar Ollama:", error);
+    console.error("[AutoGen] ❌ Erro ao chamar Ollama:", error);
+    if (error instanceof Error) {
+      console.error("[AutoGen] ❌ Mensagem de erro:", error.message);
+      console.error("[AutoGen] ❌ Stack trace:", error.stack);
+    }
     throw error;
   }
 }

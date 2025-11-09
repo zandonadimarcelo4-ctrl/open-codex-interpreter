@@ -5,8 +5,10 @@ uploads
 .ipynb_checkpoints
 *.db
 _test
-Pipfile
 !/data
 /data/*
-/open_webui/data/*
-.webui_secret_key
+!/data/litellm
+/data/litellm/*
+!data/litellm/config.yaml
+
+!data/config.json

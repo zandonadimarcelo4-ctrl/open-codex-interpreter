@@ -604,9 +604,12 @@ Sugira comandos diretos como:
 
     // Para perguntas/conversas, usar Ollama diretamente (muito mais rápido)
     // Pular Open Interpreter completamente para conversas/perguntas
-    const modelUsed = framework.model || DEFAULT_MODEL;
+    const modelUsed = (framework as any)?.model || DEFAULT_MODEL;
+    console.log(`[AutoGen] Usando modelo: ${modelUsed}, intent: ${intent.type}, prompt length: ${systemPrompt.length}`);
     
     // Usar prompt já definido (curto para conversas, completo para ações)
+    console.log(`[AutoGen] Chamando Ollama...`);
+    const startTime = Date.now();
     const ollamaResponse = await callOllamaWithAutoGenPrompt(
       systemPrompt,
       task,
@@ -614,6 +617,8 @@ Sugira comandos diretos como:
       intent,
       images.length > 0 ? images : undefined
     );
+    const elapsed = Date.now() - startTime;
+    console.log(`[AutoGen] ✅ Resposta recebida em ${elapsed}ms (${ollamaResponse.length} chars)`);
 
     return ollamaResponse;
   } catch (error) {

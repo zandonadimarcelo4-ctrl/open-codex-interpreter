@@ -87,40 +87,11 @@ export async function executeWithAutoGen(
   context?: Record<string, any>
 ): Promise<string> {
   try {
-    // Verificar disponibilidade primeiro
-    const availability = await checkAutoGenAvailable();
-    if (!availability.available) {
-      // Construir mensagem de erro detalhada
-      let errorMessage = `⚠️ **AutoGen não disponível**\n\n`;
-      errorMessage += `**Razão**: ${availability.reason || "Desconhecida"}\n\n`;
-      
-      if (availability.details) {
-        if (availability.details.suggestion) {
-          errorMessage += `**Solução**: ${availability.details.suggestion}\n\n`;
-        }
-        if (availability.details.ollama_url) {
-          errorMessage += `**Ollama URL**: ${availability.details.ollama_url}\n\n`;
-        }
-        if (availability.details.model) {
-          errorMessage += `**Modelo**: ${availability.details.model}\n\n`;
-        }
-      }
-      
-      errorMessage += `**Para resolver:**\n`;
-      errorMessage += `1. Verifique se Ollama está rodando: \`ollama serve\`\n`;
-      errorMessage += `2. Verifique se o modelo está instalado: \`ollama pull ${DEFAULT_MODEL}\`\n`;
-      errorMessage += `3. Verifique se OLLAMA_BASE_URL está configurado corretamente\n`;
-      errorMessage += `4. Verifique se AutoGen está instalado: \`pip install pyautogen\`\n\n`;
-      errorMessage += `**Sua mensagem**: "${task}"`;
-      
-      throw new Error(errorMessage);
-    }
+    // Pular verificação de disponibilidade para resposta mais rápida
+    // A verificação será feita apenas quando necessário (se houver erro)
 
-    // Inicializar AutoGen se necessário
+    // Inicializar AutoGen se necessário (cacheado, não bloqueia)
     const framework = await initializeAutoGen();
-    if (!framework) {
-      throw new Error("AutoGen não disponível");
-    }
 
     // Sistema de roteamento de agentes inspirado no AgenticSeek
     // Integrado ao AutoGen Framework (único framework)

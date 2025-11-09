@@ -134,7 +134,6 @@ export async function executeWithAutoGen(
     
     // Construir prompt baseado na intenção e agente selecionado - estilo Open Interpreter
     let systemPrompt = "";
-    let agentName = `Super Agent (${agentSelection.agentType})`;
     
     if (intent.type === "action" || intent.type === "command") {
       // Usar prompt específico do agente selecionado

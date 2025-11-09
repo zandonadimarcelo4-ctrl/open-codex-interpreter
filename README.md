@@ -123,6 +123,8 @@ Depois de preparar o ambiente, escolha o fluxo desejado:
 
 Caso o extra `autogen` não esteja instalado, o comando `unified-agent` exibirá uma mensagem informando como habilitar o suporte (`pip install -e .[autogen]`).
 
+> 💡 **Rodando sem instalar o pacote:** se você apenas clonou o repositório, execute `python -m unified_agent` (repare no sublinhado) a partir da raiz do projeto para obter o mesmo comportamento do comando `unified-agent`.
+
 ### Perfis de dependência compatíveis
 
 O `pyautogen` passou a depender do novo SDK `openai>=1.3`, enquanto o Open Interpreter clássico foi construído sobre a API antiga (`openai==0.27.x`). Para evitar conflitos resolvemos o impasse da seguinte forma:

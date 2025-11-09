@@ -59,8 +59,35 @@ export function useVoice(options: UseVoiceOptions = {}) {
       setIsSpeaking(true);
       setError(null);
 
+      // Limpar texto removendo emojis e caracteres especiais antes de enviar
+      // Remover TODOS os caracteres Unicode acima de 0x7F exceto acentos portugueses
+      let cleanedText = text.split('').filter(char => {
+        const code = char.charCodeAt(0);
+        // Manter apenas ASCII básico (0-127) e acentos portugueses (0x00C0-0x017F)
+        return code <= 0x7F || (code >= 0x00C0 && code <= 0x017F);
+      }).join('');
+      
+      // Remover markdown e caracteres especiais
+      cleanedText = cleanedText.replace(/#{1,6}\s+/g, ''); // Headers
+      cleanedText = cleanedText.replace(/\*\*/g, ''); // Bold
+      cleanedText = cleanedText.replace(/\*/g, ''); // Italic
+      cleanedText = cleanedText.replace(/__/g, ''); // Bold
+      cleanedText = cleanedText.replace(/_/g, ''); // Italic
+      cleanedText = cleanedText.replace(/`/g, ''); // Code
+      cleanedText = cleanedText.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1'); // Links
+      cleanedText = cleanedText.replace(/!\[([^\]]*)\]\([^\)]+\)/g, ''); // Images
+      cleanedText = cleanedText.replace(/[^\x00-\x7F\u00C0-\u017F\s.,!?;:()\-]/g, ' '); // Remover caracteres especiais
+      cleanedText = cleanedText.replace(/\s+/g, ' ').trim(); // Normalizar espaços
+      
+      if (!cleanedText.trim()) {
+        console.warn('⚠️ Texto vazio após limpeza, não enviando para TTS');
+        setIsSpeaking(false);
+        return;
+      }
+
       // Usar APENAS API de TTS do backend (ElevenLabs/Piper)
       console.log('🎙️ Tentando usar API de TTS do backend (ElevenLabs/Piper)...');
+      console.log(`📝 Texto original (${text.length} chars) -> Limpo (${cleanedText.length} chars)`);
       
       try {
         const response = await fetch('/api/tts', {
@@ -68,7 +95,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify({ text: cleanedText }),
         });
 
         if (response.ok) {

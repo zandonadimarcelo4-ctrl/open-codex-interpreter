@@ -326,6 +326,131 @@ export const appRouter = router({
         return { success: true };
       }),
   }),
+
+  // ==================== Chat ====================
+  chat: router({
+    process: protectedProcedure
+      .input(
+        z.object({
+          message: z.string(),
+          conversationId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        if (!ctx.user?.id) throw new Error("User not found");
+        
+        // Detectar intenção da mensagem
+        const intent = detectIntent(input.message);
+        
+        // Criar ou obter conversa
+        let conversationId = input.conversationId;
+        if (!conversationId) {
+          const convId = await db.createConversation({
+            userId: ctx.user.id,
+            title: input.message.substring(0, 50),
+          });
+          conversationId = convId;
+        }
+        
+        // Criar mensagem do usuário
+        const userMessageId = await db.createMessage({
+          conversationId,
+          role: "user",
+          content: input.message,
+        });
+        
+        // Processar baseado na intenção
+        let response: string;
+        let agentName = "Super Agent";
+        
+        if (intent.type === "action" || intent.type === "command") {
+          // Criar tarefa para ação
+          const taskId = await db.createTask({
+            userId: ctx.user.id,
+            conversationId,
+            title: input.message.substring(0, 100),
+            description: input.message,
+            status: "running",
+            progress: 0,
+          });
+          
+          // Simular processamento da ação
+          response = `🔧 **Ação Detectada**: ${intent.actionType || "execução"}\n\n` +
+            `**Intenção**: ${intent.reason}\n\n` +
+            `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n\n` +
+            `**Tarefa Criada**: #${taskId}\n\n` +
+            `Estou processando sua solicitação. Isso pode levar alguns segundos...\n\n` +
+            `\`\`\`\n${input.message}\n\`\`\`\n\n` +
+            `⏳ Processando...`;
+          
+          agentName = "Executor Agent";
+        } else if (intent.type === "question") {
+          // Resposta conversacional para pergunta
+          response = `💬 **Pergunta Detectada**\n\n` +
+            `Vou responder sua pergunta sobre: "${input.message}"\n\n` +
+            `**Resposta**:\n\n` +
+            `Baseado na sua pergunta, posso ajudar com informações e explicações. ` +
+            `Se você precisar de uma ação específica, por favor, seja mais direto, por exemplo: ` +
+            `"crie um arquivo", "execute código", "busque informações", etc.`;
+          
+          agentName = "Assistant Agent";
+        } else {
+          // Conversa normal
+          response = `💭 **Conversa Detectada**\n\n` +
+            `Entendi sua mensagem: "${input.message}"\n\n` +
+            `Como posso ajudá-lo? Posso:\n\n` +
+            `- 💬 Conversar e responder perguntas\n` +
+            `- 🔧 Executar ações (criar arquivos, executar código, etc.)\n` +
+            `- 🔍 Buscar informações\n` +
+            `- 📝 Gerar código\n\n` +
+            `Se você quiser que eu faça algo específico, use comandos diretos como:\n` +
+            `- "Crie um arquivo..."\n` +
+            `- "Execute o código..."\n` +
+            `- "Busque informações sobre..."`;
+          
+          agentName = "Super Agent";
+        }
+        
+        // Criar mensagem de resposta
+        const assistantMessageId = await db.createMessage({
+          conversationId,
+          role: "assistant",
+          content: response,
+          metadata: JSON.stringify({ intent, messageId: userMessageId }),
+        });
+        
+        return {
+          messageId: assistantMessageId,
+          conversationId,
+          content: response,
+          intent,
+          agentName,
+        };
+      }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;
+
+// Função auxiliar para detectar intenção (simplificada para o backend)
+function detectIntent(message: string): { type: string; confidence: number; actionType?: string; reason?: string } {
+  const lowerMessage = message.toLowerCase();
+  
+  const actionKeywords = ['criar', 'fazer', 'executar', 'rodar', 'buscar', 'pesquisar', 'criar arquivo', 'escrever código'];
+  const questionKeywords = ['o que', 'como', 'quando', 'onde', 'quem', 'qual', 'por que'];
+  const commandKeywords = ['faça', 'execute', 'rode', 'crie', 'delete'];
+  
+  if (commandKeywords.some(kw => lowerMessage.includes(kw))) {
+    return { type: 'command', confidence: 0.9, reason: 'Comando direto detectado' };
+  }
+  
+  if (actionKeywords.some(kw => lowerMessage.includes(kw))) {
+    return { type: 'action', confidence: 0.8, actionType: 'execute', reason: 'Ação detectada' };
+  }
+  
+  if (questionKeywords.some(kw => lowerMessage.includes(kw))) {
+    return { type: 'question', confidence: 0.7, reason: 'Pergunta detectada' };
+  }
+  
+  return { type: 'conversation', confidence: 0.6, reason: 'Conversa normal' };
+}

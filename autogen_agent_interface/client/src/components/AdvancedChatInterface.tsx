@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Streamdown } from 'streamdown';
+import { trpc } from '@/lib/trpc';
+import { detectIntent, extractEntities, type IntentResult } from '@/utils/intentDetector';
 
 interface Message {
   id: string;
@@ -12,6 +14,7 @@ interface Message {
   timestamp: Date;
   agentName?: string;
   isStreaming?: boolean;
+  intent?: IntentResult;
 }
 
 export function AdvancedChatInterface() {
@@ -19,7 +22,7 @@ export function AdvancedChatInterface() {
     {
       id: '1',
       role: 'assistant',
-      content: '# Bem-vindo ao AutoGen Super Agent!\n\nSou seu assistente de IA colaborativo, trabalhando com uma equipe de especialistas:\n\n- **Architect**: Desenha soluções\n- **Developer**: Implementa código\n- **Designer**: Cria interfaces\n- **Executor**: Executa tarefas\n\nComo posso ajudá-lo?',
+      content: '# Bem-vindo ao AutoGen Super Agent!\n\nSou seu assistente de IA colaborativo com **detecção de intenção inteligente**.\n\nPosso:\n\n- 💬 **Conversar** - Responder perguntas e manter diálogo\n- 🔧 **Agir** - Executar tarefas, criar arquivos, executar código\n- 🔍 **Buscar** - Pesquisar informações na web\n- 📝 **Gerar** - Criar código, documentos e conteúdo\n\n**Como usar:**\n- Para conversar: "O que é Python?" ou "Como funciona?"\n- Para ação: "Crie um arquivo..." ou "Execute o código..."\n- Para comando: "Faça isso..." ou "Rode o script..."\n\nComo posso ajudá-lo?',
       timestamp: new Date(),
       agentName: 'Super Agent',
     },
@@ -27,7 +30,11 @@ export function AdvancedChatInterface() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<number | undefined>();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // tRPC mutations
+  const chatProcess = trpc.chat.process.useMutation();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -44,31 +51,94 @@ export function AdvancedChatInterface() {
   };
 
   const handleSendMessage = async () => {
-    if (!inputValue.trim()) return;
+    if (!inputValue.trim() || isLoading) return;
+
+    // Detectar intenção no frontend (feedback visual imediato)
+    const intent = detectIntent(inputValue);
+    const entities = extractEntities(inputValue);
 
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: inputValue,
       timestamp: new Date(),
+      intent,
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = inputValue;
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate streaming response
-    setTimeout(() => {
+    try {
+      // Chamar backend real com tRPC
+      const result = await chatProcess.mutateAsync({
+        message: currentInput,
+        conversationId,
+      });
+
+      // Atualizar conversationId se foi criada uma nova
+      if (result.conversationId && !conversationId) {
+        setConversationId(result.conversationId);
+      }
+
+      // Adicionar mensagem de resposta
       const assistantMessage: Message = {
+        id: result.messageId.toString(),
+        role: 'assistant',
+        content: result.content,
+        timestamp: new Date(),
+        agentName: result.agentName,
+        intent: result.intent as IntentResult,
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Erro ao processar mensagem:', error);
+      
+      // Fallback: usar detecção de intenção local
+      let fallbackResponse: string;
+      let fallbackAgentName = 'Super Agent';
+      
+      if (intent.type === 'action' || intent.type === 'command') {
+        fallbackResponse = `🔧 **Ação Detectada** (Modo Offline)\n\n` +
+          `**Tipo**: ${intent.actionType || 'execução'}\n` +
+          `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n` +
+          `**Razão**: ${intent.reason}\n\n` +
+          `⚠️ Backend não disponível. Em modo offline, não posso executar ações.\n\n` +
+          `**Sua mensagem**: "${currentInput}"\n\n` +
+          `Para executar ações, certifique-se de que o backend está rodando.`;
+        fallbackAgentName = 'Executor Agent (Offline)';
+      } else if (intent.type === 'question') {
+        fallbackResponse = `💬 **Pergunta Detectada** (Modo Offline)\n\n` +
+          `**Sua pergunta**: "${currentInput}"\n\n` +
+          `⚠️ Backend não disponível. Em modo offline, posso apenas detectar sua intenção.\n\n` +
+          `**Tipo detectado**: Pergunta\n` +
+          `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n\n` +
+          `Para respostas completas, certifique-se de que o backend está rodando.`;
+        fallbackAgentName = 'Assistant Agent (Offline)';
+      } else {
+        fallbackResponse = `💭 **Conversa Detectada** (Modo Offline)\n\n` +
+          `**Sua mensagem**: "${currentInput}"\n\n` +
+          `⚠️ Backend não disponível. Em modo offline, posso apenas detectar sua intenção.\n\n` +
+          `**Tipo detectado**: Conversa\n` +
+          `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n\n` +
+          `Para respostas completas, certifique-se de que o backend está rodando.`;
+      }
+
+      const fallbackMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `## Análise da Solicitação\n\nVocê pediu: **"${inputValue}"**\n\n### Plano de Execução\n\n1. **Análise** - Entendendo os requisitos\n2. **Design** - Criando arquitetura\n3. **Implementação** - Desenvolvendo solução\n4. **Validação** - Testando resultados\n\n### Resultado\n\n\`\`\`javascript\n// Exemplo de código gerado\nconst resultado = await superAgent.execute({\n  tarefa: "${inputValue}",\n  prioridade: "alta",\n  timeout: 30000\n});\n\nconsole.log(resultado);\n\`\`\`\n\n**Status**: ✅ Concluído com sucesso!`,
+        content: fallbackResponse,
         timestamp: new Date(),
-        agentName: 'Super Agent',
+        agentName: fallbackAgentName,
+        intent,
       };
-      setMessages(prev => [...prev, assistantMessage]);
+
+      setMessages(prev => [...prev, fallbackMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   return (

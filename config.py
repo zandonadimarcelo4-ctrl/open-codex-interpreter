@@ -127,12 +127,21 @@ DEFAULT_CONFIG = {
 
 
 def get_config():
-    with get_db() as db:
-        config_entry = db.query(Config).order_by(Config.id.desc()).first()
-        return config_entry.data if config_entry else DEFAULT_CONFIG
+    try:
+        with get_db() as db:
+            config_entry = db.query(Config).order_by(Config.id.desc()).first()
+            return config_entry.data if config_entry else DEFAULT_CONFIG
+    except Exception as e:
+        log.warning(f"Could not load config from database: {e}. Using default config.")
+        return DEFAULT_CONFIG
 
 
-CONFIG_DATA = get_config()
+# Tentar carregar config, mas não falhar se o banco não estiver pronto
+try:
+    CONFIG_DATA = get_config()
+except Exception as e:
+    log.warning(f"Could not initialize config: {e}. Using default config.")
+    CONFIG_DATA = DEFAULT_CONFIG
 
 
 def get_config_value(config_path: str):

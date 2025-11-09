@@ -21,59 +21,21 @@ let autogenFramework: any = null;
  * Inicializar AutoGen Framework
  */
 export async function initializeAutoGen(): Promise<any> {
+  // Cachear framework para evitar inicializações repetidas
   if (autogenFramework) {
     return autogenFramework;
   }
 
-  try {
-    // Verificar se o módulo Python existe
-    // Tentar múltiplos caminhos possíveis
-    const possiblePaths = [
-      path.join(process.cwd(), "..", "super_agent"),
-      path.join(process.cwd(), "super_agent"),
-      path.join(__dirname, "..", "..", "..", "super_agent"),
-      path.join(__dirname, "..", "..", "super_agent"),
-    ];
-    
-    let pythonModulePath: string | null = null;
-    for (const possiblePath of possiblePaths) {
-      if (fs.existsSync(possiblePath)) {
-        pythonModulePath = possiblePath;
-        break;
-      }
-    }
-    
-    // Se não encontrar o módulo Python, ainda assim inicializar o framework
-    // O framework pode funcionar apenas com Ollama, sem precisar do módulo Python completo
-    if (!pythonModulePath) {
-      console.warn("[AutoGen] Módulo Python não encontrado, usando modo simplificado (apenas Ollama)");
-    } else {
-      console.log(`[AutoGen] Módulo Python encontrado em: ${pythonModulePath}`);
-    }
-
-    // Inicializar framework (modo simplificado - apenas Ollama)
-    // O AutoGen pode funcionar apenas com Ollama, sem precisar do módulo Python completo
-    console.log("[AutoGen] Framework inicializado (modo simplificado - Ollama)");
-    
-    autogenFramework = {
-      initialized: true,
-      model: DEFAULT_MODEL,
-      ollamaBaseUrl: OLLAMA_BASE_URL,
-      pythonModulePath: pythonModulePath || null,
-    };
-    
-    return autogenFramework;
-  } catch (error) {
-    console.error("[AutoGen] Erro ao inicializar:", error);
-    // Mesmo com erro, retornar framework simplificado se Ollama estiver disponível
-    autogenFramework = {
-      initialized: true,
-      model: DEFAULT_MODEL,
-      ollamaBaseUrl: OLLAMA_BASE_URL,
-      pythonModulePath: null,
-    };
-    return autogenFramework;
-  }
+  // Inicialização ultra-rápida: pular verificação de módulo Python
+  // O framework funciona apenas com Ollama, sem precisar do módulo Python
+  autogenFramework = {
+    initialized: true,
+    model: DEFAULT_MODEL,
+    ollamaBaseUrl: OLLAMA_BASE_URL,
+    pythonModulePath: null,
+  };
+  
+  return autogenFramework;
 }
 
 /**
@@ -749,13 +711,28 @@ async function callOllamaWithAutoGenPrompt(
         : "auto";
     }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
+    // Timeout de 10 segundos para evitar espera infinita
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error("Timeout: Ollama demorou mais de 10 segundos para responder");
+      }
+      throw error;
+    }
 
     if (!response.ok) {
       const errorText = await response.text();

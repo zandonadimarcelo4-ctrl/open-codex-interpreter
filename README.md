@@ -50,6 +50,37 @@ https://github.com/KillianLucas/open-interpreter/assets/63927363/37152071-680d-4
 pip install open-interpreter
 ```
 
+### Unified Dev Agent (Ollama + AutoGen + Open Interpreter)
+
+The repository now bundles a "Unified Dev Agent" that orchestrates DeepSeek-R1 running on [Ollama](https://ollama.ai/), Open Interpreter's execution engine, AutoGen's multi-agent coordination and persistent memory backed by [ChromaDB](https://docs.trychroma.com/).
+
+### Instalação local
+
+O fluxo unificado roda **100% localmente**. Para configurá-lo em um ambiente Python 3.10+ basta seguir os passos abaixo diretamente neste repositório:
+
+```shell
+git clone https://github.com/KillianLucas/open-interpreter.git open-interpreter
+cd open-interpreter
+python -m venv .venv
+source .venv/bin/activate  # No Windows use: .venv\Scripts\activate
+pip install --upgrade pip
+pip install -e .
+
+# Dependências opcionais para as integrações (rodam localmente)
+git clone https://github.com/VolksRat71/after-effects-mcp-vision.git integrations/after-effects-mcp-vision
+git clone https://github.com/microsoft/autogen.git integrations/autogen
+git clone https://github.com/microsoft/UFO.git integrations/ufo
+```
+
+Com o ambiente criado, garanta que o [Ollama](https://ollama.ai/download) esteja ativo localmente com o modelo `deepseek-r1` disponível. Em seguida execute o agente unificado utilizando o modo local do Open Interpreter:
+
+```shell
+unified-agent --after-effects integrations/after-effects-mcp-vision \
+              --ufo-workspace integrations/ufo
+```
+
+Forneça uma meta em linguagem natural, como *"Crie uma API Flask com rotas /add, /list e /delete"*. O agente irá planejar com o AutoGen (usando o servidor Ollama local), gerar código com o DeepSeek-R1, executar e validar o resultado via Open Interpreter local (`interpreter --local`) e registrar o contexto no ChromaDB para iterações futuras. As integrações do [After-Effects MCP Vision toolkit](https://github.com/VolksRat71/after-effects-mcp-vision) e do [Microsoft UFO](https://github.com/microsoft/UFO) mantêm o agente consciente dos ativos criativos e do estado do IDE.
+
 ### Terminal
 
 After installation, simply run `interpreter`:

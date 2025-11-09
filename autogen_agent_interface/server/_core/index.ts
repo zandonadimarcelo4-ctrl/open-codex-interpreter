@@ -72,14 +72,30 @@ async function startServer() {
         
         if (audioBuffer && audioBuffer.length > 0) {
           console.log("[TTS] ✅ Áudio gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
-          res.setHeader("Content-Type", "audio/wav");
+          
+          // Detectar formato do áudio baseado no conteúdo
+          // ElevenLabs retorna MP3, Piper retorna WAV
+          let contentType = "audio/wav"; // Padrão
+          if (audioBuffer[0] === 0xFF && audioBuffer[1] === 0xFB) {
+            // MP3 começa com FF FB
+            contentType = "audio/mpeg";
+            console.log("[TTS] Formato detectado: MP3 (ElevenLabs)");
+          } else if (audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49 && audioBuffer[2] === 0x46 && audioBuffer[3] === 0x46) {
+            // WAV começa com RIFF
+            contentType = "audio/wav";
+            console.log("[TTS] Formato detectado: WAV (Piper)");
+          }
+          
+          res.setHeader("Content-Type", contentType);
           res.setHeader("Content-Length", audioBuffer.length.toString());
+          res.setHeader("Accept-Ranges", "bytes");
           res.send(audioBuffer);
         } else {
           console.error("[TTS] ❌ TTS não disponível - audioBuffer é null ou vazio");
           res.status(500).json({ 
             error: "TTS not available - ElevenLabs/Piper não configurado ou falhou",
-            details: "O áudio não foi gerado. Verifique se ElevenLabs está configurado ou se Piper TTS está instalado."
+            details: "O áudio não foi gerado. Verifique se ElevenLabs está configurado ou se Piper TTS está instalado.",
+            suggestion: "Verifique os logs do servidor para mais detalhes sobre o erro."
           });
         }
       } catch (ttsError) {

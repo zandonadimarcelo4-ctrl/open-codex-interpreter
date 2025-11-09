@@ -379,15 +379,34 @@ export const appRouter = router({
         let agentName = "Super Agent (AutoGen)";
         
         try {
-          // Importar função do AutoGen
-          const { executeWithAutoGen } = await import("./utils/autogen");
+          // Tentar usar Super Agent Framework Python (com todas as funcionalidades)
+          let useSuperAgent = false;
+          try {
+            const { executeWithSuperAgent, checkSuperAgentAvailable } = await import("./utils/super_agent_bridge");
+            useSuperAgent = await checkSuperAgentAvailable();
+            
+            if (useSuperAgent) {
+              // Usar Super Agent Framework Python (com AutoGen, Open Interpreter, UFO, Multimodal, ChromaDB, etc.)
+              response = await executeWithSuperAgent(
+                input.message,
+                intent,
+                { conversationId, userId }
+              );
+            }
+          } catch (error) {
+            console.warn("[Chat] Super Agent Framework não disponível, usando fallback:", error);
+            useSuperAgent = false;
+          }
           
-          // Executar usando AutoGen
-          response = await executeWithAutoGen(
-            input.message,
-            intent,
-            { conversationId, userId }
-          );
+          // Fallback: usar AutoGen simplificado (apenas Ollama)
+          if (!useSuperAgent) {
+            const { executeWithAutoGen } = await import("./utils/autogen");
+            response = await executeWithAutoGen(
+              input.message,
+              intent,
+              { conversationId, userId }
+            );
+          }
           
           // Adicionar contexto da intenção detectada
           if (intent.type === "action" || intent.type === "command") {

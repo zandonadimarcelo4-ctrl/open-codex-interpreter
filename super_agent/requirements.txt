@@ -6,8 +6,10 @@ pyautogen>=0.2.0
 # Open Interpreter
 open-interpreter>=0.1.0
 
-# Voice (TTS) - Coqui TTS (XTTS) para voz realista
-# Coqui TTS é o melhor TTS open source realista
+# Voice (TTS) - ElevenLabs API (PRIORIDADE) para voz ultra-realista
+aiohttp>=3.8.0
+requests>=2.31.0
+# Coqui TTS (XTTS) para voz realista open source
 TTS>=0.22.0
 # Fallbacks
 edge-tts>=6.1.0

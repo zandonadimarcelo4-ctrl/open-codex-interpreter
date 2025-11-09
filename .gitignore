@@ -17,3 +17,10 @@ env/
 *.pyo
 *.pyd
 .Python
+
+# Temporary files
+temp_*.py
+*_temp_*.py
+temp_audio/
+temp_jarvis_audio.*
+workspace/

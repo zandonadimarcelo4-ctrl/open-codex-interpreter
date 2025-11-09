@@ -22,37 +22,60 @@ export async function initializeAutoGen(): Promise<any> {
   }
 
   try {
-    // Importar SuperAgentFramework do Python
-    const { exec } = require("child_process");
-    const execAsync = promisify(exec);
-    
     // Verificar se o módulo Python existe
-    const pythonModulePath = path.join(process.cwd(), "..", "super_agent");
-    if (!fs.existsSync(pythonModulePath)) {
-      console.warn("[AutoGen] Módulo Python não encontrado, usando fallback");
-      return null;
+    // Tentar múltiplos caminhos possíveis
+    const possiblePaths = [
+      path.join(process.cwd(), "..", "super_agent"),
+      path.join(process.cwd(), "super_agent"),
+      path.join(__dirname, "..", "..", "..", "super_agent"),
+      path.join(__dirname, "..", "..", "super_agent"),
+    ];
+    
+    let pythonModulePath: string | null = null;
+    for (const possiblePath of possiblePaths) {
+      if (fs.existsSync(possiblePath)) {
+        pythonModulePath = possiblePath;
+        break;
+      }
+    }
+    
+    // Se não encontrar o módulo Python, ainda assim inicializar o framework
+    // O framework pode funcionar apenas com Ollama, sem precisar do módulo Python completo
+    if (!pythonModulePath) {
+      console.warn("[AutoGen] Módulo Python não encontrado, usando modo simplificado (apenas Ollama)");
+    } else {
+      console.log(`[AutoGen] Módulo Python encontrado em: ${pythonModulePath}`);
     }
 
-    // Por enquanto, usar uma abordagem simplificada
-    // Em produção, usar comunicação via API ou IPC
-    console.log("[AutoGen] Framework inicializado (modo simplificado)");
+    // Inicializar framework (modo simplificado - apenas Ollama)
+    // O AutoGen pode funcionar apenas com Ollama, sem precisar do módulo Python completo
+    console.log("[AutoGen] Framework inicializado (modo simplificado - Ollama)");
     
     autogenFramework = {
       initialized: true,
       model: DEFAULT_MODEL,
       ollamaBaseUrl: OLLAMA_BASE_URL,
+      pythonModulePath: pythonModulePath || null,
     };
     
     return autogenFramework;
   } catch (error) {
     console.error("[AutoGen] Erro ao inicializar:", error);
-    return null;
+    // Mesmo com erro, retornar framework simplificado se Ollama estiver disponível
+    autogenFramework = {
+      initialized: true,
+      model: DEFAULT_MODEL,
+      ollamaBaseUrl: OLLAMA_BASE_URL,
+      pythonModulePath: null,
+    };
+    return autogenFramework;
   }
 }
 
 /**
  * Executar tarefa usando AutoGen
  * AutoGen orquestra todos os agentes baseado na intenção
+ * Suporta execução de código e análise de imagens
  */
 export async function executeWithAutoGen(
   task: string,
@@ -60,6 +83,35 @@ export async function executeWithAutoGen(
   context?: Record<string, any>
 ): Promise<string> {
   try {
+    // Verificar disponibilidade primeiro
+    const availability = await checkAutoGenAvailable();
+    if (!availability.available) {
+      // Construir mensagem de erro detalhada
+      let errorMessage = `⚠️ **AutoGen não disponível**\n\n`;
+      errorMessage += `**Razão**: ${availability.reason || "Desconhecida"}\n\n`;
+      
+      if (availability.details) {
+        if (availability.details.suggestion) {
+          errorMessage += `**Solução**: ${availability.details.suggestion}\n\n`;
+        }
+        if (availability.details.ollama_url) {
+          errorMessage += `**Ollama URL**: ${availability.details.ollama_url}\n\n`;
+        }
+        if (availability.details.model) {
+          errorMessage += `**Modelo**: ${availability.details.model}\n\n`;
+        }
+      }
+      
+      errorMessage += `**Para resolver:**\n`;
+      errorMessage += `1. Verifique se Ollama está rodando: \`ollama serve\`\n`;
+      errorMessage += `2. Verifique se o modelo está instalado: \`ollama pull ${DEFAULT_MODEL}\`\n`;
+      errorMessage += `3. Verifique se OLLAMA_BASE_URL está configurado corretamente\n`;
+      errorMessage += `4. Verifique se AutoGen está instalado: \`pip install pyautogen\`\n\n`;
+      errorMessage += `**Sua mensagem**: "${task}"`;
+      
+      throw new Error(errorMessage);
+    }
+
     // Inicializar AutoGen se necessário
     const framework = await initializeAutoGen();
     if (!framework) {
@@ -123,13 +175,44 @@ Sugira comandos diretos como:
 - "Busque informações sobre..."`;
     }
 
-    // Chamar Ollama DeepSeek-R1 com o prompt do AutoGen
-    const ollamaResponse = await callOllamaWithAutoGenPrompt(
+    // Extrair imagens do contexto se disponíveis
+    const images = context?.images || [];
+
+    // Chamar Ollama DeepSeek-R1 com o prompt do AutoGen e imagens
+    let ollamaResponse = await callOllamaWithAutoGenPrompt(
       systemPrompt,
       task,
       framework.model,
-      intent
+      intent,
+      images.length > 0 ? images : undefined
     );
+
+    // Se a resposta contém código, executar automaticamente
+    if (intent.type === "action" || intent.type === "command") {
+      const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
+      const codeBlocks = extractCodeBlocks(ollamaResponse);
+
+      if (codeBlocks.length > 0) {
+        // Executar código automaticamente
+        const executionResults = await executeCodeBlocks(codeBlocks, {
+          autoApprove: true,
+          timeout: 30000,
+        });
+
+        // Adicionar resultados da execução à resposta
+        const executionOutput = executionResults
+          .map((result, idx) => {
+            if (result.success) {
+              return `\n\n**Execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
+            } else {
+              return `\n\n**Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
+            }
+          })
+          .join("\n");
+
+        ollamaResponse += executionOutput;
+      }
+    }
 
     return ollamaResponse;
   } catch (error) {
@@ -139,29 +222,52 @@ Sugira comandos diretos como:
 }
 
 /**
- * Chamar Ollama com prompt do AutoGen
+ * Chamar Ollama com prompt do AutoGen e suporte a imagens
  */
 async function callOllamaWithAutoGenPrompt(
   systemPrompt: string,
   userMessage: string,
   model: string,
-  intent: { type: string; actionType?: string; confidence: number }
+  intent: { type: string; actionType?: string; confidence: number },
+  images?: string[] // URLs base64 de imagens
 ): Promise<string> {
   try {
     const url = `${OLLAMA_BASE_URL}/api/chat`;
     
+    // Construir mensagens com suporte a imagens
+    const messages: any[] = [
+      {
+        role: "system",
+        content: systemPrompt,
+      },
+    ];
+
+    // Se houver imagens, adicionar como mensagem multimodal
+    if (images && images.length > 0) {
+      const imageContents = images.map((imageUrl) => ({
+        type: "image_url",
+        image_url: {
+          url: imageUrl,
+        },
+      }));
+
+      messages.push({
+        role: "user",
+        content: [
+          { type: "text", text: userMessage },
+          ...imageContents,
+        ],
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: userMessage,
+      });
+    }
+
     const requestBody = {
       model,
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt,
-        },
-        {
-          role: "user",
-          content: userMessage,
-        },
-      ],
+      messages,
       stream: false,
       options: {
         temperature: intent.type === "action" ? 0.3 : 0.7,
@@ -192,14 +298,134 @@ async function callOllamaWithAutoGenPrompt(
 }
 
 /**
+ * Verificar se Ollama está disponível
+ */
+export async function checkOllamaAvailable(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos de timeout
+    
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn("[AutoGen] Ollama não respondeu a tempo (timeout)");
+    } else {
+      console.warn("[AutoGen] Ollama não disponível:", error);
+    }
+    return false;
+  }
+}
+
+/**
+ * Verificar se o modelo está instalado
+ */
+export async function checkModelAvailable(model: string = DEFAULT_MODEL): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos de timeout
+    
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/tags`, {
+      method: "GET",
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) {
+      return false;
+    }
+    
+    const data = await response.json();
+    const models = data.models || [];
+    
+    // Verificar se o modelo está instalado (pode ser "deepseek-r1", "deepseek-r1:8b", "deepseek-r1:latest", etc.)
+    const modelFound = models.some((m: any) => {
+      const modelName = m.name || "";
+      // Aceitar exatamente o nome, ou variações com tag (ex: "deepseek-r1:8b", "deepseek-r1:latest")
+      return modelName === model || 
+             modelName.startsWith(`${model}:`) ||
+             modelName.includes(model);
+    });
+    
+    if (!modelFound) {
+      console.warn(`[AutoGen] Modelo '${model}' não encontrado. Modelos disponíveis:`, models.map((m: any) => m.name));
+    } else {
+      const foundModel = models.find((m: any) => {
+        const modelName = m.name || "";
+        return modelName === model || modelName.startsWith(`${model}:`) || modelName.includes(model);
+      });
+      console.log(`[AutoGen] Modelo encontrado: ${foundModel?.name || model}`);
+    }
+    
+    return modelFound;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn("[AutoGen] Timeout ao verificar modelo");
+    } else {
+      console.warn("[AutoGen] Erro ao verificar modelo:", error);
+    }
+    return false;
+  }
+}
+
+/**
  * Verificar se AutoGen está disponível
  */
-export async function checkAutoGenAvailable(): Promise<boolean> {
+export async function checkAutoGenAvailable(): Promise<{ available: boolean; reason?: string; details?: any }> {
   try {
+    // Verificar Ollama primeiro
+    const ollamaAvailable = await checkOllamaAvailable();
+    if (!ollamaAvailable) {
+      return {
+        available: false,
+        reason: "Ollama não está rodando",
+        details: {
+          ollama_url: OLLAMA_BASE_URL,
+          suggestion: "Execute 'ollama serve' para iniciar o Ollama",
+        },
+      };
+    }
+
+    // Verificar modelo
+    const modelAvailable = await checkModelAvailable();
+    if (!modelAvailable) {
+      return {
+        available: false,
+        reason: `Modelo '${DEFAULT_MODEL}' não está instalado`,
+        details: {
+          model: DEFAULT_MODEL,
+          suggestion: `Execute 'ollama pull ${DEFAULT_MODEL}' para instalar o modelo`,
+        },
+      };
+    }
+
+    // Verificar framework
+    // O framework pode funcionar apenas com Ollama, sem precisar do módulo Python completo
     const framework = await initializeAutoGen();
-    return framework !== null;
+    if (!framework || !framework.initialized) {
+      return {
+        available: false,
+        reason: "AutoGen Framework não inicializado",
+        details: {
+          suggestion: "Verifique se Ollama está rodando e o modelo está instalado",
+        },
+      };
+    }
+
+    // Se chegou até aqui, Ollama está rodando, modelo está instalado e framework está inicializado
+    return { available: true };
   } catch (error) {
-    return false;
+    return {
+      available: false,
+      reason: error instanceof Error ? error.message : "Erro desconhecido",
+      details: { error },
+    };
   }
 }
 

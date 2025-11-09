@@ -7,6 +7,10 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { ChatWebSocketServer } from "../utils/websocket";
+import { backgroundWorker } from "./services/backgroundWorker";
+import { resourceManager } from "./services/resourceManager";
+import { modelLoader } from "./services/modelLoader";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -35,6 +39,45 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  
+  // TTS API endpoint
+  app.post("/api/tts", async (req, res) => {
+    try {
+      console.log("[TTS] Requisição recebida:", req.body.text?.substring(0, 50) + "...");
+      
+      const { generateTTS } = await import("../utils/tts_backend");
+      const { text } = req.body;
+      
+      if (!text) {
+        console.error("[TTS] ❌ Texto não fornecido");
+        return res.status(400).json({ error: "Text is required" });
+      }
+      
+      console.log("[TTS] 🎙️ Gerando áudio com ElevenLabs/Piper...");
+      
+      try {
+        const audioBuffer = await generateTTS(text, "pt-BR");
+        
+        if (audioBuffer) {
+          console.log("[TTS] ✅ Áudio gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
+          res.setHeader("Content-Type", "audio/wav");
+          res.send(audioBuffer);
+        } else {
+          console.error("[TTS] ❌ TTS não disponível - audioBuffer é null");
+          res.status(500).json({ error: "TTS not available - ElevenLabs/Piper não configurado" });
+        }
+      } catch (ttsError) {
+        console.error("[TTS] ❌ Erro ao gerar TTS:", ttsError);
+        res.status(500).json({ 
+          error: `TTS error: ${ttsError instanceof Error ? ttsError.message : String(ttsError)}` 
+        });
+      }
+    } catch (error) {
+      console.error("[TTS] ❌ Erro:", error);
+      res.status(500).json({ error: `Internal server error: ${error instanceof Error ? error.message : String(error)}` });
+    }
+  });
+  
   // tRPC API
   app.use(
     "/api/trpc",
@@ -57,8 +100,29 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
+  // Inicializar WebSocket Server
+  const wsServer = new ChatWebSocketServer(server);
+
+  // Inicializar Background Worker 24/7
+  backgroundWorker.start();
+  console.log('🚀 Background Worker 24/7 iniciado - "He works while you sleep"');
+
+  // Inicializar Resource Manager (Otimizado para RTX 4080 Super)
+  resourceManager.startMonitoring();
+  console.log('🔍 Resource Manager iniciado - Otimizado para RTX 4080 Super 16GB VRAM');
+
+  // Pré-carregar modelo padrão (DeepSeek R1) na VRAM para acesso rápido
+  const defaultModel = process.env.DEFAULT_MODEL || 'deepseek-r1';
+  modelLoader.preloadModel(defaultModel).catch(err => {
+    console.warn(`⚠️ Não foi possível pré-carregar modelo ${defaultModel}:`, err);
+  });
+
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    console.log(`WebSocket server running on ws://localhost:${port}/ws`);
+    console.log(`Background Worker: ${backgroundWorker.isWorkerRunning() ? '✅ Running' : '❌ Stopped'}`);
+    console.log(`Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
+    console.log(`VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
   });
 }
 

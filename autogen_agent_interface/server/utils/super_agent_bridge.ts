@@ -26,7 +26,9 @@ export async function executeWithSuperAgent(
     }
 
     // Criar script Python temporário para executar
-    const scriptPath = path.join(process.cwd(), "temp_super_agent_exec.py");
+    // Usar diretório temporário do sistema para evitar que o file watcher detecte mudanças
+    const tempDir = os.tmpdir();
+    const scriptPath = path.join(tempDir, `temp_super_agent_exec_${Date.now()}_${Math.random().toString(36).substring(7)}.py`);
     const scriptContent = `
 import sys
 import os
@@ -113,11 +115,14 @@ if __name__ == "__main__":
       });
 
       pythonProcess.on("close", (code) => {
-        // Limpar script temporário
+        // Limpar script temporário (sempre, mesmo em caso de erro)
         try {
-          fs.unlinkSync(scriptPath);
+          if (fs.existsSync(scriptPath)) {
+            fs.unlinkSync(scriptPath);
+          }
         } catch (e) {
           // Ignorar erro de limpeza
+          console.warn(`[SuperAgent] Não foi possível limpar arquivo temporário: ${scriptPath}`);
         }
 
         if (code !== 0) {
@@ -149,6 +154,14 @@ if __name__ == "__main__":
 
       pythonProcess.on("error", (error) => {
         console.error("[SuperAgent] Erro ao iniciar processo Python:", error);
+        // Limpar script temporário em caso de erro
+        try {
+          if (fs.existsSync(scriptPath)) {
+            fs.unlinkSync(scriptPath);
+          }
+        } catch (e) {
+          // Ignorar erro de limpeza
+        }
         reject(error);
       });
     });

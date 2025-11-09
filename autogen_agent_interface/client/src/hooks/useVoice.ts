@@ -1,0 +1,415 @@
+/**
+ * Hook para Voz Jarvis (TTS) e Speech-to-Text (STT)
+ */
+import { useState, useRef, useCallback, useEffect } from 'react';
+
+export interface UseVoiceOptions {
+  ttsEnabled?: boolean;
+  sttEnabled?: boolean;
+  onTextReceived?: (text: string) => void;
+  onAudioReady?: (audioUrl: string) => void;
+}
+
+export function useVoice(options: UseVoiceOptions = {}) {
+  const {
+    ttsEnabled = true,
+    sttEnabled = true,
+    onTextReceived,
+    onAudioReady,
+  } = options;
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+
+  // Inicializar áudio element
+  useEffect(() => {
+    audioElementRef.current = new Audio();
+    audioElementRef.current.onended = () => setIsSpeaking(false);
+    audioElementRef.current.onerror = () => {
+      setIsSpeaking(false);
+      setError('Erro ao reproduzir áudio');
+    };
+
+    return () => {
+      if (audioElementRef.current) {
+        audioElementRef.current.pause();
+        audioElementRef.current = null;
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close();
+        audioContextRef.current = null;
+      }
+    };
+  }, []);
+
+  /**
+   * Reproduzir áudio TTS (Text-to-Speech)
+   */
+  const speak = useCallback(async (text: string) => {
+    if (!ttsEnabled || !text.trim()) return;
+
+    try {
+      setIsSpeaking(true);
+      setError(null);
+
+      // Usar APENAS API de TTS do backend (ElevenLabs/Piper)
+      console.log('🎙️ Tentando usar API de TTS do backend (ElevenLabs/Piper)...');
+      
+      try {
+        const response = await fetch('/api/tts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ text }),
+        });
+
+        if (response.ok) {
+          const audioBlob = await response.blob();
+          const audioUrl = URL.createObjectURL(audioBlob);
+
+          console.log('✅ Áudio recebido do backend TTS (ElevenLabs/Piper)');
+
+          if (audioElementRef.current) {
+            audioElementRef.current.src = audioUrl;
+            audioElementRef.current.onended = () => {
+              setIsSpeaking(false);
+              URL.revokeObjectURL(audioUrl);
+            };
+            audioElementRef.current.onerror = () => {
+              setIsSpeaking(false);
+              setError('Erro ao reproduzir áudio');
+              URL.revokeObjectURL(audioUrl);
+            };
+            await audioElementRef.current.play();
+            onAudioReady?.(audioUrl);
+            return;
+          }
+        } else {
+          const errorText = await response.text();
+          console.error('❌ Erro na API de TTS:', response.status, errorText);
+          setError(`Erro na API de TTS: ${response.status} - ${errorText}`);
+          throw new Error(`API de TTS retornou erro: ${response.status}`);
+        }
+      } catch (apiError) {
+        console.error('❌ Erro ao chamar API de TTS:', apiError);
+        setError('Erro ao chamar API de TTS. Verifique se o backend está rodando e se ElevenLabs está configurado.');
+        throw apiError; // Não usar fallback - forçar uso do backend
+      }
+
+      // REMOVIDO: Fallback para Web Speech API (soa como Google Tradutor)
+      // Usar APENAS ElevenLabs/Piper do backend
+      throw new Error('TTS não disponível: API do backend não respondeu corretamente');
+      
+      // CÓDIGO COMENTADO - Não usar Web Speech API
+      /*
+      // Fallback para Web Speech API
+          if ('speechSynthesis' in window) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'pt-BR';  // FORÇAR português brasileiro
+            utterance.rate = 0.92;  // Ligeiramente mais lento para soar mais natural
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            
+            // Tentar usar voz neural mais natural se disponível
+            const voices = window.speechSynthesis.getVoices();
+            // Priorizar vozes neurais brasileiras
+            const ptBRVoice = voices.find((v: SpeechSynthesisVoice) => 
+              v.lang === 'pt-BR' && (v.name.includes('Neural') || v.name.includes('Google') || v.name.includes('Brazil'))
+            ) || voices.find((v: SpeechSynthesisVoice) => 
+              v.lang.startsWith('pt-BR')
+            ) || voices.find((v: SpeechSynthesisVoice) => 
+              v.lang.startsWith('pt')
+            );
+            if (ptBRVoice) {
+              utterance.voice = ptBRVoice;
+              utterance.lang = ptBRVoice.lang;  // Usar idioma da voz selecionada
+            }
+        
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = (err) => {
+          console.error('Erro na Web Speech API:', err);
+          setError('Erro ao reproduzir áudio com Web Speech API');
+          setIsSpeaking(false);
+        };
+        
+        window.speechSynthesis.speak(utterance);
+      } else {
+        throw new Error('TTS não disponível: API não encontrada e Web Speech API não suportada');
+      }
+      */
+    } catch (err) {
+      console.error('Erro ao falar:', err);
+      setError(err instanceof Error ? err.message : 'Erro ao reproduzir áudio');
+      setIsSpeaking(false);
+    }
+  }, [ttsEnabled, onAudioReady]);
+
+  /**
+   * Parar de falar
+   */
+  const stopSpeaking = useCallback(() => {
+    if (audioElementRef.current) {
+      audioElementRef.current.pause();
+      audioElementRef.current.currentTime = 0;
+    }
+    
+    // Parar Web Speech API se estiver em uso
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    
+    setIsSpeaking(false);
+  }, []);
+
+  /**
+   * Verificar permissão de microfone
+   */
+  const checkMicrophonePermission = useCallback(async (): Promise<boolean> => {
+    try {
+      // Verificar se a API está disponível
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError('API de mídia não suportada neste navegador');
+        return false;
+      }
+
+      // Verificar permissão
+      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      
+      if (permissionStatus.state === 'denied') {
+        setError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador.');
+        return false;
+      }
+
+      return true;
+    } catch (err) {
+      // Se a API de permissões não estiver disponível, tentar acessar diretamente
+      console.warn('Não foi possível verificar permissão:', err);
+      return true;
+    }
+  }, []);
+
+  /**
+   * Iniciar gravação de voz (STT)
+   */
+  const startListening = useCallback(async () => {
+    if (!sttEnabled || isRecording) return;
+
+    try {
+      setError(null);
+
+      // Verificar permissão primeiro
+      const hasPermission = await checkMicrophonePermission();
+      if (!hasPermission) {
+        return;
+      }
+
+      // Solicitar acesso ao microfone
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          } 
+        });
+      } catch (err: any) {
+        // Tratar erros específicos de permissão
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
+          return;
+        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+          setError('Nenhum microfone encontrado. Verifique se o microfone está conectado.');
+          return;
+        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+          setError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
+          return;
+        } else {
+          throw err;
+        }
+      }
+
+      // Verificar se MediaRecorder está disponível
+      if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        // Fallback para outros formatos
+        const mimeTypes = [
+          'audio/webm;codecs=opus',
+          'audio/webm',
+          'audio/ogg;codecs=opus',
+          'audio/mp4',
+        ];
+        
+        let supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+        if (!supportedMimeType) {
+          setError('Formato de áudio não suportado neste navegador');
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: supportedMimeType,
+        });
+
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          try {
+            const audioBlob = new Blob(audioChunksRef.current, { type: supportedMimeType || 'audio/webm' });
+            
+            // Enviar para API de STT
+            const formData = new FormData();
+            formData.append('audio', audioBlob, `recording.${supportedMimeType?.split('/')[1]?.split(';')[0] || 'webm'}`);
+
+            const response = await fetch('/api/stt', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error('Erro ao processar áudio');
+            }
+
+            const data = await response.json();
+            if (data.text) {
+              onTextReceived?.(data.text);
+            } else {
+              setError('Não foi possível transcrever o áudio. Tente novamente.');
+            }
+          } catch (err) {
+            console.error('Erro ao processar áudio:', err);
+            setError(err instanceof Error ? err.message : 'Erro ao processar áudio');
+          } finally {
+            // Parar todas as tracks
+            stream.getTracks().forEach(track => track.stop());
+            setIsRecording(false);
+            setIsListening(false);
+          }
+        };
+
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+        setIsRecording(true);
+        setIsListening(true);
+      } else {
+        const mediaRecorder = new MediaRecorder(stream, {
+          mimeType: 'audio/webm;codecs=opus',
+        });
+
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          try {
+            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+            
+            // Enviar para API de STT
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.webm');
+
+            const response = await fetch('/api/stt', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (!response.ok) {
+              throw new Error('Erro ao processar áudio');
+            }
+
+            const data = await response.json();
+            if (data.text) {
+              onTextReceived?.(data.text);
+            } else {
+              setError('Não foi possível transcrever o áudio. Tente novamente.');
+            }
+          } catch (err) {
+            console.error('Erro ao processar áudio:', err);
+            setError(err instanceof Error ? err.message : 'Erro ao processar áudio');
+          } finally {
+            // Parar todas as tracks
+            stream.getTracks().forEach(track => track.stop());
+            setIsRecording(false);
+            setIsListening(false);
+          }
+        };
+
+        mediaRecorder.start();
+        mediaRecorderRef.current = mediaRecorder;
+        setIsRecording(true);
+        setIsListening(true);
+      }
+    } catch (err) {
+      console.error('Erro ao iniciar gravação:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao acessar microfone';
+      
+      // Mensagens mais específicas
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
+        setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
+      } else if (errorMessage.includes('NotFoundError')) {
+        setError('Nenhum microfone encontrado. Verifique se o microfone está conectado.');
+      } else {
+        setError(errorMessage);
+      }
+      
+      setIsRecording(false);
+      setIsListening(false);
+    }
+  }, [sttEnabled, isRecording, onTextReceived, checkMicrophonePermission]);
+
+  /**
+   * Parar gravação de voz
+   */
+  const stopListening = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  }, [isRecording]);
+
+  /**
+   * Toggle gravação
+   */
+  const toggleListening = useCallback(() => {
+    if (isRecording) {
+      stopListening();
+    } else {
+      startListening();
+    }
+  }, [isRecording, startListening, stopListening]);
+
+  return {
+    // TTS
+    speak,
+    stopSpeaking,
+    isSpeaking,
+    
+    // STT
+    startListening,
+    stopListening,
+    toggleListening,
+    isRecording,
+    isListening,
+    
+    // Estado
+    error,
+  };
+}
+

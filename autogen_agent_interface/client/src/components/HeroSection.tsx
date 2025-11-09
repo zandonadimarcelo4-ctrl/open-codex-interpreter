@@ -1,26 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowRight, Sparkles, Zap, Brain, Play, Check, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { FloatingOrb } from './FloatingOrb';
 import { GlassCard } from './GlassCard';
-import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 export function HeroSection() {
   const [isVisible, setIsVisible] = useState(false);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"]
-  });
-
-  const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
-  const scale = useTransform(scrollYProgress, [0, 0.5], [1, 0.98]);
-  const y = useTransform(scrollYProgress, [0, 0.5], [0, 30]);
-  
-  // Smooth spring animations
-  const springConfig = { stiffness: 100, damping: 30, restDelta: 0.001 };
-  const smoothY = useSpring(y, springConfig);
-  const smoothOpacity = useSpring(opacity, springConfig);
 
   useEffect(() => {
     setIsVisible(true);
@@ -40,8 +26,9 @@ export function HeroSection() {
 
   return (
     <motion.div
-      ref={heroRef}
-      style={{ opacity: smoothOpacity, scale, y: smoothY }}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: isVisible ? 1 : 0 }}
+      transition={{ duration: 0.8 }}
       className="relative min-h-screen flex items-center justify-center overflow-hidden"
     >
       {/* Premium Apple-style Gradient Background */}

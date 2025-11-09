@@ -123,32 +123,31 @@ export async function executeWithAutoGen(
       throw new Error("AutoGen não disponível");
     }
 
-    // Construir prompt baseado na intenção
+    // Construir prompt baseado na intenção - estilo Open Interpreter
     let systemPrompt = "";
     let agentName = "Super Agent";
     
     if (intent.type === "action" || intent.type === "command") {
-      systemPrompt = `Você é um agente executor controlado pelo AutoGen Framework.
-O AutoGen orquestra todos os agentes especializados:
-- Planner: Planeja a execução
-- Generator: Gera código e soluções
-- Critic: Revisa e valida
-- Executor: Executa tarefas
-- Browser: Navega na web
-- Video Editor: Edita vídeos
-- UFO: Automa GUI
-- Multimodal: Processa imagens/vídeos/áudio
+      systemPrompt = `Você é Open Interpreter, um programador de classe mundial que pode completar qualquer objetivo executando código.
 
-O usuário quer que você AJA e FAÇA algo.
+Você tem acesso a um ambiente de execução de código local. Quando o usuário pede algo que requer código, você DEVE:
+1. Gerar o código necessário
+2. Executar o código automaticamente
+3. Mostrar o resultado
+4. Iterar se necessário
+
+REGRAS IMPORTANTES:
+- SEMPRE execute código quando necessário - não apenas explique como fazer
+- Use function calling para executar código automaticamente
+- Mostre o código que você está executando
+- Se o código falhar, tente corrigir e executar novamente
+- Seja direto e objetivo - execute, não apenas explique
+
 Intenção detectada: ${intent.actionType || "execução"}
 Confiança: ${(intent.confidence * 100).toFixed(0)}%
 
-O AutoGen vai coordenar os agentes necessários para executar esta ação.
-Responda de forma direta e prática, focando em executar a ação solicitada.
-Se a ação requer código, forneça código executável.
-Se a ação requer criação de arquivos, forneça o conteúdo completo.
-Seja objetivo e eficiente.`;
-      agentName = "Executor Agent (AutoGen)";
+EXECUTE o código automaticamente quando o usuário pedir para fazer algo.`;
+      agentName = "Open Interpreter (AutoGen)";
     } else if (intent.type === "question") {
       systemPrompt = `Você é um assistente controlado pelo AutoGen Framework.
 O AutoGen orquestra todos os agentes especializados para fornecer respostas completas.
@@ -192,13 +191,14 @@ Sugira comandos diretos como:
       images.length > 0 ? images : undefined
     );
 
-    // Se a resposta contém código, executar automaticamente
+    // Se a resposta contém código e não foi executado via function calling, executar automaticamente
     if (intent.type === "action" || intent.type === "command") {
       const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
       const codeBlocks = extractCodeBlocks(ollamaResponse);
 
-      if (codeBlocks.length > 0) {
-        // Executar código automaticamente
+      // Só executar se não foi executado via function calling
+      if (codeBlocks.length > 0 && !ollamaResponse.includes("✅ Código executado")) {
+        // Executar código automaticamente (estilo Open Interpreter)
         const executionResults = await executeCodeBlocks(codeBlocks, {
           autoApprove: true,
           timeout: 30000,
@@ -208,9 +208,9 @@ Sugira comandos diretos como:
         const executionOutput = executionResults
           .map((result, idx) => {
             if (result.success) {
-              return `\n\n**Execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
+              return `\n\n**✅ Código ${idx + 1} executado (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
             } else {
-              return `\n\n**Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
+              return `\n\n**❌ Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
             }
           })
           .join("\n");
@@ -270,16 +270,47 @@ async function callOllamaWithAutoGenPrompt(
       });
     }
 
-    const requestBody = {
+    // Function calling para execução automática de código (estilo Open Interpreter)
+    const tools = intent.type === "action" || intent.type === "command" ? [
+      {
+        type: "function",
+        function: {
+          name: "run_code",
+          description: "Executa código automaticamente. Use esta função sempre que precisar executar código para completar a tarefa do usuário.",
+          parameters: {
+            type: "object",
+            properties: {
+              language: {
+                type: "string",
+                description: "Linguagem do código (python, javascript, shell, etc.)",
+                enum: ["python", "javascript", "shell", "bash"]
+              },
+              code: {
+                type: "string",
+                description: "O código a ser executado"
+              }
+            },
+            required: ["language", "code"]
+          }
+        }
+      }
+    ] : undefined;
+
+    const requestBody: any = {
       model,
       messages,
       stream: false,
       options: {
-        temperature: intent.type === "action" ? 0.3 : 0.7,
+        temperature: intent.type === "action" ? 0.2 : 0.7,
         top_p: 0.9,
-        num_predict: intent.type === "action" ? 2000 : 1000,
+        num_predict: intent.type === "action" ? 4000 : 1000,
       },
     };
+
+    if (tools) {
+      requestBody.tools = tools;
+      requestBody.tool_choice = "auto"; // Forçar uso de function calling quando disponível
+    }
 
     const response = await fetch(url, {
       method: "POST",
@@ -295,7 +326,41 @@ async function callOllamaWithAutoGenPrompt(
     }
 
     const data = await response.json();
-    return data.message.content;
+    let responseContent = data.message.content || "";
+    
+    // Se houver function calls, executar automaticamente (estilo Open Interpreter)
+    if (data.message.tool_calls && Array.isArray(data.message.tool_calls)) {
+      const { executeCode } = await import("./code_executor");
+      
+      for (const toolCall of data.message.tool_calls) {
+        if (toolCall.function?.name === "run_code") {
+          try {
+            const args = JSON.parse(toolCall.function.arguments || "{}");
+            const { language, code } = args;
+            
+            if (code) {
+              // Executar código automaticamente
+              const result = await executeCode(code, language, {
+                timeout: 30000,
+                workingDirectory: process.cwd(),
+              });
+              
+              // Adicionar resultado à resposta
+              if (result.success) {
+                responseContent += `\n\n**✅ Código executado (${language}):**\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Resultado:**\n\`\`\`\n${result.output}\n\`\`\``;
+              } else {
+                responseContent += `\n\n**❌ Erro na execução (${language}):**\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Erro:**\n\`\`\`\n${result.error}\n\`\`\``;
+              }
+            }
+          } catch (error) {
+            console.warn("[AutoGen] Erro ao executar function call:", error);
+            responseContent += `\n\n⚠️ Erro ao executar código: ${error instanceof Error ? error.message : String(error)}`;
+          }
+        }
+      }
+    }
+    
+    return responseContent;
   } catch (error) {
     console.error("[AutoGen] Erro ao chamar Ollama:", error);
     throw error;

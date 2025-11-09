@@ -620,9 +620,14 @@ Sugira comandos diretos como:
     const elapsed = Date.now() - startTime;
     console.log(`[AutoGen] ✅ Resposta recebida em ${elapsed}ms (${ollamaResponse.length} chars)`);
 
+    console.log(`[AutoGen] ✅ Retornando resposta final de executeWithAutoGen (${ollamaResponse.length} chars)`);
     return ollamaResponse;
   } catch (error) {
-    console.error("[AutoGen] Erro ao executar:", error);
+    console.error("[AutoGen] ❌ Erro ao executar:", error);
+    if (error instanceof Error) {
+      console.error("[AutoGen] ❌ Mensagem de erro:", error.message);
+      console.error("[AutoGen] ❌ Stack trace:", error.stack);
+    }
     throw error;
   }
 }

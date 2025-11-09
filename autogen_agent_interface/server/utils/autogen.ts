@@ -672,18 +672,18 @@ Sugira comandos diretos como:
         images.length > 0 ? images : undefined
       );
     } catch (error) {
-      console.warn(`[AutoGen] Erro ao usar modelo ${modelUsed}, tentando fallback gpt-oss:20b:`, error);
+      console.warn(`[AutoGen] Erro ao usar modelo ${modelUsed}, tentando fallback gpt-oss:20b-q4:`, error);
       try {
         ollamaResponse = await callOllamaWithAutoGenPrompt(
           systemPrompt,
           task,
-          "gpt-oss:20b",
+          "gpt-oss:20b-q4",
           intent,
           images.length > 0 ? images : undefined
         );
-        console.log(`[AutoGen] Usando fallback: gpt-oss:20b`);
+        console.log(`[AutoGen] Usando fallback: gpt-oss:20b-q4 (Q4 quantizado, ~8GB VRAM)`);
       } catch (fallbackError) {
-        console.error(`[AutoGen] Erro ao usar fallback gpt-oss:20b:`, fallbackError);
+        console.error(`[AutoGen] Erro ao usar fallback gpt-oss:20b-q4:`, fallbackError);
         throw error; // Lançar erro original
       }
     }

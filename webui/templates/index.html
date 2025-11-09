@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Unified Dev Agent Studio</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <main id="app">
+      <header class="hero" id="hero">
+        <div class="parallax-layer layer-gradient" data-depth="0.1"></div>
+        <div class="parallax-layer layer-grid" data-depth="0.18"></div>
+        <div class="parallax-layer layer-glow" data-depth="0.25"></div>
+        <div class="hero-content">
+          <span class="badge">Unified Dev Agent</span>
+          <h1>Construa experiências inteligentes com estética nível Apple.</h1>
+          <p>
+            Uma única central que orquestra DeepSeek via Ollama, AutoGen, Open
+            Interpreter e memória viva com ChromaDB. Totalmente local e com UI
+            cinematográfica.
+          </p>
+          <button id="cta" class="cta">Começar agora</button>
+        </div>
+      </header>
+
+      <section class="workspace" id="workspace">
+        <div class="workspace-panel">
+          <div class="panel-header">
+            <h2>Console inteligente</h2>
+            <p>Peça planos, automações e execuções em linguagem natural.</p>
+          </div>
+          <form id="prompt-form" class="prompt-form">
+            <label for="prompt" class="sr-only">Prompt</label>
+            <textarea
+              id="prompt"
+              class="prompt-input"
+              name="prompt"
+              rows="3"
+              placeholder="Descreva o que deseja construir..."
+              required
+            ></textarea>
+            <div class="form-actions">
+              <button type="submit" class="send-btn">Lançar missão</button>
+              <span id="status" class="status">Pronto</span>
+            </div>
+          </form>
+          <div id="timeline" class="timeline">
+            <article class="timeline-empty">
+              <h3>Sem limites.</h3>
+              <p>
+                Cada execução gera planos visuais, resultados detalhados e um
+                diário auditável — tudo disponível aqui.
+              </p>
+            </article>
+          </div>
+        </div>
+        <aside class="workspace-aside">
+          <div class="glass-card">
+            <h3>Observe &amp; Automate</h3>
+            <p>
+              O agente monitora gestos no IDE e replica fluxos automaticamente.
+            </p>
+          </div>
+          <div class="glass-card">
+            <h3>Multimodal Vision</h3>
+            <p>
+              Envie telas, voz e imagens. OCR e legendas instantâneas inclusas.
+            </p>
+          </div>
+          <div class="glass-card">
+            <h3>Auto-Fork Evolution</h3>
+            <p>
+              Detecta projetos úteis, faz fork, melhora e prepara PRs.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      <section class="reveal" id="features">
+        <div class="reveal-content">
+          <h2>Camadas de experiência com efeito parallax</h2>
+          <p>
+            Criamos uma UI delicadamente animada: cards em vidro, sombras suaves
+            e microinterações que lembram o acabamento dos produtos Apple. Use a
+            barra lateral para acompanhar notificações, recompensas e execuções
+            locais com feedback imediato.
+          </p>
+          <div class="feature-grid">
+            <div class="feature-card">
+              <span>🧠</span>
+              <h3>Auto-Context Memory</h3>
+              <p>
+                O contexto cresce com você: decisões, arquivos e histórico são
+                reaproveitados em novas iterações.
+              </p>
+            </div>
+            <div class="feature-card">
+              <span>🔍</span>
+              <h3>Busca Autônoma</h3>
+              <p>
+                Explore a web com Browser-Use sem sair da interface, trazendo
+                snippets direto para o fluxo.
+              </p>
+            </div>
+            <div class="feature-card">
+              <span>🎛️</span>
+              <h3>Plugin Layer</h3>
+              <p>
+                Conecte habilidades próprias ou da comunidade e execute com um
+                simples <code>plugin:nome</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="reveal-visual" id="reveal-visual">
+          <div class="orb"></div>
+          <div class="orb secondary"></div>
+        </div>
+      </section>
+    </main>
+    <script src="/static/js/app.js" type="module"></script>
+  </body>
+</html>

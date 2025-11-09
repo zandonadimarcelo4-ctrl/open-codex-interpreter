@@ -104,6 +104,33 @@ pip install pyautogui pynput pillow pytesseract speechrecognition sounddevice nu
 
 Instale `pytesseract` localmente conforme a documentação oficial para habilitar OCR. Para experimentar os recursos de planejamento, execute `unified-agent` normalmente e utilize prompts como "Planeje um roadmap de lançamento" ou prefixe uma habilidade com `plugin:minha_skill argumento` para invocar plugins.
 
+### CLI cinematográfica
+
+Execute o agente com `unified-agent` e descubra a nova interface inspirada em terminais futuristas. Ela utiliza [Rich](https://github.com/Textualize/rich) para apresentar um cabeçalho animado, linha do tempo viva e cartões coloridos com planos, resultados de pesquisa, execuções e notificações. Toda interação fica registrada na sessão, oferecendo uma visualização elegante dos passos do agente.
+
+```shell
+unified-agent
+```
+
+Use `Ctrl+C` para encerrar — um painel de despedida confirma o término das automações.
+
+### Unified Dev Agent Studio (frontend web)
+
+Para uma experiência realmente "nível Apple", o projeto adiciona um estúdio web com paralaxe, vidro fosco e microinterações. Inicie o servidor FastAPI localmente com:
+
+```shell
+unified-agent-web
+```
+
+Depois acesse <http://127.0.0.1:8000>. O painel oferece:
+
+- Hero com camadas paralaxe animadas e CTA.
+- Console inteligente para enviar prompts e acompanhar resultados em cards de vidro.
+- Linha do tempo interativa que destaca planos, notificações, pesquisas e execuções.
+- Sessão "Camadas de experiência" com animações suaves, globos luminosos e cards explicativos.
+
+O frontend consome a API `/api/run`, entrega o resultado em painéis animados e registra cada missão no timeline sem recarregar a página.
+
 ### Terminal
 
 After installation, simply run `interpreter`:

@@ -5,6 +5,7 @@ import argparse
 from pathlib import Path
 
 from .main import UnifiedDevAgent, UnifiedDevAgentConfig
+from .ui.rich_cli import RichConsoleUI
 
 
 def parse_args() -> argparse.Namespace:
@@ -55,10 +56,14 @@ def main() -> None:
         auto_fork_repos=() if args.disable_auto_fork else defaults.auto_fork_repos,
     )
     agent = UnifiedDevAgent(config=config)
+    ui = RichConsoleUI()
     if args.prompt:
-        agent.run(" ".join(args.prompt))
+        ui.banner(config)
+        result = agent.run(" ".join(args.prompt))
+        ui.display_result(result)
+        ui.goodbye()
     else:
-        agent.interactive()
+        agent.interactive(ui=ui)
 
 
 if __name__ == "__main__":

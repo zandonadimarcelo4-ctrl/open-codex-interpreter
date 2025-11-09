@@ -1,5 +1,6 @@
 """
 Compatibilidade: internal/db.py
+Importa do arquivo original na raiz se existir, senão cria implementação básica
 """
 import sys
 from pathlib import Path
@@ -9,61 +10,95 @@ _root = Path(__file__).parent.parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-# Importar do arquivo original na raiz
+# Tentar importar do arquivo original (se existir um internal/db.py na raiz)
+# Como não existe, vamos criar uma implementação básica
 try:
-    # Tentar importar do arquivo original
-    from internal.db import Base, get_db, JSONField, engine, SessionLocal
-except ImportError:
-    # Se não conseguir, criar placeholders básicos
-    try:
-        from sqlalchemy import create_engine
-        from sqlalchemy.orm import sessionmaker, declarative_base
-        from sqlalchemy.orm import Session
-        from contextlib import contextmanager
-        from typing import Generator
+    from sqlalchemy import create_engine, MetaData, types
+    from sqlalchemy.ext.declarative import declarative_base
+    from sqlalchemy.orm import scoped_session, sessionmaker
+    from sqlalchemy.pool import QueuePool, NullPool
+    from contextlib import contextmanager
+    from typing import Generator, Any, Optional
+    from sqlalchemy.sql.type_api import _T
+    
+    # Importar configurações do env
+    from open_webui.env import (
+        DATABASE_URL,
+        DATABASE_SCHEMA,
+        DATABASE_POOL_SIZE,
+        DATABASE_POOL_MAX_OVERFLOW,
+        DATABASE_POOL_TIMEOUT,
+        DATABASE_POOL_RECYCLE,
+    )
+    
+    # JSONField
+    class JSONField(types.TypeDecorator):
+        impl = types.Text
+        cache_ok = True
         
-        # Criar Base básico
-        Base = declarative_base()
+        def process_bind_param(self, value: Optional[_T], dialect) -> Any:
+            if value is not None:
+                import json
+                return json.dumps(value)
+            return value
         
-        # Placeholder para engine e Session
-        engine = None
-        SessionLocal = None
-        
-        # Placeholder para get_db
-        @contextmanager
-        def get_db() -> Generator[Session, None, None]:
-            if SessionLocal is None:
-                raise RuntimeError("Database not initialized")
-            db = SessionLocal()
-            try:
-                yield db
-            finally:
-                db.close()
-        
-        # Placeholder para JSONField
-        from sqlalchemy import types as sqlalchemy_types
-        import json
-        
-        class JSONField(sqlalchemy_types.TypeDecorator):
-            impl = sqlalchemy_types.Text
-            cache_ok = True
-            
-            def process_bind_param(self, value, dialect):
-                if value is not None:
-                    return json.dumps(value)
-                return value
-            
-            def process_result_value(self, value, dialect):
-                if value is not None:
-                    return json.loads(value)
-                return value
-        
-    except ImportError:
-        Base = None
-        get_db = None
-        JSONField = None
-        engine = None
-        SessionLocal = None
+        def process_result_value(self, value: Optional[_T], dialect) -> Any:
+            if value is not None:
+                import json
+                return json.loads(value)
+            return value
+    
+    # Criar engine
+    SQLALCHEMY_DATABASE_URL = DATABASE_URL
+    if "sqlite" in SQLALCHEMY_DATABASE_URL:
+        engine = create_engine(
+            SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+        )
+    else:
+        if DATABASE_POOL_SIZE > 0:
+            engine = create_engine(
+                SQLALCHEMY_DATABASE_URL,
+                pool_size=DATABASE_POOL_SIZE,
+                max_overflow=DATABASE_POOL_MAX_OVERFLOW,
+                pool_timeout=DATABASE_POOL_TIMEOUT,
+                pool_recycle=DATABASE_POOL_RECYCLE,
+                pool_pre_ping=True,
+                poolclass=QueuePool,
+            )
+        else:
+            engine = create_engine(
+                SQLALCHEMY_DATABASE_URL, pool_pre_ping=True, poolclass=NullPool
+            )
+    
+    # Criar SessionLocal
+    SessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=engine, expire_on_commit=False
+    )
+    
+    # Criar Base
+    metadata_obj = MetaData(schema=DATABASE_SCHEMA)
+    Base = declarative_base(metadata=metadata_obj)
+    Session = scoped_session(SessionLocal)
+    
+    # Criar get_db
+    def get_session():
+        db = SessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+    
+    get_db = contextmanager(get_session)
+    
+except ImportError as e:
+    # Se não conseguir importar, criar placeholders
+    Base = None
+    get_db = None
+    JSONField = None
+    engine = None
+    SessionLocal = None
+    Session = None
+    print(f"Warning: Could not initialize database: {e}")
 
-__all__ = ['Base', 'get_db', 'JSONField', 'engine', 'SessionLocal']
+__all__ = ['Base', 'get_db', 'JSONField', 'engine', 'SessionLocal', 'Session']
 

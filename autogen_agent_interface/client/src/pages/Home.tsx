@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Menu } from 'lucide-react';
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,23 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
 
-  if (loading) {
+  // Permitir acesso sem autenticação (modo demo)
+  // Se loading demorar muito, permitir acesso
+  const [allowAccess, setAllowAccess] = useState(false);
+  
+  useEffect(() => {
+    // Se loading demorar mais de 3 segundos, permitir acesso
+    const timer = setTimeout(() => {
+      setAllowAccess(true);
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Se não estiver autenticado mas permitir acesso, mostrar interface em modo demo
+  if (!loading && !isAuthenticated && allowAccess) {
+    // Modo demo - mostrar interface sem autenticação
+  } else if (loading && !allowAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
@@ -22,9 +38,7 @@ export default function Home() {
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
+  } else if (!isAuthenticated && !allowAccess) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="max-w-md w-full space-y-8 text-center">
@@ -36,12 +50,21 @@ export default function Home() {
             <p className="text-foreground">
               Uma interface inovadora para um super agente de IA que trabalha como uma equipe de desenvolvimento.
             </p>
-            <Button
-              onClick={() => (window.location.href = getLoginUrl())}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-            >
-              Entrar
-            </Button>
+            <div className="space-y-2">
+              <Button
+                onClick={() => (window.location.href = getLoginUrl())}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                Entrar
+              </Button>
+              <Button
+                onClick={() => setAllowAccess(true)}
+                variant="outline"
+                className="w-full"
+              >
+                Continuar sem autenticação (Demo)
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -73,15 +96,22 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">{user?.name}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={logout}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              Sair
-            </Button>
+            {isAuthenticated && user && (
+              <>
+                <span className="text-sm text-muted-foreground">{user.name}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={logout}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  Sair
+                </Button>
+              </>
+            )}
+            {!isAuthenticated && (
+              <span className="text-sm text-muted-foreground">Modo Demo</span>
+            )}
           </div>
         </header>
 

@@ -53,7 +53,10 @@ export function useVoice(options: UseVoiceOptions = {}) {
    * Reproduzir áudio TTS (Text-to-Speech)
    */
   const speak = useCallback(async (text: string) => {
-    if (!ttsEnabled || !text.trim()) return;
+    if (!ttsEnabled || !text.trim()) {
+      console.log('[TTS] TTS desabilitado ou texto vazio, ignorando');
+      return;
+    }
 
     try {
       setIsSpeaking(true);
@@ -88,62 +91,117 @@ export function useVoice(options: UseVoiceOptions = {}) {
       // Usar APENAS API de TTS do backend (ElevenLabs/Piper)
       console.log('🎙️ Tentando usar API de TTS do backend (ElevenLabs/Piper)...');
       console.log(`📝 Texto original (${text.length} chars) -> Limpo (${cleanedText.length} chars)`);
+      console.log(`📝 Texto limpo (primeiros 100 chars): ${cleanedText.substring(0, 100)}`);
       
       try {
-        const response = await fetch('/api/tts', {
+        const apiUrl = '/api/tts';
+        console.log(`[TTS] Enviando requisição para: ${apiUrl}`);
+        console.log(`[TTS] Texto a ser enviado: ${cleanedText.substring(0, 200)}...`);
+        
+        const response = await fetch(apiUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ text: cleanedText }),
         });
+        
+        console.log(`[TTS] Resposta recebida: status=${response.status}, ok=${response.ok}, contentType=${response.headers.get('content-type')}`);
 
         if (response.ok) {
-          const audioBlob = await response.blob();
-          const audioUrl = URL.createObjectURL(audioBlob);
-
-          console.log('✅ Áudio recebido do backend TTS (ElevenLabs/Piper)');
-
-          if (audioElementRef.current) {
-            audioElementRef.current.src = audioUrl;
-            audioElementRef.current.onended = () => {
-              setIsSpeaking(false);
-              URL.revokeObjectURL(audioUrl);
-            };
-            audioElementRef.current.onerror = (error) => {
-              console.error('❌ Erro ao reproduzir áudio:', error);
-              setIsSpeaking(false);
-              setError('Erro ao reproduzir áudio. Verifique se o formato de áudio é suportado.');
-              URL.revokeObjectURL(audioUrl);
-            };
-            
-            // Aguardar o áudio carregar antes de reproduzir
-            audioElementRef.current.onloadeddata = async () => {
-              try {
-                await audioElementRef.current?.play();
-                onAudioReady?.(audioUrl);
-              } catch (playError) {
-                console.error('❌ Erro ao reproduzir áudio:', playError);
-                setIsSpeaking(false);
-                setError('Erro ao reproduzir áudio. Verifique as permissões do navegador.');
-                URL.revokeObjectURL(audioUrl);
-              }
-            };
-            
-            // Se o áudio já estiver carregado, reproduzir imediatamente
-            if (audioElementRef.current.readyState >= 2) {
-              try {
-                await audioElementRef.current.play();
-                onAudioReady?.(audioUrl);
-              } catch (playError) {
-                console.error('❌ Erro ao reproduzir áudio:', playError);
-                setIsSpeaking(false);
-                setError('Erro ao reproduzir áudio. Verifique as permissões do navegador.');
-                URL.revokeObjectURL(audioUrl);
-              }
-            }
-            return;
+          const contentType = response.headers.get('content-type');
+          console.log(`[TTS] Content-Type recebido: ${contentType}`);
+          
+          // Verificar se é realmente áudio
+          if (!contentType || !contentType.startsWith('audio/')) {
+            console.warn(`[TTS] ⚠️ Content-Type inesperado: ${contentType}, tentando processar como áudio mesmo assim`);
           }
+          
+          const audioBlob = await response.blob();
+          console.log(`[TTS] Blob recebido: tamanho=${audioBlob.size} bytes, type=${audioBlob.type}`);
+          
+          if (audioBlob.size === 0) {
+            throw new Error('Áudio recebido está vazio (0 bytes)');
+          }
+          
+          const audioUrl = URL.createObjectURL(audioBlob);
+          console.log(`[TTS] ✅ Áudio recebido do backend TTS (ElevenLabs/Piper), tamanho: ${audioBlob.size} bytes`);
+
+          if (!audioElementRef.current) {
+            console.error('[TTS] ❌ audioElementRef.current é null');
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+            throw new Error('Elemento de áudio não está disponível');
+          }
+
+          // Limpar event listeners anteriores
+          const audioElement = audioElementRef.current;
+          const newAudioElement = audioElement.cloneNode() as HTMLAudioElement;
+          audioElementRef.current = newAudioElement;
+          
+          newAudioElement.src = audioUrl;
+          
+          // Configurar event listeners
+          newAudioElement.onended = () => {
+            console.log('[TTS] ✅ Áudio reproduzido com sucesso');
+            setIsSpeaking(false);
+            URL.revokeObjectURL(audioUrl);
+          };
+          
+          newAudioElement.onerror = (error) => {
+            console.error('❌ Erro ao reproduzir áudio:', error);
+            console.error(`[TTS] Erro no elemento de áudio:`, newAudioElement.error);
+            setIsSpeaking(false);
+            const errorMsg = newAudioElement.error 
+              ? `Erro ao reproduzir áudio: ${newAudioElement.error.message || 'Erro desconhecido'}`
+              : 'Erro ao reproduzir áudio. Verifique se o formato de áudio é suportado.';
+            setError(errorMsg);
+            URL.revokeObjectURL(audioUrl);
+          };
+          
+          newAudioElement.onloadeddata = async () => {
+            console.log('[TTS] Áudio carregado, tentando reproduzir...');
+            try {
+              await newAudioElement.play();
+              console.log('[TTS] ✅ Áudio reproduzido com sucesso');
+              onAudioReady?.(audioUrl);
+            } catch (playError) {
+              console.error('❌ Erro ao reproduzir áudio:', playError);
+              setIsSpeaking(false);
+              const errorMsg = playError instanceof Error 
+                ? `Erro ao reproduzir áudio: ${playError.message}`
+                : 'Erro ao reproduzir áudio. Verifique as permissões do navegador.';
+              setError(errorMsg);
+              URL.revokeObjectURL(audioUrl);
+            }
+          };
+          
+          newAudioElement.onloadstart = () => {
+            console.log('[TTS] Iniciando carregamento do áudio...');
+          };
+          
+          // Se o áudio já estiver carregado, reproduzir imediatamente
+          if (newAudioElement.readyState >= 2) {
+            console.log(`[TTS] Áudio já carregado (readyState=${newAudioElement.readyState}), reproduzindo imediatamente...`);
+            try {
+              await newAudioElement.play();
+              console.log('[TTS] ✅ Áudio reproduzido com sucesso');
+              onAudioReady?.(audioUrl);
+            } catch (playError) {
+              console.error('❌ Erro ao reproduzir áudio:', playError);
+              setIsSpeaking(false);
+              const errorMsg = playError instanceof Error 
+                ? `Erro ao reproduzir áudio: ${playError.message}`
+                : 'Erro ao reproduzir áudio. Verifique as permissões do navegador.';
+              setError(errorMsg);
+              URL.revokeObjectURL(audioUrl);
+            }
+          } else {
+            // Aguardar o áudio carregar
+            console.log(`[TTS] Áudio ainda não carregado (readyState=${newAudioElement.readyState}), aguardando...`);
+          }
+          
+          return;
         } else {
           // Tentar ler como JSON primeiro, depois como texto
           let errorText = '';

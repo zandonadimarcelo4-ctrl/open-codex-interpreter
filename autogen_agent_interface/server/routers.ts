@@ -963,19 +963,35 @@ export const appRouter = router({
 export type AppRouter = typeof appRouter;
 
 // Função auxiliar para detectar intenção (simplificada para o backend)
+// Prioriza ações/comandos para executar automaticamente tudo que o usuário pedir
 function detectIntentLocal(message: string): { type: string; confidence: number; actionType?: string; reason?: string } {
   const lowerMessage = message.toLowerCase();
   
-  // Palavras-chave para comandos diretos (alta prioridade)
-  const commandKeywords = ['faça', 'execute', 'rode', 'crie', 'delete', 'executa', 'abrir', 'abre', 'abrir meu', 'abrir o', 'abrir a', 'abre meu', 'abre o', 'abre a', 'abrir vs code', 'abrir code', 'executa vs code', 'executa code', 'abre vs code', 'abre code'];
+  // Palavras-chave para comandos diretos (alta prioridade) - EXECUTAR AUTOMATICAMENTE
+  const commandKeywords = [
+    'faça', 'execute', 'rode', 'crie', 'delete', 'executa', 'abrir', 'abre', 
+    'abrir meu', 'abrir o', 'abrir a', 'abre meu', 'abre o', 'abre a', 
+    'abrir vs code', 'abrir code', 'executa vs code', 'executa code', 
+    'abre vs code', 'abre code', 'fazer', 'faz', 'criar', 'cria',
+    'rodar', 'roda', 'iniciar', 'inicia', 'abrir aplicativo', 'abrir programa',
+    'executar', 'rodar aplicativo', 'rodar programa', 'abrir arquivo',
+    'criar arquivo', 'escrever código', 'buscar', 'pesquisar', 'pesquisa',
+    'instalar', 'instala', 'baixar', 'baixa', 'copiar', 'copia', 'mover', 'move',
+    'deletar', 'apagar', 'apaga', 'editar', 'edita', 'modificar', 'modifica'
+  ];
   
-  // Palavras-chave para ações (média prioridade)
-  const actionKeywords = ['criar', 'fazer', 'executar', 'rodar', 'buscar', 'pesquisar', 'criar arquivo', 'escrever código', 'abrir aplicativo', 'abrir programa', 'iniciar', 'inicia', 'rodar aplicativo', 'rodar programa'];
+  // Palavras-chave para ações (média prioridade) - EXECUTAR AUTOMATICAMENTE
+  const actionKeywords = [
+    'criar', 'fazer', 'executar', 'rodar', 'buscar', 'pesquisar', 
+    'criar arquivo', 'escrever código', 'abrir aplicativo', 'abrir programa', 
+    'iniciar', 'inicia', 'rodar aplicativo', 'rodar programa', 'abrir arquivo',
+    'instalar', 'baixar', 'copiar', 'mover', 'deletar', 'apagar', 'editar', 'modificar'
+  ];
   
-  // Palavras-chave para perguntas
-  const questionKeywords = ['o que', 'como', 'quando', 'onde', 'quem', 'qual', 'por que', 'explique', 'me diga', 'me fale'];
+  // Palavras-chave para perguntas (apenas perguntas explícitas)
+  const questionKeywords = ['o que é', 'o que significa', 'como funciona', 'quando usar', 'onde fica', 'quem é', 'qual é', 'por que', 'explique', 'me diga sobre', 'me fale sobre', 'o que é isso', 'o que é aquilo'];
   
-  // Verificar comandos diretos primeiro (maior confiança)
+  // Verificar comandos diretos primeiro (maior confiança) - SEMPRE EXECUTAR
   if (commandKeywords.some(kw => lowerMessage.includes(kw))) {
     // Detectar tipo de ação específica
     let actionType = 'execute';
@@ -983,32 +999,54 @@ function detectIntentLocal(message: string): { type: string; confidence: number;
       actionType = 'open';
     } else if (lowerMessage.includes('executar') || lowerMessage.includes('executa')) {
       actionType = 'execute';
-    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie')) {
+    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie') || lowerMessage.includes('cria')) {
       actionType = 'create';
-    } else if (lowerMessage.includes('delete') || lowerMessage.includes('deletar')) {
+    } else if (lowerMessage.includes('delete') || lowerMessage.includes('deletar') || lowerMessage.includes('apagar') || lowerMessage.includes('apaga')) {
       actionType = 'delete';
+    } else if (lowerMessage.includes('instalar') || lowerMessage.includes('instala')) {
+      actionType = 'install';
+    } else if (lowerMessage.includes('baixar') || lowerMessage.includes('baixa')) {
+      actionType = 'download';
+    } else if (lowerMessage.includes('editar') || lowerMessage.includes('edita') || lowerMessage.includes('modificar') || lowerMessage.includes('modifica')) {
+      actionType = 'edit';
     }
     
-    return { type: 'command', confidence: 0.95, actionType, reason: 'Comando direto detectado' };
+    return { type: 'command', confidence: 0.98, actionType, reason: 'Comando direto detectado - EXECUTAR AUTOMATICAMENTE' };
   }
   
-  // Verificar ações
+  // Verificar ações - SEMPRE EXECUTAR
   if (actionKeywords.some(kw => lowerMessage.includes(kw))) {
     let actionType = 'execute';
     if (lowerMessage.includes('abrir') || lowerMessage.includes('abre')) {
       actionType = 'open';
-    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie')) {
+    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie') || lowerMessage.includes('cria')) {
       actionType = 'create';
+    } else if (lowerMessage.includes('instalar') || lowerMessage.includes('instala')) {
+      actionType = 'install';
+    } else if (lowerMessage.includes('baixar') || lowerMessage.includes('baixa')) {
+      actionType = 'download';
     }
     
-    return { type: 'action', confidence: 0.85, actionType, reason: 'Ação detectada' };
+    return { type: 'action', confidence: 0.90, actionType, reason: 'Ação detectada - EXECUTAR AUTOMATICAMENTE' };
   }
   
-  // Verificar perguntas
+  // Verificar perguntas explícitas (apenas perguntas claras)
   if (questionKeywords.some(kw => lowerMessage.includes(kw))) {
     return { type: 'question', confidence: 0.7, reason: 'Pergunta detectada' };
   }
   
-  // Padrão: conversa
-  return { type: 'conversation', confidence: 0.6, reason: 'Conversa normal' };
+  // Se a mensagem contém nomes de aplicativos/arquivos/coisas que podem ser executadas, tratar como ação
+  const executablePatterns = [
+    /vs code|code|visual studio|chrome|firefox|edge|notepad|word|excel|powerpoint|spotify|discord|telegram|whatsapp/i,
+    /\.py$|\.js$|\.ts$|\.html$|\.css$|\.json$|\.md$|\.txt$/i,
+    /arquivo|file|pasta|folder|diretorio|directory/i
+  ];
+  
+  if (executablePatterns.some(pattern => pattern.test(message))) {
+    return { type: 'action', confidence: 0.85, actionType: 'execute', reason: 'Padrão executável detectado - EXECUTAR AUTOMATICAMENTE' };
+  }
+  
+  // Padrão: se não for claramente uma pergunta, tratar como ação (executar automaticamente)
+  // Isso garante que o sistema execute tudo que o usuário pedir, como Codex e Manus
+  return { type: 'action', confidence: 0.75, actionType: 'execute', reason: 'Tratando como ação - EXECUTAR AUTOMATICAMENTE' };
 }

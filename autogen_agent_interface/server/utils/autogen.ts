@@ -190,10 +190,10 @@ SPECIFIC CAPABILITIES:
 - Analyze: Understand dependencies, relationships, patterns
 
 **System Operations:**
-- Open apps: `notepad`, `code`, `chrome`, `start <app>` (Windows)
+- Open apps: notepad, code, chrome, start <app> (Windows)
 - Run commands: Any shell command
 - Execute scripts: Python, Node.js, shell scripts
-- Install packages: `pip install`, `npm install`, etc.
+- Install packages: pip install, npm install, etc.
 
 **Complex Tasks:**
 - Multi-file edits: Read all related files, understand relationships, make coordinated changes
@@ -204,7 +204,7 @@ EXAMPLES:
 
 User: "executa o bloco de notas"
 → Plan: [1. Open Notepad using shell command]
-→ Execute: `notepad` or `start notepad`
+→ Execute: notepad or start notepad
 
 User: "edita o arquivo X e adiciona Y"
 → Plan: [1. Read file X, 2. Add Y to content, 3. Write back to file]

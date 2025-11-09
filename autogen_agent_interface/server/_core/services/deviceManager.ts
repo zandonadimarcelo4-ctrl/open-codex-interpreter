@@ -5,6 +5,7 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import * as os from 'os';
 import { executeWithSuperAgent } from '../../utils/super_agent_bridge';
 import { executeWithAutoGen } from '../../utils/autogen';
 
@@ -66,7 +67,6 @@ class DeviceManager {
    * Initialize local device info
    */
   private initializeLocalDevice(): void {
-    const os = require('os');
     const gpuInfo = this.getGPUInfo();
 
     this.localDevice = {

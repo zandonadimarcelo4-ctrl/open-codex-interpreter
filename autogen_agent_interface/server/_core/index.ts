@@ -59,31 +59,50 @@ async function startServer() {
         return res.status(400).json({ error: "Text is required" });
       }
       
+      // Verificar se o texto está vazio após limpeza
+      if (!text.trim()) {
+        console.error("[TTS] ❌ Texto vazio após limpeza");
+        return res.status(400).json({ error: "Text is empty after cleaning" });
+      }
+      
       console.log("[TTS] 🎙️ Gerando áudio com ElevenLabs/Piper...");
       
       try {
         const audioBuffer = await generateTTS(text, "pt-BR");
         
-        if (audioBuffer) {
+        if (audioBuffer && audioBuffer.length > 0) {
           console.log("[TTS] ✅ Áudio gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
           res.setHeader("Content-Type", "audio/wav");
+          res.setHeader("Content-Length", audioBuffer.length.toString());
           res.send(audioBuffer);
         } else {
-          console.error("[TTS] ❌ TTS não disponível - audioBuffer é null");
-          res.status(500).json({ error: "TTS not available - ElevenLabs/Piper não configurado" });
+          console.error("[TTS] ❌ TTS não disponível - audioBuffer é null ou vazio");
+          res.status(500).json({ 
+            error: "TTS not available - ElevenLabs/Piper não configurado ou falhou",
+            details: "O áudio não foi gerado. Verifique se ElevenLabs está configurado ou se Piper TTS está instalado."
+          });
         }
       } catch (ttsError) {
         console.error("[TTS] ❌ Erro ao gerar TTS:", ttsError);
         const errorMessage = ttsError instanceof Error ? ttsError.message : String(ttsError);
+        const errorStack = ttsError instanceof Error ? ttsError.stack : undefined;
         console.error("[TTS] Mensagem de erro completa:", errorMessage);
+        if (errorStack) {
+          console.error("[TTS] Stack trace:", errorStack);
+        }
         res.status(500).json({ 
           error: `TTS error: ${errorMessage}`,
-          details: errorMessage
+          details: errorMessage,
+          suggestion: "Verifique se Python está instalado, se o super_agent está no caminho correto, e se ElevenLabs/Piper está configurado."
         });
       }
     } catch (error) {
-      console.error("[TTS] ❌ Erro:", error);
+      console.error("[TTS] ❌ Erro geral:", error);
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      if (errorStack) {
+        console.error("[TTS] Stack trace:", errorStack);
+      }
       res.status(500).json({ 
         error: `Internal server error: ${errorMessage}`,
         details: errorMessage

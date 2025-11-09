@@ -732,11 +732,12 @@ async function callOllamaWithAutoGenPrompt(
     const requestBody: any = {
       model,
       messages,
-      stream: false,
+      stream: false, // Não usar streaming por enquanto (requer mudanças no frontend)
       options: {
         temperature: intent.type === "action" ? 0.2 : 0.7,
         top_p: 0.9,
-        num_predict: intent.type === "action" ? 512 : 128, // Ultra-reduzido para resposta instantânea
+        num_predict: intent.type === "action" ? 512 : 64, // Ultra-reduzido: 128 -> 64 para conversas
+        num_ctx: 2048, // Reduzir contexto também
       },
     };
 

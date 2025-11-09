@@ -369,8 +369,9 @@ Sugira comandos diretos como:
       ];
       
       // Detectar padrões de comandos simples (mais agressivo)
+      // Qualquer comando que comece com "abrir", "abre", "executa", etc. é considerado simples
       const isSimpleCommand = simpleCommands.some(cmd => lowerTask.includes(cmd)) ||
-        /^(abrir|abre|executa|execute|rodar|roda)\s+[a-z\s]+$/i.test(task.trim());
+        /^(abrir|abre|executa|execute|rodar|roda|iniciar|inicia|start)\s+[a-z0-9\s\-]+$/i.test(task.trim());
       
       if (isSimpleCommand) {
         // Executar comando simples diretamente (muito mais rápido)

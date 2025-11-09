@@ -375,38 +375,6 @@ export default function Landing() {
               <span className="px-3 py-1 bg-card/50 rounded-full">🔄 Sincronização Automática</span>
             </div>
           </motion.div>
-
-            {/* Desktop App */}
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6 }}
-              className="bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-6 sm:p-8"
-            >
-              <div className="flex items-center gap-4 mb-4">
-                <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
-                  <Monitor className="w-6 h-6 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-foreground">App Desktop</h3>
-                  <p className="text-sm text-foreground/60">Windows, Mac & Linux</p>
-                </div>
-              </div>
-              <p className="text-foreground/70 mb-6 leading-relaxed">
-                Versão desktop completa com todas as funcionalidades. Disponível em breve.
-              </p>
-              <Button
-                size="lg"
-                variant="outline"
-                disabled
-                className="w-full rounded-xl font-medium opacity-50 cursor-not-allowed"
-              >
-                <Download className="w-5 h-5 mr-2" />
-                Em Breve
-              </Button>
-            </motion.div>
-          </div>
         </motion.div>
       </section>
 

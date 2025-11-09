@@ -24,9 +24,15 @@ if (!fs.existsSync(TEMP_AUDIO_DIR)) {
 function cleanTextForTTS(text: string): string {
   if (!text) return '';
   
-  let cleaned = text;
+  // PRIMEIRO: Remover TODOS os caracteres Unicode acima de 0x7F exceto acentos portugueses
+  // Isso remove TODOS os emojis de uma vez
+  let cleaned = text.split('').filter(char => {
+    const code = char.charCodeAt(0);
+    // Manter apenas ASCII básico (0-127) e acentos portugueses (0x00C0-0x017F)
+    return code <= 0x7F || (code >= 0x00C0 && code <= 0x017F);
+  }).join('');
   
-  // Remover markdown primeiro (antes de remover emojis)
+  // Remover markdown
   cleaned = cleaned.replace(/#{1,6}\s+/g, ''); // Headers (#, ##, etc.)
   cleaned = cleaned.replace(/\*\*/g, ''); // Bold (**)
   cleaned = cleaned.replace(/\*/g, ''); // Italic (*)
@@ -35,29 +41,6 @@ function cleanTextForTTS(text: string): string {
   cleaned = cleaned.replace(/`/g, ''); // Code (`)
   cleaned = cleaned.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1'); // Links [text](url) -> text
   cleaned = cleaned.replace(/!\[([^\]]*)\]\([^\)]+\)/g, ''); // Imagens ![alt](url)
-  
-  // Remover emojis e caracteres Unicode especiais (usar regex mais abrangente)
-  // Remover todos os emojis e símbolos Unicode especiais
-  cleaned = cleaned.replace(/[\u{1F300}-\u{1F9FF}]/gu, ''); // Emojis
-  cleaned = cleaned.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
-  cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transporte e mapas
-  cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Símbolos diversos
-  cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
-  cleaned = cleaned.replace(/[\u{1F900}-\u{1F9FF}]/gu, ''); // Emojis suplementares
-  cleaned = cleaned.replace(/[\u{1FA00}-\u{1FAFF}]/gu, ''); // Emojis estendidos
-  
-  // Remover qualquer caractere Unicode acima de U+00FF que não seja letra acentuada
-  // Manter apenas ASCII básico e acentos portugueses
-  // Converter para array de caracteres e filtrar
-  cleaned = cleaned.split('').filter(char => {
-    const code = char.charCodeAt(0);
-    // Manter ASCII básico (0-127)
-    if (code <= 0x7F) return true;
-    // Manter acentos portugueses (0x00C0-0x017F)
-    if (code >= 0x00C0 && code <= 0x017F) return true;
-    // Remover tudo mais (incluindo emojis)
-    return false;
-  }).join('');
   
   // Remover caracteres especiais desnecessários
   // Manter apenas: letras (a-z, A-Z), números (0-9), acentos portugueses, espaços e pontuação básica

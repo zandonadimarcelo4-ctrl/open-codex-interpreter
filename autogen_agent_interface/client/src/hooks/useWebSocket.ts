@@ -25,7 +25,7 @@ export interface UseWebSocketOptions {
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const {
-    url = `ws://localhost:${import.meta.env.VITE_WS_PORT || 8000}/ws`,
+    url = `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`,
     enabled = true,
     onMessage,
     onError,

@@ -52,22 +52,33 @@ export function AdvancedChatInterface() {
   const chatProcess = trpc.chat.process.useMutation();
   
   // WebSocket para chat em tempo real
-  const { isConnected, send: sendWebSocket } = useWebSocket({
+  const { isConnected, isConnecting, send: sendWebSocket } = useWebSocket({
     url: `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`,
     enabled: true,
     onMessage: (message: WebSocketMessage) => {
       handleWebSocketMessage(message);
     },
     onOpen: () => {
-      setConnectionStatus('Conectado - Pronto para conversar');
+      setConnectionStatus('Conectado');
     },
     onError: () => {
-      setConnectionStatus('Erro na conexão WebSocket');
+      setConnectionStatus('Erro na conexão');
     },
     onClose: () => {
       setConnectionStatus('Desconectado');
     },
   });
+  
+  // Atualizar status baseado no estado do WebSocket
+  useEffect(() => {
+    if (isConnected) {
+      setConnectionStatus('Conectado');
+    } else if (isConnecting) {
+      setConnectionStatus('Conectando...');
+    } else {
+      setConnectionStatus('Desconectado');
+    }
+  }, [isConnected, isConnecting]);
   
   // Voz Jarvis (TTS) e Speech-to-Text (STT)
   const {
@@ -718,8 +729,10 @@ export function AdvancedChatInterface() {
           <div className="text-xs text-muted-foreground">
             {isConnected ? (
               <span className="text-green-500">● Conectado</span>
+            ) : isConnecting ? (
+              <span className="text-yellow-500">● Conectando...</span>
             ) : (
-              <span className="text-yellow-500">● {connectionStatus}</span>
+              <span className="text-red-500">● Desconectado</span>
             )}
             {isSpeaking && (
               <span className="ml-2 text-blue-500">🎤 Voz Jarvis ativa</span>

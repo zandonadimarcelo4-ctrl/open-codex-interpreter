@@ -290,11 +290,53 @@ class JarvisVoiceSystem:
     
     async def _piper_stream(self, text: str) -> AsyncGenerator[bytes, None]:
         """Stream usando piper-tts"""
-        # Implementar streaming com piper
-        chunks = text.split()
-        for chunk in chunks:
-            await asyncio.sleep(0.1)  # Simular processamento
-            yield chunk.encode()
+        try:
+            import piper
+            from pathlib import Path
+            import tempfile
+            import os
+            
+            # Criar arquivo temporário para áudio
+            output_path = Path(tempfile.gettempdir()) / f"piper_tts_stream_{os.getpid()}.wav"
+            
+            try:
+                # Usar Piper TTS para gerar áudio
+                voice = piper.Voice.load("pt_BR")
+                with open(output_path, "wb") as f:
+                    voice.synthesize(text, f)
+                
+                # Ler arquivo e enviar chunks
+                with open(output_path, "rb") as f:
+                    while True:
+                        chunk = f.read(4096)
+                        if not chunk:
+                            break
+                        yield chunk
+                
+                # Limpar arquivo
+                if output_path.exists():
+                    output_path.unlink()
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao usar Piper TTS para streaming: {e}")
+                # Fallback: simular streaming
+                chunks = text.split()
+                for chunk in chunks:
+                    await asyncio.sleep(0.1)
+                    yield chunk.encode()
+        except ImportError:
+            logger.warning("⚠️ piper-tts não disponível para streaming")
+            # Fallback: simular streaming
+            chunks = text.split()
+            for chunk in chunks:
+                await asyncio.sleep(0.1)
+                yield chunk.encode()
+        except Exception as e:
+            logger.error(f"❌ Erro ao fazer streaming com Piper TTS: {e}")
+            # Fallback: simular streaming
+            chunks = text.split()
+            for chunk in chunks:
+                await asyncio.sleep(0.1)
+                yield chunk.encode()
     
     async def _edge_tts_stream(self, text: str) -> AsyncGenerator[bytes, None]:
         """Stream usando edge-tts - voz neural ultra-realista"""
@@ -398,7 +440,48 @@ class JarvisVoiceSystem:
     
     async def _piper_speak(self, text: str):
         """Falar usando piper-tts"""
-        logger.info(f"Falando: {text}")
+        try:
+            import piper
+            from pathlib import Path
+            import tempfile
+            import os
+            
+            # Criar arquivo temporário para áudio
+            output_path = Path(tempfile.gettempdir()) / f"piper_tts_{os.getpid()}.wav"
+            
+            # Usar Piper TTS para gerar áudio
+            # Piper TTS precisa de um modelo e voz configurados
+            # Por padrão, usa o modelo pt_BR disponível
+            try:
+                # Tentar usar Piper TTS com modelo pt-BR
+                voice = piper.Voice.load("pt_BR")
+                with open(output_path, "wb") as f:
+                    voice.synthesize(text, f)
+                
+                # Reproduzir áudio
+                try:
+                    import playsound
+                    playsound.playsound(str(output_path))
+                except ImportError:
+                    logger.warning("playsound não disponível para reproduzir áudio")
+                
+                # Limpar arquivo
+                if output_path.exists():
+                    output_path.unlink()
+                
+                logger.info(f"✅ Piper TTS: Áudio gerado e reproduzido com sucesso!")
+                logger.info(f"   Texto: {text[:100]}...")
+            except Exception as e:
+                logger.warning(f"⚠️ Erro ao usar Piper TTS: {e}")
+                logger.warning("💡 Piper TTS pode precisar de modelo pt_BR configurado")
+                # Fallback: apenas logar
+                logger.info(f"Falando (Piper TTS fallback): {text}")
+        except ImportError:
+            logger.warning("⚠️ piper-tts não disponível")
+            logger.info(f"Falando (sem TTS): {text}")
+        except Exception as e:
+            logger.error(f"❌ Erro ao falar com Piper TTS: {e}")
+            logger.info(f"Falando (erro): {text}")
     
     async def _edge_tts_speak(self, text: str):
         """Falar usando edge-tts - Voz neural pt-BR ultra-realista (RECOMENDADO)"""

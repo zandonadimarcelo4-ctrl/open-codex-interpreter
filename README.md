@@ -52,7 +52,7 @@ pip install open-interpreter
 
 ### Unified Dev Agent (Ollama + AutoGen + Open Interpreter)
 
-The repository now bundles a "Unified Dev Agent" that orchestrates DeepSeek-R1 running on [Ollama](https://ollama.ai/), Open Interpreter's execution engine, AutoGen's multi-agent coordination and persistent memory backed by [ChromaDB](https://docs.trychroma.com/).
+The repository now bundles a "Unified Dev Agent" that orchestrates DeepSeek-R1 running on [Ollama](https://ollama.ai/), Open Interpreter's execution engine, AutoGen's multi-agent coordination and persistent memory backed by [ChromaDB](https://docs.trychroma.com/). Caso o ChromaDB não esteja instalado, o agente retrocede automaticamente para um armazenamento JSON local mantendo o histórico básico.
 
 ### Instalação local
 
@@ -91,7 +91,7 @@ Forneça uma meta em linguagem natural, como *"Crie uma API Flask com rotas /add
 
 O *Unified Dev Agent* agora inclui uma série de capacidades inéditas pensadas para projetos ambiciosos:
 
-- **Auto-Context Memory** (ChromaDB): registra histórico, decisões e execuções, e permite recuperar contexto com `AutoContextMemory.recall()`.
+- **Auto-Context Memory** (ChromaDB): registra histórico, decisões e execuções, e permite recuperar contexto com `AutoContextMemory.recall()`. Em ambientes sem ChromaDB, um log JSON persistente garante continuidade.
 - **Observe & Automate Mode**: usando `pyautogui` + `pynput`, o agente observa suas interações no desktop e registra ações que podem virar automações.
 - **Agente Multimodal (voz + visão)**: captura screenshots, executa OCR com `pytesseract` e aceita comandos de voz via `speech_recognition`.
 - **Auto-Fork / Self-Update**: clona automaticamente projetos estratégicos (After Effects MCP Vision, AutoGen, UFO, ChatDev, agenticSeek, browser-use) usando `AutoForkManager` para estudos, melhorias e PRs.

@@ -209,33 +209,34 @@ Sugira comandos diretos como:
           const { spawn } = await import("child_process");
           
           // Escapar código para JSON seguro
-          const codeBlocksJson = JSON.stringify(codeBlocks);
+          const codeBlocksJson = JSON.stringify(codeBlocks).replace(/'/g, "\\'");
           
-          const pythonScript = `
-import sys
-import os
-import json
-sys.path.insert(0, "${projectRoot.replace(/\\/g, '/')}")
-sys.path.insert(0, "${interpreterPath.replace(/\\/g, '/')}")
-
-from interpreter.interpreter import Interpreter
-
-interpreter = Interpreter()
-interpreter.auto_run = True
-interpreter.local = True
-
-# Executar código usando Open Interpreter
-code_blocks = json.loads('''${codeBlocksJson.replace(/'/g, "\\'")}''')
-for block in code_blocks:
-    lang = block['language']
-    code = block['code']
-    message = "Execute this " + lang + " code:\\n```" + lang + "\\n" + code + "\\n```"
-    result = interpreter.chat(message, return_messages=False)
-    if interpreter.messages:
-        last_msg = interpreter.messages[-1]
-        if last_msg.get('role') == 'assistant':
-            print(json.dumps({"success": True, "output": last_msg.get('content', '')}))
-`;
+          // Construir script Python de forma segura
+          const pythonScript = [
+            "import sys",
+            "import os",
+            "import json",
+            `sys.path.insert(0, "${projectRoot.replace(/\\/g, '/')}")`,
+            `sys.path.insert(0, "${interpreterPath.replace(/\\/g, '/')}")`,
+            "",
+            "from interpreter.interpreter import Interpreter",
+            "",
+            "interpreter = Interpreter()",
+            "interpreter.auto_run = True",
+            "interpreter.local = True",
+            "",
+            "# Executar código usando Open Interpreter",
+            `code_blocks = json.loads('''${codeBlocksJson}''')`,
+            "for block in code_blocks:",
+            "    lang = block['language']",
+            "    code = block['code']",
+            '    message = "Execute this " + lang + " code:\\n```" + lang + "\\n" + code + "\\n```"',
+            "    result = interpreter.chat(message, return_messages=False)",
+            "    if interpreter.messages:",
+            "        last_msg = interpreter.messages[-1]",
+            "        if last_msg.get('role') == 'assistant':",
+            "            print(json.dumps({\"success\": True, \"output\": last_msg.get('content', '')}))"
+          ].join('\n');
           
           const python = spawn("python", ["-c", pythonScript], {
             cwd: projectRoot,

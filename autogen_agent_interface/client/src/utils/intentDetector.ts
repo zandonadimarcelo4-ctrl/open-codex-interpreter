@@ -43,8 +43,11 @@ const CONVERSATION_KEYWORDS = [
  * Palavras-chave que indicam comando direto
  */
 const COMMAND_KEYWORDS = [
-  'faça', 'faça isso', 'execute', 'rode', 'crie', 'delete', 'remova',
-  'mostre', 'exiba', 'gere', 'produza', 'construa', 'desenvolva',
+  'faça', 'faça isso', 'execute', 'executa', 'rode', 'roda', 'crie', 'cria', 'criar',
+  'delete', 'deletar', 'remova', 'remove', 'abrir', 'abre', 'abrir meu', 'abrir o', 'abrir a',
+  'mostre', 'exiba', 'gere', 'produza', 'construa', 'desenvolva', 'editar', 'edita', 'editar arquivo',
+  'modificar', 'modifica', 'instalar', 'instala', 'baixar', 'baixa', 'copiar', 'copia',
+  'mover', 'move', 'apagar', 'apaga', 'iniciar', 'inicia', 'fazer', 'faz'
 ];
 
 /**

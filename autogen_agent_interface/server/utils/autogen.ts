@@ -48,6 +48,11 @@ export async function executeWithAutoGen(
   intent: { type: string; actionType?: string; confidence: number; reason?: string },
   context?: Record<string, any>
 ): Promise<string> {
+  console.log(`[AutoGen] ========== INÍCIO executeWithAutoGen ==========`);
+  console.log(`[AutoGen] Task: "${task.substring(0, 100)}..."`);
+  console.log(`[AutoGen] Intent:`, JSON.stringify(intent, null, 2));
+  console.log(`[AutoGen] Context:`, JSON.stringify(context || {}, null, 2));
+  
   try {
     // Pular verificação de disponibilidade para resposta mais rápida
     // A verificação será feita apenas quando necessário (se houver erro)

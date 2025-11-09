@@ -406,16 +406,22 @@ export const appRouter = router({
         
         try {
           // Usar APENAS AutoGen Framework (único framework)
-          console.log(`[Chat] Chamando executeWithAutoGen para: "${input.message.substring(0, 50)}..."`);
-          console.log(`[Chat] Intent detectado:`, intent);
+          console.log(`[Chat] ========== INÍCIO chat.process ==========`);
+          console.log(`[Chat] Mensagem: "${input.message.substring(0, 100)}..."`);
+          console.log(`[Chat] Intent detectado:`, JSON.stringify(intent, null, 2));
+          console.log(`[Chat] ConversationId: ${conversationId}, UserId: ${userId}`);
+          console.log(`[Chat] Importando executeWithAutoGen...`);
           const { executeWithAutoGen } = await import("./utils/autogen");
-          console.log(`[Chat] executeWithAutoGen importado, chamando...`);
+          console.log(`[Chat] ✅ executeWithAutoGen importado, chamando...`);
+          const startTime = Date.now();
           response = await executeWithAutoGen(
             input.message,
             intent,
             { conversationId, userId }
           );
-          console.log(`[Chat] Resposta recebida (${response.length} chars)`);
+          const elapsed = Date.now() - startTime;
+          console.log(`[Chat] ✅ Resposta recebida em ${elapsed}ms (${response.length} chars)`);
+          console.log(`[Chat] ========== FIM chat.process ==========`);
           
           // Adicionar resultados de execução de código se houver
           if (codeExecutionResults.length > 0) {

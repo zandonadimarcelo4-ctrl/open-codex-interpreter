@@ -15,7 +15,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const DEFAULT_MODEL = "deepseek-r1";
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "okamototk/deepseek-r1:8b";
 
 let autogenFramework: any = null;
 
@@ -404,8 +404,6 @@ Sugira comandos diretos como:
       if (isSimpleCommand) {
         // Executar comando simples diretamente (muito mais rápido)
         try {
-          const { executeCode } = await import("./code_executor");
-          
           // Mapear comandos para executáveis
           let command = '';
           if (lowerTask.includes('notepad') || lowerTask.includes('bloco de notas')) {
@@ -573,9 +571,34 @@ Sugira comandos diretos como:
           errorOutput += data.toString();
         });
         
+        // Timeout para evitar processos que demoram muito
+        let timeoutId: NodeJS.Timeout | null = null;
+        
         const result = await new Promise<string>((resolve, reject) => {
+          // Timeout de 30 segundos
+          timeoutId = setTimeout(() => {
+            python.kill();
+            try {
+              if (fs.existsSync(wrapperScript)) {
+                fs.unlinkSync(wrapperScript);
+              }
+            } catch (e) {
+              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
+            }
+            reject(new Error("Timeout: Open Interpreter demorou mais de 30 segundos"));
+          }, 30000);
+          
           python.on("close", (code) => {
-            // Não precisa limpar arquivo temporário (não estamos usando mais)
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            // Limpar arquivo temporário
+            try {
+              if (fs.existsSync(wrapperScript)) {
+                fs.unlinkSync(wrapperScript);
+              }
+            } catch (e) {
+              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
+            }
             
             if (code === 0 && output) {
               try {

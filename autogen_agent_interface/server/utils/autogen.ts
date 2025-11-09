@@ -9,6 +9,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { selectAgent, estimateComplexity, generateAgentPrompt } from "./agentRouter";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -123,12 +124,25 @@ export async function executeWithAutoGen(
       throw new Error("AutoGen não disponível");
     }
 
-    // Construir prompt baseado na intenção - estilo Open Interpreter
+    // Sistema de roteamento de agentes inspirado no AgenticSeek
+    // Integrado ao AutoGen Framework (único framework)
+    const agentSelection = selectAgent(task, intent);
+    const complexity = estimateComplexity(task);
+    const agentPrompt = generateAgentPrompt(agentSelection.agentType, task, intent);
+    
+    console.log(`[AutoGen] Agente selecionado: ${agentSelection.agentType} (confiança: ${(agentSelection.confidence * 100).toFixed(0)}%)`);
+    console.log(`[AutoGen] Complexidade: ${complexity}`);
+    console.log(`[AutoGen] Razão: ${agentSelection.reason}`);
+    
+    // Construir prompt baseado na intenção e agente selecionado - estilo Open Interpreter
     let systemPrompt = "";
-    let agentName = "Super Agent";
+    let agentName = `Super Agent (${agentSelection.agentType})`;
     
     if (intent.type === "action" || intent.type === "command") {
-      systemPrompt = `You are Open Interpreter, a world-class programmer that can complete any goal by executing code.
+      // Usar prompt específico do agente selecionado
+      systemPrompt = agentPrompt + `
+
+You are Open Interpreter, a world-class programmer that can complete any goal by executing code.
 
 You have access to a local code execution environment. When the user asks for something that requires code, you MUST:
 1. Generate the necessary code

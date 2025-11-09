@@ -163,8 +163,8 @@ echo.
 echo [4/8] Verificando dependencias Python...
 %PYTHON_VENV% -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
-    echo Instalando dependencias basicas...
-    echo (FastAPI, Uvicorn, Pydantic)
+    echo Instalando dependencias basicas
+    echo FastAPI, Uvicorn, Pydantic
     %PYTHON_VENV% -m pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
     if errorlevel 1 (
         echo ERRO: Falha ao instalar dependencias basicas!
@@ -216,7 +216,7 @@ echo.
 :: ============================================
 :: PASSO 6: Verificar/Instalar Dependencias Frontend
 :: ============================================
-echo [6/8] Verificando dependencias do frontend...
+echo [6/8] Verificando dependencias do frontend
 if not exist "autogen_agent_interface" (
     echo ERRO: Diretorio autogen_agent_interface nao encontrado!
     pause
@@ -224,7 +224,7 @@ if not exist "autogen_agent_interface" (
 )
 
 if not exist "autogen_agent_interface\node_modules" (
-    echo Instalando dependencias do frontend (isso pode demorar alguns minutos)...
+    echo Instalando dependencias do frontend - isso pode demorar alguns minutos
     cd autogen_agent_interface
     call pnpm install
     if errorlevel 1 (

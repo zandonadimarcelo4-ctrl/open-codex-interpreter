@@ -541,72 +541,71 @@ class JarvisVoiceSystem:
                 logger.error("❌ Nenhum fallback disponível")
     
     async def _elevenlabs_stream(self, text: str) -> AsyncGenerator[bytes, None]:
-        """Stream usando ElevenLabs API - Voz ultra-realista"""
+        """Stream usando ElevenLabs API - Voz ultra-realista (usando biblioteca oficial)"""
         try:
-            import aiohttp
-            
-            url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.elevenlabs_voice_id}/stream"
-            headers = {
-                "Accept": "audio/mpeg",
-                "Content-Type": "application/json",
-                "xi-api-key": self.elevenlabs_api_key
-            }
-            data = {
-                "text": text,  # IMPORTANTE: Texto deve estar em português brasileiro
-                # O modelo eleven_multilingual_v2 detecta automaticamente o idioma do texto
-                # Se o texto estiver em pt-BR, a voz falará em português brasileiro
-                "model_id": "eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
-                "voice_settings": {
-                    "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade (reduzido de 0.75)
-                    "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural (reduzido de 0.9)
-                    "style": 0.0,  # Estilo neutro para voz mais natural e menos robótica (reduzido de 0.3)
-                    "use_speaker_boost": True  # Melhorar clareza e naturalidade
+            if ELEVENLABS_AVAILABLE:
+                # Usar biblioteca oficial do ElevenLabs com streaming
+                audio_stream = self.elevenlabs_client.text_to_speech.stream(
+                    voice_id=self.elevenlabs_voice_id,
+                    text=text,
+                    model_id="eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
+                    voice_settings={
+                        "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade
+                        "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural
+                        "style": 0.0,  # Estilo neutro para voz mais natural e menos robótica
+                        "use_speaker_boost": True  # Melhorar clareza e naturalidade
+                    }
+                )
+                
+                # Stream de áudio
+                for chunk in audio_stream:
+                    if isinstance(chunk, bytes):
+                        yield chunk
+            elif AIOHTTP_AVAILABLE:
+                # Fallback para aiohttp se biblioteca oficial não estiver disponível
+                import aiohttp
+                
+                url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.elevenlabs_voice_id}/stream"
+                headers = {
+                    "Accept": "audio/mpeg",
+                    "Content-Type": "application/json",
+                    "xi-api-key": self.elevenlabs_api_key
                 }
-            }
-            
-            # Fazer requisição assíncrona com streaming
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=data, headers=headers) as response:
-                    if response.status == 200:
-                        async for chunk in response.content.iter_chunked(4096):
-                            yield chunk
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Erro na API ElevenLabs: {response.status} - {error_text}")
-                        # Fallback para Piper
-                        if self.fallback_engine == "piper":
-                            async for chunk in self._piper_stream(text):
-                                yield chunk
-                        # OUTROS FALLBACKS COMENTADOS - Usar apenas Piper
-                        # elif self.fallback_engine == "edge_tts":
-                        #     async for chunk in self._edge_tts_stream(text):
-                        #         yield chunk
+                data = {
+                    "text": text,  # IMPORTANTE: Texto deve estar em português brasileiro
+                    "model_id": "eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.75,
+                        "style": 0.0,
+                        "use_speaker_boost": True
+                    }
+                }
+                
+                # Fazer requisição assíncrona com streaming
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=data, headers=headers) as response:
+                        if response.status == 200:
+                            # Stream de áudio
+                            async for chunk in response.content.iter_chunked(4096):
+                                if chunk:
+                                    yield chunk
                         else:
-                            logger.error("❌ Nenhum fallback disponível para streaming")
-        except ImportError:
-            logger.warning("aiohttp não disponível para ElevenLabs API, usando fallback")
-            # Fallback para Piper
-            if self.fallback_engine == "piper":
-                async for chunk in self._piper_stream(text):
-                    yield chunk
-            # OUTROS FALLBACKS COMENTADOS - Usar apenas Piper
-            # elif self.fallback_engine == "edge_tts":
-            #     async for chunk in self._edge_tts_stream(text):
-            #         yield chunk
+                            error_text = await response.text()
+                            logger.error(f"❌ Erro na API ElevenLabs (streaming): {response.status} - {error_text}")
+                            # Fallback para modo direto
+                            await self._elevenlabs_speak(text)
             else:
-                logger.error("❌ Nenhum fallback disponível para streaming")
+                logger.error("❌ Biblioteca oficial do ElevenLabs e aiohttp não disponíveis para streaming")
+                # Fallback para modo direto
+                await self._elevenlabs_speak(text)
+        except ImportError:
+            logger.warning("Biblioteca oficial do ElevenLabs não disponível para streaming, usando modo direto")
+            await self._elevenlabs_speak(text)
         except Exception as e:
             logger.error(f"Erro ao fazer streaming com ElevenLabs API: {e}")
-            # Fallback para Piper
-            if self.fallback_engine == "piper":
-                async for chunk in self._piper_stream(text):
-                    yield chunk
-            # OUTROS FALLBACKS COMENTADOS - Usar apenas Piper
-            # elif self.fallback_engine == "edge_tts":
-            #     async for chunk in self._edge_tts_stream(text):
-            #         yield chunk
-            else:
-                logger.error("❌ Nenhum fallback disponível para streaming")
+            # Fallback para modo direto
+            await self._elevenlabs_speak(text)
     
     async def _pyttsx3_speak(self, text: str):
         """Falar usando pyttsx3"""

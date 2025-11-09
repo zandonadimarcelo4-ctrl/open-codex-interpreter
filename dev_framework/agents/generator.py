@@ -19,5 +19,7 @@ class GeneratorAgent(AssistantAgent):
             critic,
             message=user_message,
         )
-        self._memory.add_event("generator_response", result.summary or "")
+        summary = result.summary or ""
+        self._memory.add_event("generator_response", summary)
+        self._memory.add_event("auto_explanation", f"Generator reasoning:\n{summary}")
         return result

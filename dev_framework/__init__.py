@@ -1,5 +1,5 @@
 """Unified development agent framework."""
 
-from .main import UnifiedDevAgent
+from .main import UnifiedDevAgent, UnifiedDevAgentConfig
 
-__all__ = ["UnifiedDevAgent"]
+__all__ = ["UnifiedDevAgent", "UnifiedDevAgentConfig"]

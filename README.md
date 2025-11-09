@@ -81,6 +81,29 @@ unified-agent --after-effects integrations/after-effects-mcp-vision \
 
 Forneça uma meta em linguagem natural, como *"Crie uma API Flask com rotas /add, /list e /delete"*. O agente irá planejar com o AutoGen (usando o servidor Ollama local), gerar código com o DeepSeek-R1, executar e validar o resultado via Open Interpreter local (`interpreter --local`) e registrar o contexto no ChromaDB para iterações futuras. As integrações do [After-Effects MCP Vision toolkit](https://github.com/VolksRat71/after-effects-mcp-vision) e do [Microsoft UFO](https://github.com/microsoft/UFO) mantêm o agente consciente dos ativos criativos e do estado do IDE.
 
+#### Recursos avançados do Unified Dev Agent
+
+O *Unified Dev Agent* agora inclui uma série de capacidades inéditas pensadas para projetos ambiciosos:
+
+- **Auto-Context Memory** (ChromaDB): registra histórico, decisões e execuções, e permite recuperar contexto com `AutoContextMemory.recall()`.
+- **Observe & Automate Mode**: usando `pyautogui` + `pynput`, o agente observa suas interações no desktop e registra ações que podem virar automações.
+- **Agente Multimodal (voz + visão)**: captura screenshots, executa OCR com `pytesseract` e aceita comandos de voz via `speech_recognition`.
+- **Auto-Fork / Self-Update**: clona automaticamente projetos estratégicos (After Effects MCP Vision, AutoGen, UFO, ChatDev, agenticSeek, browser-use) usando `AutoForkManager` para estudos, melhorias e PRs.
+- **Plugin Layer**: qualquer pessoa pode publicar novas "skills" registrando-as no namespace `dev_framework.plugins`.
+- **Auto-Explanation Mode**: sempre que gerar ou revisar código, o agente registra o raciocínio em memória para auditoria.
+- **Sistema de Recompensas ChatDev**: cada execução recebe pontuação positiva ou negativa, visível via `ChatDevRewardSystem.leaderboard()`.
+- **Planejamento com agenticSeek**: detecção de intenção identifica quando o usuário quer planos (`IntentionDetector`) e delega para o `AgenticSeekPlanner`.
+- **Pesquisa na Web (browser-use)**: prompts contendo "pesquise" ou "search" disparam buscas automáticas registradas na memória.
+- **Modo consciente**: memória persistente mantém o agente atualizado sobre edições em projetos After Effects, UFO e demais subsistemas.
+
+As dependências opcionais necessárias para os recursos multimodais e de observação podem ser instaladas com:
+
+```shell
+pip install pyautogui pynput pillow pytesseract speechrecognition sounddevice numpy browser-use
+```
+
+Instale `pytesseract` localmente conforme a documentação oficial para habilitar OCR. Para experimentar os recursos de planejamento, execute `unified-agent` normalmente e utilize prompts como "Planeje um roadmap de lançamento" ou prefixe uma habilidade com `plugin:minha_skill argumento` para invocar plugins.
+
 ### Terminal
 
 After installation, simply run `interpreter`:

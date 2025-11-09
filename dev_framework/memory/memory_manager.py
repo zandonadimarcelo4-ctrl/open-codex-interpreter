@@ -24,8 +24,13 @@ class MemoryManager:
         self._client = chromadb.PersistentClient(path=str(self.path.parent))
         self._collection = self._client.get_or_create_collection(self.collection_name)
 
+    def dumps(self, payload: dict) -> str:
+        return json.dumps(payload, ensure_ascii=False)
+
     def add_event(self, kind: str, data: str) -> None:
-        document = json.dumps({"kind": kind, "data": data})
+        if isinstance(data, dict):
+            data = self.dumps(data)
+        document = json.dumps({"kind": kind, "data": data}, ensure_ascii=False)
         self._collection.add(
             documents=[document],
             ids=[f"event-{self._collection.count() + 1}"],

@@ -15,3 +15,4 @@ class CriticAgent(AssistantAgent):
 
     def register_review(self, feedback: str) -> None:
         self._memory.add_event("critic_feedback", feedback)
+        self._memory.add_event("auto_explanation", f"Critic feedback:\n{feedback}")

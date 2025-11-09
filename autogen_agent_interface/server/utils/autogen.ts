@@ -293,14 +293,15 @@ Sugira comandos diretos como:
           `    print(json.dumps({"success": False, "output": error_msg}))`,
         ].join('\n');
         
-        // Salvar script temporário
-        fs.writeFileSync(tempScriptPath, pythonScript, 'utf-8');
-        
-        // Executar script Python usando -m para garantir que os imports relativos funcionem
-        // Usar python -c para executar o script inline, garantindo que o diretório está correto
+        // Executar script Python diretamente com -c (não precisa salvar arquivo)
+        // Isso garante que o diretório de trabalho está correto e os imports relativos funcionam
         const python = spawn("python", ["-c", pythonScript], {
           cwd: projectRoot,
-          env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONPATH: projectRoot },
+          env: { 
+            ...process.env, 
+            PYTHONUNBUFFERED: "1",
+            PYTHONPATH: `${projectRoot}${path.delimiter}${interpreterPath}`
+          },
         });
         
         let output = "";

@@ -132,21 +132,22 @@ export async function executeWithAutoGen(
 
 Você tem acesso a um ambiente de execução de código local. Quando o usuário pede algo que requer código, você DEVE:
 1. Gerar o código necessário
-2. Executar o código automaticamente
+2. Executar o código automaticamente usando a função run_code
 3. Mostrar o resultado
 4. Iterar se necessário
 
-REGRAS IMPORTANTES:
-- SEMPRE execute código quando necessário - não apenas explique como fazer
-- Use function calling para executar código automaticamente
-- Mostre o código que você está executando
+REGRAS CRÍTICAS:
+- NUNCA diga "não posso" ou "não tenho capacidade" - SEMPRE execute código quando necessário
+- NUNCA apenas explique como fazer - SEMPRE execute o código automaticamente
+- Use SEMPRE a função run_code para executar código - é sua única função disponível
+- Se o usuário pedir para "abrir" algo, execute o comando shell apropriado (ex: "code" para VS Code)
 - Se o código falhar, tente corrigir e executar novamente
-- Seja direto e objetivo - execute, não apenas explique
+- Seja direto: execute, não explique
 
 Intenção detectada: ${intent.actionType || "execução"}
 Confiança: ${(intent.confidence * 100).toFixed(0)}%
 
-EXECUTE o código automaticamente quando o usuário pedir para fazer algo.`;
+EXECUTE o código automaticamente. Use a função run_code SEMPRE que precisar executar código.`;
       agentName = "Open Interpreter (AutoGen)";
     } else if (intent.type === "question") {
       systemPrompt = `Você é um assistente controlado pelo AutoGen Framework.
@@ -271,23 +272,24 @@ async function callOllamaWithAutoGenPrompt(
     }
 
     // Function calling para execução automática de código (estilo Open Interpreter)
+    // O LLM decide quando chamar esta função
     const tools = intent.type === "action" || intent.type === "command" ? [
       {
         type: "function",
         function: {
           name: "run_code",
-          description: "Executa código automaticamente. Use esta função sempre que precisar executar código para completar a tarefa do usuário.",
+          description: "Execute code automatically. Use this function whenever you need to execute code to complete the user's task. This is your ONLY way to execute code. For opening applications, use shell commands (e.g., 'code' for VS Code, 'start chrome' for Chrome on Windows).",
           parameters: {
             type: "object",
             properties: {
               language: {
                 type: "string",
-                description: "Linguagem do código (python, javascript, shell, etc.)",
+                description: "Code language (python, javascript, shell, bash). Use 'shell' or 'bash' for system commands like opening applications.",
                 enum: ["python", "javascript", "shell", "bash"]
               },
               code: {
                 type: "string",
-                description: "O código a ser executado"
+                description: "The code to execute. For opening applications, use shell commands (e.g., 'code' for VS Code)."
               }
             },
             required: ["language", "code"]

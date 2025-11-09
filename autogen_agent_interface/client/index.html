@@ -22,10 +22,27 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script
-      defer
-      src="%VITE_ANALYTICS_ENDPOINT%/umami"
-      data-website-id="%VITE_ANALYTICS_WEBSITE_ID%"></script>
+    <!-- Analytics (opcional - só carrega se configurado) -->
+    <script>
+      (function() {
+        const analyticsEndpoint = '%VITE_ANALYTICS_ENDPOINT%';
+        const websiteId = '%VITE_ANALYTICS_WEBSITE_ID%';
+        
+        // Só carregar se as variáveis estiverem definidas e não forem placeholders
+        if (analyticsEndpoint && 
+            websiteId && 
+            analyticsEndpoint !== '%VITE_ANALYTICS_ENDPOINT%' && 
+            websiteId !== '%VITE_ANALYTICS_WEBSITE_ID%' &&
+            !analyticsEndpoint.includes('undefined') &&
+            !websiteId.includes('undefined')) {
+          const script = document.createElement('script');
+          script.defer = true;
+          script.src = analyticsEndpoint + '/umami';
+          script.setAttribute('data-website-id', websiteId);
+          document.body.appendChild(script);
+        }
+      })();
+    </script>
   </body>
 
 </html>

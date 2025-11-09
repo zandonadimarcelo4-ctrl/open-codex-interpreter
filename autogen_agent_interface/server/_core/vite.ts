@@ -41,10 +41,16 @@ export async function setupVite(app: Express, server: Server) {
     },
   });
 
-  // Interceptar requisições problemáticas do HTML proxy antes que cheguem ao Vite
+  // Interceptar requisições problemáticas antes que cheguem ao Vite
   app.use((req, res, next) => {
     // Ignorar requisições de API - deixar o Express lidar com elas
     if (req.url && req.url.startsWith('/api/')) {
+      next();
+      return;
+    }
+    
+    // Ignorar requisições de WebSocket do Vite HMR
+    if (req.url && (req.url.includes('/@vite/client') || req.url.includes('/@react-refresh'))) {
       next();
       return;
     }

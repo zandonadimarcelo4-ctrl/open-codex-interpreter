@@ -177,10 +177,10 @@ EXECUTION WORKFLOW FOR ANY TASK:
 SPECIFIC CAPABILITIES:
 
 **File Operations:**
-- Read: `with open('file.txt', 'r') as f: content = f.read()`
+- Read: Use Python: with open('file.txt', 'r') as f: content = f.read()
 - Edit: Read file, modify content, write back
-- Create: `with open('new_file.txt', 'w') as f: f.write(content)`
-- Delete: `import os; os.remove('file.txt')`
+- Create: Use Python: with open('new_file.txt', 'w') as f: f.write(content)
+- Delete: Use Python: import os; os.remove('file.txt')
 - Search: Use grep, find, or Python to search codebase
 
 **Code Operations:**

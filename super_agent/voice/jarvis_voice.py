@@ -57,6 +57,7 @@ class JarvisVoiceSystem:
         self.elevenlabs_voice_id = elevenlabs_voice_id or "1qyUTInppoHkRcPT9t6b"
         self.tts_engine = None
         self.fallback_engine = None  # Engine de fallback se ElevenLabs falhar
+        self.elevenlabs_client = None  # Cliente ElevenLabs (biblioteca oficial)
         self.audio_queue = asyncio.Queue()
         self.is_speaking = False
         

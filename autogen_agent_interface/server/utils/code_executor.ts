@@ -178,7 +178,7 @@ async function executeJavaScript(
 /**
  * Executar código Shell/Bash
  */
-async function executeShell(
+export async function executeShell(
   code: string,
   options: CodeExecutionOptions = {}
 ): Promise<CodeExecutionResult> {

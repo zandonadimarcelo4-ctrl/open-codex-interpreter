@@ -429,7 +429,9 @@ Sugira comandos diretos como:
           }
           
           console.log(`[AutoGen] Executando comando simples: ${command}`);
-          const result = await executeCode('shell', command, { timeout: 5000 });
+          // Usar executeShell diretamente para comandos shell
+          const { executeShell } = await import("./code_executor");
+          const result = await executeShell(command, { timeout: 5000 });
           
           if (result.success) {
             return `✅ Comando executado com sucesso: ${command}\n\n${result.output || 'Aplicativo aberto'}`;
@@ -613,7 +615,7 @@ Sugira comandos diretos como:
           });
           
           python.on("error", (error) => {
-            clearTimeout(timeout);
+            if (timeoutId) clearTimeout(timeoutId);
             
             // Limpar arquivo temporário em caso de erro
             try {
@@ -774,7 +776,7 @@ async function callOllamaWithAutoGenPrompt(
               // Executar código automaticamente
               const result = await executeCode(code, language, {
                 timeout: 30000,
-                workingDirectory: process.cwd(),
+                workspace: process.cwd(),
               });
               
               // Adicionar resultado à resposta

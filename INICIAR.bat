@@ -59,7 +59,7 @@ if exist ".venv\Scripts\activate.bat" (
 )
 
 :: Recriar se necessario
-if !VENV_OK!==0 (
+if "!VENV_OK!"=="0" (
     echo Recriando ambiente virtual...
     if exist ".venv" (
         echo Parando processos Python que possam estar usando o ambiente virtual...
@@ -76,7 +76,7 @@ if !VENV_OK!==0 (
         if exist ".venv" (
             set /a REMOVE_ATTEMPTS+=1
             if !REMOVE_ATTEMPTS! LSS 5 (
-                echo Aguardando liberacao de arquivos (tentativa !REMOVE_ATTEMPTS!/5)...
+                echo Aguardando liberacao de arquivos - tentativa !REMOVE_ATTEMPTS! de 5...
                 timeout /t 2 /nobreak >nul
                 goto REMOVE_LOOP
             ) else (

@@ -140,7 +140,9 @@ CRITICAL RULES:
 - NEVER say "I cannot" or "I don't have the ability" - ALWAYS execute code when needed
 - NEVER just explain how to do it - ALWAYS execute the code automatically
 - ALWAYS use the run_code function to execute code - it's your only available function
-- If the user asks to "abrir" (open) something, execute the appropriate shell command (e.g., "code" for VS Code, "start chrome" for Chrome on Windows)
+- If the user asks to "abrir" (open) or "executa" (execute) something, you MUST call run_code with the appropriate shell command
+- For VS Code: use language="shell" and code="code" (or "code ." for current directory)
+- For Windows: use "start <app>" or just the app name
 - If code fails, try to fix it and execute again
 - Be direct: execute, don't explain
 
@@ -148,7 +150,7 @@ The user wants you to ACT and DO something.
 Detected intent: ${intent.actionType || "execution"}
 Confidence: ${(intent.confidence * 100).toFixed(0)}%
 
-EXECUTE code automatically. Use the run_code function ALWAYS when you need to execute code.`;
+YOU MUST CALL run_code FUNCTION NOW. DO NOT EXPLAIN. EXECUTE.`;
       agentName = "Open Interpreter (AutoGen)";
     } else if (intent.type === "question") {
       systemPrompt = `Você é um assistente controlado pelo AutoGen Framework.
@@ -379,7 +381,10 @@ async function callOllamaWithAutoGenPrompt(
 
     if (tools) {
       requestBody.tools = tools;
-      requestBody.tool_choice = "auto"; // Forçar uso de function calling quando disponível
+      // Forçar uso de function calling para ações/comandos
+      requestBody.tool_choice = intent.type === "action" || intent.type === "command" 
+        ? { type: "function", function: { name: "run_code" } } 
+        : "auto";
     }
 
     const response = await fetch(url, {

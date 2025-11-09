@@ -42,7 +42,7 @@ async function startServer() {
   
   // Health check endpoint (para plataformas de deploy)
   app.get("/api/health", (req, res) => {
-    const { healthCheck } = await import("./health");
+    const { healthCheck } = require("./health");
     healthCheck(req, res);
   });
   

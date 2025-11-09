@@ -110,13 +110,38 @@ export function useVoice(options: UseVoiceOptions = {}) {
               setIsSpeaking(false);
               URL.revokeObjectURL(audioUrl);
             };
-            audioElementRef.current.onerror = () => {
+            audioElementRef.current.onerror = (error) => {
+              console.error('❌ Erro ao reproduzir áudio:', error);
               setIsSpeaking(false);
-              setError('Erro ao reproduzir áudio');
+              setError('Erro ao reproduzir áudio. Verifique se o formato de áudio é suportado.');
               URL.revokeObjectURL(audioUrl);
             };
-            await audioElementRef.current.play();
-            onAudioReady?.(audioUrl);
+            
+            // Aguardar o áudio carregar antes de reproduzir
+            audioElementRef.current.onloadeddata = async () => {
+              try {
+                await audioElementRef.current?.play();
+                onAudioReady?.(audioUrl);
+              } catch (playError) {
+                console.error('❌ Erro ao reproduzir áudio:', playError);
+                setIsSpeaking(false);
+                setError('Erro ao reproduzir áudio. Verifique as permissões do navegador.');
+                URL.revokeObjectURL(audioUrl);
+              }
+            };
+            
+            // Se o áudio já estiver carregado, reproduzir imediatamente
+            if (audioElementRef.current.readyState >= 2) {
+              try {
+                await audioElementRef.current.play();
+                onAudioReady?.(audioUrl);
+              } catch (playError) {
+                console.error('❌ Erro ao reproduzir áudio:', playError);
+                setIsSpeaking(false);
+                setError('Erro ao reproduzir áudio. Verifique as permissões do navegador.');
+                URL.revokeObjectURL(audioUrl);
+              }
+            }
             return;
           }
         } else {
@@ -451,4 +476,5 @@ export function useVoice(options: UseVoiceOptions = {}) {
     error,
   };
 }
+
 

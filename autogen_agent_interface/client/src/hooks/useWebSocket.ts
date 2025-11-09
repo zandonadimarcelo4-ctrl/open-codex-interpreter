@@ -24,8 +24,18 @@ export interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
+  // Detectar porta correta do servidor
+  const getServerPort = () => {
+    // Tentar usar a porta do servidor atual
+    if (typeof window !== 'undefined') {
+      const currentPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      return currentPort !== '' ? currentPort : (import.meta.env.VITE_PORT || '3000');
+    }
+    return import.meta.env.VITE_PORT || '3000';
+  };
+
   const {
-    url = `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`,
+    url = `ws://localhost:${getServerPort()}/ws`,
     enabled = true,
     onMessage,
     onError,
@@ -51,8 +61,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
 
     try {
       const clientId = `client_${Math.random().toString(36).substr(2, 9)}`;
-      // WebSocket URL format: ws://host:port/ws/clientId
-      const wsUrl = url.includes('/ws') ? `${url}/${clientId}` : `${url}/ws/${clientId}`;
+      // WebSocket URL format: ws://host:port/ws (sem clientId na URL, será extraído no servidor)
+      const wsUrl = url.includes('/ws') ? url : `${url}/ws`;
+      console.log(`[WebSocket] Conectando a: ${wsUrl}`);
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {

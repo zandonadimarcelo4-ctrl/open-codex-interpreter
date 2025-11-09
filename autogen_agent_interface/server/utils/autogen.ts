@@ -664,34 +664,15 @@ Sugira comandos diretos como:
     }
 
     // Para perguntas/conversas, usar Ollama normalmente
-    // Tentar modelo padrão primeiro, depois fallback para gpt-oss:20b
-    let ollamaResponse = "";
-    let modelUsed = framework.model || DEFAULT_MODEL;
-    
-    try {
-      ollamaResponse = await callOllamaWithAutoGenPrompt(
-        systemPrompt,
-        task,
-        modelUsed,
-        intent,
-        images.length > 0 ? images : undefined
-      );
-    } catch (error) {
-      console.warn(`[AutoGen] Erro ao usar modelo ${modelUsed}, tentando fallback gpt-oss:20b-q4:`, error);
-      try {
-        ollamaResponse = await callOllamaWithAutoGenPrompt(
-          systemPrompt,
-          task,
-          "gpt-oss:20b-q4",
-          intent,
-          images.length > 0 ? images : undefined
-        );
-        console.log(`[AutoGen] Usando fallback: gpt-oss:20b-q4 (Q4 quantizado, ~8GB VRAM)`);
-      } catch (fallbackError) {
-        console.error(`[AutoGen] Erro ao usar fallback gpt-oss:20b-q4:`, fallbackError);
-        throw error; // Lançar erro original
-      }
-    }
+    // Usar modelo padrão diretamente (sem fallback automático para evitar demora)
+    const modelUsed = framework.model || DEFAULT_MODEL;
+    const ollamaResponse = await callOllamaWithAutoGenPrompt(
+      systemPrompt,
+      task,
+      modelUsed,
+      intent,
+      images.length > 0 ? images : undefined
+    );
 
     return ollamaResponse;
   } catch (error) {
@@ -778,7 +759,7 @@ async function callOllamaWithAutoGenPrompt(
       options: {
         temperature: intent.type === "action" ? 0.2 : 0.7,
         top_p: 0.9,
-        num_predict: intent.type === "action" ? 4000 : 1000,
+        num_predict: intent.type === "action" ? 2048 : 512, // Reduzido para resposta mais rápida
       },
     };
 

@@ -386,8 +386,63 @@ Sugira comandos diretos como:
     // Extrair imagens do contexto se disponíveis
     const images = context?.images || [];
 
-    // Para ações/comandos, usar Open Interpreter diretamente (ele já executa automaticamente)
+    // Para ações/comandos, otimizar execução:
+    // 1. Comandos simples (abrir apps, executar comandos shell) → executar diretamente
+    // 2. Tarefas complexas (editar arquivos, refatorar código) → usar Open Interpreter
     if (intent.type === "action" || intent.type === "command") {
+      // Detectar comandos simples que podem ser executados diretamente
+      const lowerTask = task.toLowerCase().trim();
+      const simpleCommands = [
+        'notepad', 'bloco de notas', 'code', 'vs code', 'chrome', 'firefox', 'edge',
+        'abrir notepad', 'abrir bloco de notas', 'abrir code', 'abrir vs code',
+        'executa notepad', 'executa bloco de notas', 'executa code', 'executa vs code',
+        'abre notepad', 'abre bloco de notas', 'abre code', 'abre vs code'
+      ];
+      
+      const isSimpleCommand = simpleCommands.some(cmd => lowerTask.includes(cmd));
+      
+      if (isSimpleCommand) {
+        // Executar comando simples diretamente (muito mais rápido)
+        try {
+          const { executeCode } = await import("./code_executor");
+          
+          // Mapear comandos para executáveis
+          let command = '';
+          if (lowerTask.includes('notepad') || lowerTask.includes('bloco de notas')) {
+            command = 'notepad';
+          } else if (lowerTask.includes('code') || lowerTask.includes('vs code')) {
+            command = 'code';
+          } else if (lowerTask.includes('chrome')) {
+            command = 'chrome';
+          } else if (lowerTask.includes('firefox')) {
+            command = 'firefox';
+          } else if (lowerTask.includes('edge')) {
+            command = 'msedge';
+          } else {
+            // Tentar extrair o comando da mensagem
+            const match = task.match(/(?:abrir|abre|executa|execute)\s+(.+)/i);
+            if (match) {
+              command = match[1].trim();
+            } else {
+              command = task.trim();
+            }
+          }
+          
+          console.log(`[AutoGen] Executando comando simples: ${command}`);
+          const result = await executeCode('shell', command, { timeout: 5000 });
+          
+          if (result.success) {
+            return `✅ Comando executado com sucesso: ${command}\n\n${result.output || 'Aplicativo aberto'}`;
+          } else {
+            return `⚠️ Erro ao executar comando: ${command}\n\n${result.error || 'Erro desconhecido'}`;
+          }
+        } catch (error) {
+          console.warn("[AutoGen] Erro ao executar comando simples:", error);
+          // Continuar para Open Interpreter se falhar
+        }
+      }
+      
+      // Para tarefas complexas ou se comando simples falhar, usar Open Interpreter
       try {
         // Usar Open Interpreter existente do projeto (ele já faz tudo automaticamente)
         const projectRoot = path.resolve(__dirname, "../../../");
@@ -558,6 +613,8 @@ Sugira comandos diretos como:
           });
           
           python.on("error", (error) => {
+            clearTimeout(timeout);
+            
             // Limpar arquivo temporário em caso de erro
             try {
               if (fs.existsSync(wrapperScript)) {

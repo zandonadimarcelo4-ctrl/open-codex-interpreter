@@ -37,8 +37,8 @@ export function AnimatedBackground() {
     let animationFrameId: number;
 
     const animate = () => {
-      // Clear canvas
-      ctx.fillStyle = 'oklch(0.15 0 0)';
+      // Clear canvas - usar cor RGB compatível
+      ctx.fillStyle = '#1a1a1a'; // Cor de fundo escura equivalente a oklch(0.15 0 0)
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
       // Update and draw particles
@@ -58,8 +58,11 @@ export function AnimatedBackground() {
         particle.x = Math.max(particle.radius, Math.min(canvas.width - particle.radius, particle.x));
         particle.y = Math.max(particle.radius, Math.min(canvas.height - particle.radius, particle.y));
 
-        // Draw particle
-        ctx.fillStyle = `oklch(0.6 0.2 280 / ${particle.opacity})`;
+        // Draw particle - usar cor RGB compatível
+        const r = 138; // Cor equivalente a oklch(0.6 0.2 280)
+        const g = 43;
+        const b = 226;
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${particle.opacity})`;
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, particle.radius, 0, Math.PI * 2);
         ctx.fill();
@@ -72,7 +75,8 @@ export function AnimatedBackground() {
           const distance = Math.sqrt(dx * dx + dy * dy);
 
           if (distance < 150) {
-            ctx.strokeStyle = `oklch(0.6 0.2 280 / ${(1 - distance / 150) * 0.2})`;
+            const connectionOpacity = (1 - distance / 150) * 0.2;
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${connectionOpacity})`;
             ctx.lineWidth = 1;
             ctx.beginPath();
             ctx.moveTo(particle.x, particle.y);

@@ -18,9 +18,9 @@ export interface IntentResult {
  */
 const ACTION_KEYWORDS = {
   code: ['criar', 'escrever', 'fazer', 'implementar', 'código', 'script', 'programa', 'função', 'classe', 'arquivo', 'criar arquivo', 'escrever código'],
-  web: ['buscar', 'pesquisar', 'encontrar', 'procurar', 'navegar', 'abrir', 'acessar', 'site', 'página', 'url'],
-  file: ['ler', 'abrir', 'salvar', 'criar arquivo', 'deletar arquivo', 'modificar arquivo', 'editar arquivo', 'arquivo', 'pasta', 'diretório'],
-  execute: ['executar', 'rodar', 'executar código', 'rodar script', 'testar', 'teste', 'correr', 'iniciar', 'começar'],
+  web: ['buscar', 'pesquisar', 'encontrar', 'procurar', 'navegar', 'acessar', 'site', 'página', 'url'],
+  file: ['ler', 'salvar', 'criar arquivo', 'deletar arquivo', 'modificar arquivo', 'editar arquivo', 'arquivo', 'pasta', 'diretório'],
+  execute: ['executar', 'rodar', 'executar código', 'rodar script', 'testar', 'teste', 'correr', 'iniciar', 'começar', 'abrir', 'abre', 'abrir meu', 'abrir o', 'abrir a', 'abre meu', 'abre o', 'abre a'],
   create: ['criar', 'fazer', 'gerar', 'produzir', 'construir', 'desenvolver', 'novo'],
   modify: ['modificar', 'alterar', 'mudar', 'editar', 'atualizar', 'ajustar', 'corrigir', 'consertar'],
   delete: ['deletar', 'remover', 'excluir', 'apagar', 'eliminar'],

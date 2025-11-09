@@ -1,129 +1,65 @@
-# 🚀 Comece Aqui - Open Codex Interpreter
+# 🚀 COMECE AQUI - Início Rápido
 
-## ⚡ Setup Rápido (3 Comandos)
+## ⚡ Execute Este Comando
 
-### Windows:
 ```batch
-# 1. Setup automático
-setup_windows.bat
-
-# 2. Iniciar servidor
-start_windows.bat
-
-# 3. Acessar no navegador
-# http://localhost:8080
+iniciar_tudo.bat
 ```
 
-## 📋 O que Você Precisa
+Isso irá iniciar automaticamente:
+- ✅ Backend Python na porta **8080**
+- ✅ Frontend React completo na porta **3000**
 
-- ✅ Python 3.10 ou superior
-- ✅ pip (vem com Python)
-- ✅ Conexão com internet (para instalar dependências)
+## 🌐 URLs para Testar
 
-## 🎯 Setup Passo a Passo
+### Backend
+- **API**: http://localhost:8080/api
+- **Documentação**: http://localhost:8080/docs
 
-### Passo 1: Executar Setup
-```batch
-setup_windows.bat
-```
+### Frontend
+- **Interface**: http://localhost:3000
+- **Landing Page**: http://localhost:3000/
+- **Home**: http://localhost:3000/app
+- **Showcase**: http://localhost:3000/showcase
 
-**O que faz:**
-- Verifica Python
-- Cria ambiente virtual (.venv)
-- Instala todas as dependências
-- Cria arquivo .env
-- Cria diretórios necessários
+## 📋 O que o Script Faz
 
-### Passo 2: Iniciar Servidor
-```batch
-start_windows.bat
-```
+1. Verifica Python
+2. Cria ambiente virtual (se necessário)
+3. Instala dependências Python (se necessário)
+4. Verifica Node.js e pnpm
+5. Instala dependências do frontend (se necessário)
+6. Inicia Backend (porta 8080)
+7. Inicia Frontend (porta 3000)
 
-**O que faz:**
-- Ativa ambiente virtual
-- Gera chave secreta (se necessário)
-- Inicia servidor FastAPI na porta 8080
+## ⏱️ Tempo de Inicialização
 
-### Passo 3: Acessar Interface
-Abra no navegador:
-```
-http://localhost:8080
-```
+- **Backend**: ~5-10 segundos
+- **Frontend**: ~10-15 segundos
 
-## 🔧 Configuração (Opcional)
+## ✅ Verificar se Está Funcionando
 
-### Arquivo .env
-O arquivo `.env` foi criado automaticamente. Você pode editá-lo para:
+Após executar `iniciar_tudo.bat`, aguarde alguns segundos e abra:
 
-**Ollama (Modelos Locais):**
-```env
-OLLAMA_BASE_URL=http://localhost:11434
-ENABLE_OLLAMA_API=True
-```
+1. http://localhost:8080/docs - Deve mostrar a documentação da API
+2. http://localhost:3000 - Deve mostrar a interface React
 
-**OpenAI:**
-```env
-OPENAI_API_KEY=sk-...
-ENABLE_OPENAI_API=True
-```
+## 🐛 Se Algo Não Funcionar
 
-**Porta (se 8080 estiver ocupada):**
-```env
-PORT=8081
-```
-
-## 🧪 Testar Instalação
-
-Execute:
-```batch
-test_setup.bat
-```
-
-Verifica se tudo está configurado corretamente.
-
-## 🐛 Problemas Comuns
-
-### "ModuleNotFoundError"
-**Solução:**
+### Backend não inicia
 ```batch
 .venv\Scripts\activate
 pip install -r requirements.txt
+python -m uvicorn open_webui.main:app --reload
 ```
 
-### "Port already in use"
-**Solução:** Altere a porta no `.env`:
-```env
-PORT=8081
-```
-
-### "Database connection failed"
-**Solução:**
+### Frontend não inicia
 ```batch
-mkdir data
+cd autogen_agent_interface
+pnpm install
+pnpm dev
 ```
-
-## 📝 Primeiro Uso
-
-1. **Acesse**: http://localhost:8080
-2. **Crie Usuário**: A interface pedirá para criar um usuário admin
-3. **Configure Modelo**: 
-   - Ollama: Instale e configure
-   - OpenAI: Adicione API key
-4. **Teste Chat**: Comece a usar!
-
-## 💡 Dicas
-
-- **Desenvolvimento**: O servidor reinicia automaticamente ao modificar código
-- **Logs**: Configure `GLOBAL_LOG_LEVEL=DEBUG` no `.env` para mais detalhes
-- **Produção**: Use `UVICORN_WORKERS=4` no `.env` para melhor performance
-
-## 📚 Documentação
-
-- **Setup Completo**: `SETUP_GUIDE.md`
-- **Início Rápido**: `QUICK_START.md`
-- **Análise do Projeto**: `ANALISE_E_TAREFAS.md`
 
 ---
 
-**Pronto!** Execute `setup_windows.bat` e depois `start_windows.bat` para começar! 🎉
-
+**Execute `iniciar_tudo.bat` agora!** 🎉

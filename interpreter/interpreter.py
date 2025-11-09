@@ -9,7 +9,7 @@ import os
 import time
 import json
 import platform
-import openai
+import litellm
 import getpass
 import requests
 import readline
@@ -286,12 +286,51 @@ class Interpreter:
             time.sleep(2)
             print(Rule(style="white"))
             
-    openai.api_key = self.api_key
+    # litellm will fallback to environment variables when the api_key argument
+    # is omitted. We keep the env var in sync to preserve compatibility with
+    # downstream tooling expecting OPENAI_API_KEY.
+    os.environ['OPENAI_API_KEY'] = self.api_key
 
   def end_active_block(self):
     if self.active_block:
       self.active_block.end()
       self.active_block = None
+
+  def _extract_delta(self, chunk):
+    """
+    Normalize streaming chunks from litellm (and compatible providers) into the
+    OpenAI delta dict format expected by the downstream renderer.
+    """
+
+    choice = None
+
+    if isinstance(chunk, dict):
+      choices = chunk.get("choices")
+      if choices:
+        choice = choices[0]
+    else:
+      choices = getattr(chunk, "choices", None)
+      if choices:
+        choice = choices[0]
+
+    if choice is None:
+      return {}
+
+    if isinstance(choice, dict):
+      delta = choice.get("delta") or choice.get("message") or {}
+    else:
+      delta = getattr(choice, "delta", None) or getattr(choice, "message", None) or {}
+      if hasattr(delta, "model_dump"):
+        delta = delta.model_dump(exclude_none=True)
+      elif hasattr(delta, "dict"):
+        delta = delta.dict(exclude_none=True)
+
+    if isinstance(delta, str):
+      delta = {"content": delta}
+    elif delta is None:
+      delta = {}
+
+    return delta
 
   def respond(self):
     # Add relevant info to system_message
@@ -309,12 +348,13 @@ class Interpreter:
     # Make LLM call
     if not self.local:
       # gpt-4
-      response = openai.ChatCompletion.create(
+      response = litellm.completion(
         model=self.model,
         messages=messages,
         functions=[function_schema],
         stream=True,
         temperature=self.temperature,
+        api_key=self.api_key,
       )
     elif self.local:
       # Code-Llama
@@ -339,7 +379,7 @@ class Interpreter:
 
     for chunk in response:
 
-      delta = chunk["choices"][0]["delta"]
+      delta = self._extract_delta(chunk)
 
       # Accumulate deltas into the last message in messages
       self.messages[-1] = merge_deltas(self.messages[-1], delta)

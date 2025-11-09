@@ -1,4 +1,4 @@
-import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
+// import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc"; // Desabilitado devido a problemas com Vite 7
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
@@ -9,13 +9,12 @@ import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 // Configurar plugins com tratamento de erros
 // Nota: jsxLocPlugin pode causar problemas com Vite 7
-// Se o erro "No matching HTML proxy module" persistir, desabilite jsxLocPlugin()
+// Desabilitado devido ao erro "No matching HTML proxy module"
 const plugins = [
   react(),
   tailwindcss(),
-  // Desabilitar jsxLocPlugin temporariamente se causar problemas
+  // Desabilitar jsxLocPlugin temporariamente devido a problemas com Vite 7
   // jsxLocPlugin(),
-  jsxLocPlugin(),
   vitePluginManusRuntime(),
 ].filter(Boolean);
 

@@ -1,7 +1,16 @@
 [tool.poetry]
 name = "open-interpreter"
 packages = [
-    {include = "interpreter"},
+    { include = "interpreter" },
+    { include = "dev_framework" },
+    { include = "unified_agent" },
+    { include = "webui" },
+    { include = "litellm" },
+]
+include = [
+    "dev_framework/memory/context.json",
+    "webui/static/**/*",
+    "webui/templates/**/*",
 ]
 version = "0.0.297"
 description = "Ask GPT-4 to run code locally."

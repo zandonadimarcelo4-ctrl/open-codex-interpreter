@@ -214,9 +214,8 @@ Sugira comandos diretos como:
         // Escapar task para uso seguro no Python (usar base64 para evitar problemas com caracteres especiais)
         const taskBase64 = Buffer.from(task, 'utf-8').toString('base64');
         
-        // Construir script Python que será executado como módulo
-        // Usar arquivo temporário para evitar problemas com imports relativos
-        const tempScriptPath = path.join(projectRoot, "temp_interpreter_exec.py");
+        // Construir script Python que será executado diretamente com -c
+        // Isso garante que os imports relativos funcionem corretamente
         const pythonScript = [
           "#!/usr/bin/env python3",
           "# -*- coding: utf-8 -*-",

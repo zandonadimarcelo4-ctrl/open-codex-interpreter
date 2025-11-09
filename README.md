@@ -127,14 +127,16 @@ Caso o extra `autogen` não esteja instalado, o comando `unified-agent` exibirá
 
 ### Perfis de dependência compatíveis
 
-O `pyautogen` passou a depender do novo SDK `openai>=1.3`, enquanto o Open Interpreter clássico foi construído sobre a API antiga (`openai==0.27.x`). Para evitar conflitos resolvemos o impasse da seguinte forma:
+O `open-interpreter` agora depende exclusivamente do shim LiteLLM incluído no repositório, eliminando qualquer requisito direto do pacote `openai` e privilegiando provedores locais como o Ollama.
+
+Para adicionar recursos multiagente, basta instalar o extra `autogen` quando quiser experimentar o fluxo completo com AutoGen:
 
 | Caso de uso | Comando sugerido | Observações |
 | --- | --- | --- |
-| **Somente Open Interpreter** | `pip install -e .` | Mantém o comportamento original e usa o shim LiteLLM incluído no projeto. |
-| **Fluxo multiagente com AutoGen** | `pip install -e .[autogen]` <br>ou `poetry install --extras "autogen"` | Instala `pyautogen>=0.2.35` e `openai>=1.3`, compatíveis com o novo cliente oficial. |
+| **Somente Open Interpreter** | `pip install -e .` | Mantém o comportamento original com LiteLLM. |
+| **Fluxo multiagente com AutoGen** | `pip install -e .[autogen]` <br>ou `poetry install --extras "autogen"` | Adiciona `pyautogen` e as dependências transitivas exigidas por ele. |
 
-Todos os módulos do `dev_framework` verificam automaticamente se o pacote `autogen` está disponível e exibem uma mensagem guiando a instalação do extra quando necessário. Assim você pode alternar entre os dois perfis sem editar manualmente o `pyproject.toml`.
+Todos os módulos do `dev_framework` verificam automaticamente se o pacote `autogen` está disponível e exibem uma mensagem guiando a instalação do extra quando necessário. Assim você pode alternar entre os dois perfis sem editar manualmente o `pyproject.toml` ou instalar bibliotecas que não pretende usar.
 
 ### CLI cinematográfica
 

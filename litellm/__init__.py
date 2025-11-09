@@ -1,9 +1,10 @@
 """Minimal local implementation of the LiteLLM interface used by the project.
 
 This stub supports the ``completion`` helper with streaming semantics that
-mirror the legacy OpenAI client. It is intentionally lightweight so the
-project can run in offline or air-gapped environments where installing the
-full ``litellm`` distribution is not possible.
+mirror the legacy chat-completions APIs relied upon by the project. It is
+intentionally lightweight so deployments can run in offline or air-gapped
+environments where installing the full ``litellm`` distribution is not
+possible.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import urllib.parse
 
 import requests
 
-DEFAULT_API_BASE = "https://api.openai.com/v1"
+DEFAULT_API_BASE = None
 
 
 class LiteLLMError(RuntimeError):
@@ -22,12 +23,16 @@ class LiteLLMError(RuntimeError):
 
 
 def _normalise_base_url(api_base: str | None) -> str:
-    base = api_base or os.getenv("OPENAI_API_BASE") or DEFAULT_API_BASE
+    base = api_base or os.getenv("LITELLM_API_BASE") or DEFAULT_API_BASE
+    if not base:
+        raise LiteLLMError(
+            "Set LITELLM_API_BASE or pass api_base to point the client at your provider.",
+        )
     return base.rstrip("/")
 
 
 def _build_headers(api_key: str | None, extra_headers: dict[str, str] | None = None) -> dict[str, str]:
-    key = api_key or os.getenv("LITELLM_API_KEY") or os.getenv("OPENAI_API_KEY")
+    key = api_key or os.getenv("LITELLM_API_KEY")
     if not key:
         raise LiteLLMError("An API key is required to invoke LiteLLM completions.")
 
@@ -80,8 +85,8 @@ def completion(
 ) -> t.Union[dict[str, t.Any], t.Iterator[dict[str, t.Any]]]:
     """Send a chat completion request to the configured provider.
 
-    The implementation mirrors the ``openai.ChatCompletion.create`` method used
-    previously so existing streaming logic continues to function.
+    The implementation mirrors the historical ``ChatCompletion.create`` contract
+    relied upon by the project so existing streaming logic continues to function.
     """
 
     base_url = _normalise_base_url(api_base)

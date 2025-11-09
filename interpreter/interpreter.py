@@ -42,10 +42,11 @@ function_schema = {
   },
 }
 
-# Message for when users don't have an OpenAI API key.
-missing_api_key_message = """> OpenAI API key not found
+# Message for when users don't have a LiteLLM-compatible API key.
+missing_api_key_message = """> Remote API key not found
 
-To use `GPT-4` (recommended) please provide an OpenAI API key.
+To use hosted models, please provide a LiteLLM-compatible API key (for example,
+one exposed by a proxy server).
 
 To use `Code-Llama` (free but less capable) press `enter`.
 """
@@ -254,13 +255,13 @@ class Interpreter:
 
   def verify_api_key(self):
     """
-    Makes sure we have an OPENAI_API_KEY.
+    Ensure a LiteLLM-compatible API key is available when required.
     """
 
     if self.api_key == None:
 
-      if 'OPENAI_API_KEY' in os.environ:
-        self.api_key = os.environ['OPENAI_API_KEY']
+      if 'LITELLM_API_KEY' in os.environ:
+        self.api_key = os.environ['LITELLM_API_KEY']
       else:
         # This is probably their first time here!
         print('', Markdown("**Welcome to Open Interpreter.**"), '')
@@ -269,27 +270,27 @@ class Interpreter:
         print(Rule(style="white"))
 
         print(Markdown(missing_api_key_message), '', Rule(style="white"), '')
-        response = input("OpenAI API key: ")
-    
+        response = input("LiteLLM-compatible API key: ")
+
         if response == "":
             # User pressed `enter`, requesting Code-Llama
             self.local = True
-            
+
             print(Markdown("> Switching to `Code-Llama`...\n\n**Tip:** Run `interpreter --local` to automatically use `Code-Llama`."), '')
             time.sleep(2)
             print(Rule(style="white"))
             return
-          
+
         else:
             self.api_key = response
-            print('', Markdown("**Tip:** To save this key for later, run `export OPENAI_API_KEY=your_api_key` on Mac/Linux or `setx OPENAI_API_KEY your_api_key` on Windows."), '')
+            print('', Markdown("**Tip:** To save this key for later, run `export LITELLM_API_KEY=your_api_key` on Mac/Linux or `setx LITELLM_API_KEY your_api_key` on Windows."), '')
             time.sleep(2)
             print(Rule(style="white"))
-            
+
     # litellm will fallback to environment variables when the api_key argument
     # is omitted. We keep the env var in sync to preserve compatibility with
-    # downstream tooling expecting OPENAI_API_KEY.
-    os.environ['OPENAI_API_KEY'] = self.api_key
+    # downstream tooling expecting LITELLM_API_KEY.
+    os.environ['LITELLM_API_KEY'] = self.api_key
 
   def end_active_block(self):
     if self.active_block:
@@ -299,7 +300,7 @@ class Interpreter:
   def _extract_delta(self, chunk):
     """
     Normalize streaming chunks from litellm (and compatible providers) into the
-    OpenAI delta dict format expected by the downstream renderer.
+    delta dict format expected by the downstream renderer.
     """
 
     choice = None

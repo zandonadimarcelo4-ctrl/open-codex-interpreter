@@ -400,9 +400,10 @@ Sugira comandos diretos como:
         // Escapar task para uso seguro no Python (usar base64 para evitar problemas com caracteres especiais)
         const taskBase64 = Buffer.from(task, 'utf-8').toString('base64');
         
-        // Construir script Python que será executado diretamente com -c
-        // Isso garante que os imports relativos funcionem corretamente
-        const pythonScript = [
+        // Usar python -m para executar como módulo (garante que imports relativos funcionem)
+        // Criar um script wrapper que será executado como módulo
+        const wrapperScript = path.join(projectRoot, "temp_interpreter_wrapper.py");
+        const wrapperContent = [
           "#!/usr/bin/env python3",
           "# -*- coding: utf-8 -*-",
           "import sys",
@@ -410,73 +411,45 @@ Sugira comandos diretos como:
           "import json",
           "import base64",
           "",
-          `# Adicionar caminhos ao sys.path ANTES de qualquer import`,
+          `# Adicionar caminhos ao sys.path`,
           `project_root = r"${projectRoot.replace(/\\/g, '/')}"`,
-          `interpreter_path = r"${interpreterPath.replace(/\\/g, '/')}"`,
-          "",
-          `# IMPORTANTE: Adicionar ao sys.path na ordem correta`,
-          `# Primeiro o diretório raiz do projeto (onde está o pacote interpreter)`,
           `if project_root not in sys.path:`,
           `    sys.path.insert(0, project_root)`,
-          `# Depois o diretório interpreter (caso precise)`,
-          `if interpreter_path not in sys.path:`,
-          `    sys.path.insert(0, interpreter_path)`,
           "",
-          `# Mudar para o diretório do projeto para que os imports relativos funcionem`,
+          `# Mudar para o diretório do projeto`,
           `os.chdir(project_root)`,
           "",
-          `# Importar Interpreter usando o módulo interpreter diretamente`,
-          `# O __init__.py do interpreter já exporta Interpreter`,
+          `# Importar Interpreter - o __init__.py já faz sys.modules["interpreter"] = Interpreter()`,
+          `# Mas precisamos da classe, então importamos diretamente`,
           `try:`,
-          `    # Importar o módulo interpreter (que já tem __init__.py)`,
-          `    # Isso deve funcionar porque project_root está no sys.path`,
+          `    # Primeiro, importar o módulo interpreter para que o __init__.py seja executado`,
+          `    # Isso cria os módulos necessários`,
           `    import interpreter`,
-          `    # O __init__.py já faz: sys.modules["interpreter"] = Interpreter()`,
-          `    # Mas precisamos da classe, não da instância`,
-          `    # Então importamos diretamente de interpreter.interpreter`,
-          `    from interpreter.interpreter import Interpreter`,
+          `    # Agora importar a classe Interpreter diretamente`,
+          `    # O problema é que __init__.py substitui sys.modules["interpreter"]`,
+          `    # Então precisamos importar antes que isso aconteça ou usar uma abordagem diferente`,
+          `    # Vamos importar diretamente do arquivo`,
+          `    import importlib`,
+          `    interpreter_module = importlib.import_module("interpreter.interpreter")`,
+          `    Interpreter = interpreter_module.Interpreter`,
           `    print(f"[DEBUG] Interpreter importado com sucesso", file=sys.stderr)`,
-          `except ImportError as e:`,
+          `except Exception as e:`,
           `    print(f"[DEBUG] Erro ao importar Interpreter: {e}", file=sys.stderr)`,
+          `    import traceback`,
+          `    print(f"[DEBUG] Traceback: {traceback.format_exc()}", file=sys.stderr)`,
           `    print(f"[DEBUG] sys.path: {sys.path}", file=sys.stderr)`,
-          `    print(f"[DEBUG] project_root: {project_root}", file=sys.stderr)`,
-          `    print(f"[DEBUG] Tentando importar diretamente...", file=sys.stderr)`,
-          `    # Fallback: tentar importar diretamente do arquivo`,
-          `    try:`,
-          `        import importlib.util`,
-          `        interpreter_file = os.path.join(project_root, "interpreter", "interpreter.py")`,
-          `        if os.path.exists(interpreter_file):`,
-          `            spec = importlib.util.spec_from_file_location("interpreter.interpreter", interpreter_file)`,
-          `            if spec and spec.loader:`,
-          `                # Criar módulo pai primeiro`,
-          `                import types`,
-          `                if "interpreter" not in sys.modules:`,
-          `                    sys.modules["interpreter"] = types.ModuleType("interpreter")`,
-          `                interpreter_module = importlib.util.module_from_spec(spec)`,
-          `                sys.modules["interpreter.interpreter"] = interpreter_module`,
-          `                spec.loader.exec_module(interpreter_module)`,
-          `                Interpreter = interpreter_module.Interpreter`,
-          `                print(f"[DEBUG] Interpreter importado via importlib", file=sys.stderr)`,
-          `            else:`,
-          `                raise ImportError("Não foi possível criar spec")`,
-          `        else:`,
-          `            raise ImportError(f"Arquivo não encontrado: {interpreter_file}")`,
-          `    except Exception as fallback_err:`,
-          `        print(f"[DEBUG] Erro no fallback: {fallback_err}", file=sys.stderr)`,
-          `        raise e`,
+          `    raise`,
           "",
           `# Decodificar task de base64`,
           `task_encoded = "${taskBase64}"`,
           `task = base64.b64decode(task_encoded).decode('utf-8')`,
           "",
-          `# Inicializar Interpreter com todas as capacidades`,
+          `# Inicializar Interpreter`,
           `interpreter = Interpreter()`,
-          `interpreter.auto_run = True  # Executar código automaticamente`,
-          `interpreter.local = True  # Executar localmente`,
-          `# Habilitar todas as capacidades: ler, editar, criar, deletar arquivos, executar comandos`,
-          `# O Interpreter já tem acesso completo ao sistema de arquivos e shell`,
+          `interpreter.auto_run = True`,
+          `interpreter.local = True`,
           "",
-          `# Open Interpreter já executa código automaticamente`,
+          `# Executar task`,
           `try:`,
           `    result = interpreter.chat(task, return_messages=False)`,
           `    `,
@@ -496,9 +469,11 @@ Sugira comandos diretos como:
           `    print(json.dumps({"success": False, "output": error_msg}))`,
         ].join('\n');
         
-        // Executar script Python diretamente com -c (não precisa salvar arquivo)
-        // Isso garante que o diretório de trabalho está correto e os imports relativos funcionam
-        const python = spawn("python", ["-c", pythonScript], {
+        // Salvar script wrapper
+        fs.writeFileSync(wrapperScript, wrapperContent, 'utf-8');
+        
+        // Executar script Python
+        const python = spawn("python", [wrapperScript], {
           cwd: projectRoot,
           env: { 
             ...process.env, 
@@ -560,6 +535,15 @@ Sugira comandos diretos como:
           });
           
           python.on("error", (error) => {
+            // Limpar arquivo temporário em caso de erro
+            try {
+              if (fs.existsSync(wrapperScript)) {
+                fs.unlinkSync(wrapperScript);
+              }
+            } catch (e) {
+              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
+            }
+            
             console.warn("[AutoGen] Erro ao executar Open Interpreter:", error);
             reject(error);
           });

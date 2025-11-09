@@ -62,18 +62,53 @@ if exist ".venv\Scripts\activate.bat" (
 if !VENV_OK!==0 (
     echo Recriando ambiente virtual...
     if exist ".venv" (
+        echo Parando processos Python que possam estar usando o ambiente virtual...
+        taskkill /F /IM python.exe >nul 2>&1
+        taskkill /F /IM pythonw.exe >nul 2>&1
+        :: Aguardar processos terminarem
+        timeout /t 2 /nobreak >nul
+        
         echo Removendo ambiente virtual antigo...
+        :: Tentar remover varias vezes
+        set REMOVE_ATTEMPTS=0
+        :REMOVE_LOOP
         rmdir /s /q .venv 2>nul
-        :: Aguardar um pouco para garantir que foi removido
-        timeout /t 1 /nobreak >nul
+        if exist ".venv" (
+            set /a REMOVE_ATTEMPTS+=1
+            if !REMOVE_ATTEMPTS! LSS 5 (
+                echo Aguardando liberacao de arquivos (tentativa !REMOVE_ATTEMPTS!/5)...
+                timeout /t 2 /nobreak >nul
+                goto REMOVE_LOOP
+            ) else (
+                echo AVISO: Nao foi possivel remover .venv completamente.
+                echo Tentando criar em local temporario...
+                python -m venv .venv_new
+                if errorlevel 1 (
+                    echo ERRO: Falha ao criar ambiente virtual!
+                    echo.
+                    echo SOLUCAO: Feche todos os processos Python e tente novamente.
+                    echo Ou delete manualmente a pasta .venv e execute novamente.
+                    pause
+                    exit /b 1
+                )
+                :: Remover .venv antigo e renomear novo
+                rmdir /s /q .venv 2>nul
+                timeout /t 1 /nobreak >nul
+                ren .venv_new .venv
+                goto VENV_CREATED
+            )
+        )
     )
     echo Criando novo ambiente virtual...
     python -m venv .venv
     if errorlevel 1 (
         echo ERRO: Falha ao criar ambiente virtual!
+        echo.
+        echo SOLUCAO: Feche todos os processos Python e tente novamente.
         pause
         exit /b 1
     )
+    :VENV_CREATED
     echo Ambiente virtual criado.
 )
 

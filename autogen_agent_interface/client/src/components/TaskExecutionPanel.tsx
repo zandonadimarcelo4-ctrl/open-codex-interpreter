@@ -15,49 +15,53 @@ interface ExecutionStep {
 }
 
 export function TaskExecutionPanel() {
-  const [steps, setSteps] = useState<ExecutionStep[]>([
-    {
-      id: '1',
-      title: 'Análise de Requisitos',
-      description: 'Analisando a tarefa solicitada',
-      status: 'completed',
-      timestamp: new Date(Date.now() - 5000),
-      duration: 2000,
-      progress: 100,
-    },
-    {
-      id: '2',
-      title: 'Planejamento',
-      description: 'Criando plano de execução',
-      status: 'completed',
-      timestamp: new Date(Date.now() - 3000),
-      duration: 1500,
-      progress: 100,
-    },
-    {
-      id: '3',
-      title: 'Execução',
-      description: 'Executando tarefas em paralelo',
-      status: 'running',
-      timestamp: new Date(),
-      progress: 65,
-      estimatedTimeRemaining: 1200,
-    },
-    {
-      id: '4',
-      title: 'Validação',
-      description: 'Validando resultados',
-      status: 'pending',
-      progress: 0,
-    },
-    {
-      id: '5',
-      title: 'Entrega',
-      description: 'Preparando resultados finais',
-      status: 'pending',
-      progress: 0,
-    },
-  ]);
+  // Usar IDs únicos baseados em timestamp para evitar duplicação
+  const [steps, setSteps] = useState<ExecutionStep[]>(() => {
+    const baseTime = Date.now();
+    return [
+      {
+        id: `step-${baseTime}-1`,
+        title: 'Análise de Requisitos',
+        description: 'Analisando a tarefa solicitada',
+        status: 'completed',
+        timestamp: new Date(baseTime - 5000),
+        duration: 2000,
+        progress: 100,
+      },
+      {
+        id: `step-${baseTime}-2`,
+        title: 'Planejamento',
+        description: 'Criando plano de execução',
+        status: 'completed',
+        timestamp: new Date(baseTime - 3000),
+        duration: 1500,
+        progress: 100,
+      },
+      {
+        id: `step-${baseTime}-3`,
+        title: 'Execução',
+        description: 'Executando tarefas em paralelo',
+        status: 'running',
+        timestamp: new Date(baseTime),
+        progress: 65,
+        estimatedTimeRemaining: 1200,
+      },
+      {
+        id: `step-${baseTime}-4`,
+        title: 'Validação',
+        description: 'Validando resultados',
+        status: 'pending',
+        progress: 0,
+      },
+      {
+        id: `step-${baseTime}-5`,
+        title: 'Entrega',
+        description: 'Preparando resultados finais',
+        status: 'pending',
+        progress: 0,
+      },
+    ];
+  });
 
   const startTimeRef = useRef<number>(Date.now());
   const [elapsedTime, setElapsedTime] = useState(0);

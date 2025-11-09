@@ -433,8 +433,8 @@ export function AdvancedChatInterface() {
             <Loader2 className="w-3 h-3 animate-spin" />
             <span>AutoGen orquestrando:</span>
             <div className="flex gap-1 flex-wrap">
-              {activeAgents.map((agent, idx) => (
-                <span key={idx} className="px-2 py-0.5 bg-primary/20 rounded text-primary text-xs">
+              {activeAgents.map((agent) => (
+                <span key={agent} className="px-2 py-0.5 bg-primary/20 rounded text-primary text-xs">
                   {agent}
                 </span>
               ))}
@@ -484,7 +484,7 @@ export function AdvancedChatInterface() {
               {message.images && message.images.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   {message.images.map((imageUrl, idx) => (
-                    <div key={idx} className="relative group">
+                    <div key={`${message.id}-image-${idx}-${imageUrl.substring(0, 20)}`} className="relative group">
                       <img
                         src={imageUrl}
                         alt={`Anexo ${idx + 1}`}

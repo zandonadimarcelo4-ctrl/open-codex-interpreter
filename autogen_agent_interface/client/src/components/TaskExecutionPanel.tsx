@@ -80,6 +80,7 @@ export function TaskExecutionPanel() {
   useEffect(() => {
     const interval = setInterval(() => {
       setSteps(prev => {
+        // Criar novo array para evitar mutação
         const updatedSteps = prev.map((step, idx) => {
           // Atualizar progresso da etapa em execução
           if (step.status === 'running' && step.progress !== undefined) {
@@ -89,16 +90,13 @@ export function TaskExecutionPanel() {
             const estimatedTime = remainingSteps * avgTime * (1 - newProgress / 100);
 
             if (newProgress >= 100) {
-              // Completar etapa e iniciar próxima
-              const nextStep = prev[idx + 1];
-              if (nextStep && nextStep.status === 'pending') {
-                return {
-                  ...step,
-                  status: 'completed',
-                  progress: 100,
-                  duration: Date.now() - (step.timestamp?.getTime() || Date.now()),
-                };
-              }
+              // Completar etapa atual (não iniciar próxima aqui - será feito no próximo map)
+              return {
+                ...step,
+                status: 'completed',
+                progress: 100,
+                duration: Date.now() - (step.timestamp?.getTime() || Date.now()),
+              };
             }
 
             return {
@@ -109,11 +107,12 @@ export function TaskExecutionPanel() {
           }
 
           // Iniciar próxima etapa quando a anterior completar
-          if (step.status === 'completed' && idx < prev.length - 1) {
-            const nextStep = prev[idx + 1];
-            if (nextStep && nextStep.status === 'pending') {
+          // Verificar se a etapa anterior está completed
+          if (step.status === 'pending' && idx > 0) {
+            const prevStep = prev[idx - 1];
+            if (prevStep && prevStep.status === 'completed') {
               return {
-                ...nextStep,
+                ...step, // Manter o ID original do step
                 status: 'running',
                 timestamp: new Date(),
                 progress: 0,

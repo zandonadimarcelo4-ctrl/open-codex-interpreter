@@ -50,6 +50,30 @@ https://github.com/KillianLucas/open-interpreter/assets/63927363/37152071-680d-4
 pip install open-interpreter
 ```
 
+### Unified Dev Agent (Ollama + AutoGen + Open Interpreter)
+
+The repository now bundles a "Unified Dev Agent" that orchestrates DeepSeek-R1 running on [Ollama](https://ollama.ai/), Open Interpreter's execution engine, AutoGen's multi-agent coordination and persistent memory backed by [ChromaDB](https://docs.trychroma.com/).
+
+```powershell
+Write-Host "🚀 Instalando Unified Dev Framework..." -ForegroundColor Cyan
+python -m venv .venv
+.venv\Scripts\activate
+pip install open-interpreter ollama pyautogen chromadb
+setx OPENINTERPRETER_MODE "local"
+setx OPENINTERPRETER_SANDBOX "false"
+mkdir dev_framework
+cd dev_framework
+python -m unified-agent "Configurar ambiente de desenvolvimento completo"
+```
+
+Once the dependencies are installed and an [Ollama](https://ollama.ai/download) server is running locally you can start the experience with:
+
+```shell
+python -m unified-agent
+```
+
+Provide a natural language goal such as *"Crie uma API Flask com rotas /add, /list e /delete"* and the agent will plan with AutoGen, generate code using DeepSeek-R1, execute and validate the results via Open Interpreter, and record contextual knowledge in ChromaDB for subsequent iterations. Optional connectors for the [After-Effects MCP Vision toolkit](https://github.com/VolksRat71/after-effects-mcp-vision) and [Microsoft UFO](https://github.com/microsoft/UFO) enable awareness of creative assets and IDE workspace state.
+
 ### Terminal
 
 After installation, simply run `interpreter`:

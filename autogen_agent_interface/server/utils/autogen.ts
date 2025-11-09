@@ -659,13 +659,34 @@ Sugira comandos diretos como:
     }
 
     // Para perguntas/conversas, usar Ollama normalmente
-    let ollamaResponse = await callOllamaWithAutoGenPrompt(
-      systemPrompt,
-      task,
-      framework.model,
-      intent,
-      images.length > 0 ? images : undefined
-    );
+    // Tentar modelo padrão primeiro, depois fallback para gpt-oss:20b
+    let ollamaResponse = "";
+    let modelUsed = framework.model || DEFAULT_MODEL;
+    
+    try {
+      ollamaResponse = await callOllamaWithAutoGenPrompt(
+        systemPrompt,
+        task,
+        modelUsed,
+        intent,
+        images.length > 0 ? images : undefined
+      );
+    } catch (error) {
+      console.warn(`[AutoGen] Erro ao usar modelo ${modelUsed}, tentando fallback gpt-oss:20b:`, error);
+      try {
+        ollamaResponse = await callOllamaWithAutoGenPrompt(
+          systemPrompt,
+          task,
+          "gpt-oss:20b",
+          intent,
+          images.length > 0 ? images : undefined
+        );
+        console.log(`[AutoGen] Usando fallback: gpt-oss:20b`);
+      } catch (fallbackError) {
+        console.error(`[AutoGen] Erro ao usar fallback gpt-oss:20b:`, fallbackError);
+        throw error; // Lançar erro original
+      }
+    }
 
     return ollamaResponse;
   } catch (error) {

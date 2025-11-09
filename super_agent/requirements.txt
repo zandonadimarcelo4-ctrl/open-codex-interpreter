@@ -1,0 +1,35 @@
+# Super Agent Framework - Dependências
+
+# AutoGen
+pyautogen>=0.2.0
+
+# Open Interpreter
+open-interpreter>=0.1.0
+
+# Voice (TTS)
+edge-tts>=6.1.0
+pyttsx3>=2.90
+piper-tts>=1.0.0
+
+# Voice (STT)
+openai-whisper>=20231117
+SpeechRecognition>=3.10.0
+pyaudio>=0.2.11
+
+# Audio Playback
+playsound>=1.3.0
+
+# WebSocket
+fastapi>=0.104.0
+websockets>=12.0
+uvicorn>=0.24.0
+
+# ChromaDB
+chromadb>=0.4.0
+
+# NumPy
+numpy>=1.24.0
+
+# Logging
+loguru>=0.7.0
+

@@ -373,62 +373,93 @@ export const appRouter = router({
           userMessageId = Date.now(); // ID temporário
         }
         
-        // Processar baseado na intenção
+        // Processar usando AutoGen Framework
+        // AutoGen controla tudo - orquestra todos os agentes
         let response: string;
-        let agentName = "Super Agent";
+        let agentName = "Super Agent (AutoGen)";
         
-        if (intent.type === "action" || intent.type === "command") {
-          // Criar tarefa para ação (se DB disponível)
-          let taskId: number | undefined;
-          try {
-            taskId = await db.createTask({
-              userId,
-              conversationId,
-              title: input.message.substring(0, 100),
-              description: input.message,
-              status: "running",
-              progress: 0,
-            });
-          } catch (error) {
-            console.warn("[Chat] Failed to create task:", error);
-            taskId = Date.now(); // ID temporário
+        try {
+          // Importar função do AutoGen
+          const { executeWithAutoGen } = await import("./utils/autogen");
+          
+          // Executar usando AutoGen
+          response = await executeWithAutoGen(
+            input.message,
+            intent,
+            { conversationId, userId }
+          );
+          
+          // Adicionar contexto da intenção detectada
+          if (intent.type === "action" || intent.type === "command") {
+            // Criar tarefa para ação (se DB disponível)
+            let taskId: number | undefined;
+            try {
+              taskId = await db.createTask({
+                userId,
+                conversationId,
+                title: input.message.substring(0, 100),
+                description: input.message,
+                status: "running",
+                progress: 0,
+              });
+            } catch (error) {
+              console.warn("[Chat] Failed to create task:", error);
+            }
+            
+            response = `🤖 **AutoGen Framework** - Orquestrando agentes...\n\n` +
+              `🔧 **Ação Detectada**: ${intent.actionType || "execução"}\n` +
+              `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n` +
+              (taskId ? `**Tarefa**: #${taskId}\n\n` : "\n") +
+              `**Agentes Coordenados pelo AutoGen**:\n` +
+              `- Planner: Planejando execução\n` +
+              `- Generator: Gerando solução\n` +
+              `- Executor: Executando tarefa\n\n` +
+              response;
+            agentName = "Executor Agent (AutoGen)";
+          } else if (intent.type === "question") {
+            response = `🤖 **AutoGen Framework** - Coordenando agentes...\n\n` +
+              `💬 **Pergunta Detectada**\n\n` +
+              response;
+            agentName = "Assistant Agent (AutoGen)";
+          } else {
+            response = `🤖 **AutoGen Framework** - Pronto para coordenar agentes\n\n` +
+              `💭 **Conversa Detectada**\n\n` +
+              response;
           }
+        } catch (error) {
+          console.error("[Chat] Error calling AutoGen:", error);
           
-          // Simular processamento da ação
-          response = `🔧 **Ação Detectada**: ${intent.actionType || "execução"}\n\n` +
-            `**Intenção**: ${intent.reason}\n\n` +
-            `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n\n` +
-            `**Tarefa Criada**: #${taskId}\n\n` +
-            `Estou processando sua solicitação. Isso pode levar alguns segundos...\n\n` +
-            `\`\`\`\n${input.message}\n\`\`\`\n\n` +
-            `⏳ Processando...`;
-          
-          agentName = "Executor Agent";
-        } else if (intent.type === "question") {
-          // Resposta conversacional para pergunta
-          response = `💬 **Pergunta Detectada**\n\n` +
-            `Vou responder sua pergunta sobre: "${input.message}"\n\n` +
-            `**Resposta**:\n\n` +
-            `Baseado na sua pergunta, posso ajudar com informações e explicações. ` +
-            `Se você precisar de uma ação específica, por favor, seja mais direto, por exemplo: ` +
-            `"crie um arquivo", "execute código", "busque informações", etc.`;
-          
-          agentName = "Assistant Agent";
-        } else {
-          // Conversa normal
-          response = `💭 **Conversa Detectada**\n\n` +
-            `Entendi sua mensagem: "${input.message}"\n\n` +
-            `Como posso ajudá-lo? Posso:\n\n` +
-            `- 💬 Conversar e responder perguntas\n` +
-            `- 🔧 Executar ações (criar arquivos, executar código, etc.)\n` +
-            `- 🔍 Buscar informações\n` +
-            `- 📝 Gerar código\n\n` +
-            `Se você quiser que eu faça algo específico, use comandos diretos como:\n` +
-            `- "Crie um arquivo..."\n` +
-            `- "Execute o código..."\n` +
-            `- "Busque informações sobre..."`;
-          
-          agentName = "Super Agent";
+          // Fallback: resposta baseada em intenção sem AutoGen
+          if (intent.type === "action" || intent.type === "command") {
+            response = `🔧 **Ação Detectada** (AutoGen não disponível)\n\n` +
+              `**Tipo**: ${intent.actionType || "execução"}\n` +
+              `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n` +
+              `**Razão**: ${intent.reason}\n\n` +
+              `⚠️ AutoGen não está disponível. Para executar ações, certifique-se de que:\n` +
+              `1. AutoGen está instalado: \`pip install pyautogen\`\n` +
+              `2. Ollama está rodando: \`ollama serve\`\n` +
+              `3. Modelo está instalado: \`ollama pull deepseek-r1\`\n` +
+              `4. OLLAMA_BASE_URL está configurado corretamente\n\n` +
+              `**Sua mensagem**: "${input.message}"`;
+            agentName = "Executor Agent (Offline)";
+          } else if (intent.type === "question") {
+            response = `💬 **Pergunta Detectada** (AutoGen não disponível)\n\n` +
+              `**Sua pergunta**: "${input.message}"\n\n` +
+              `⚠️ AutoGen não está disponível. Para respostas completas, certifique-se de que:\n` +
+              `1. AutoGen está instalado: \`pip install pyautogen\`\n` +
+              `2. Ollama está rodando: \`ollama serve\`\n` +
+              `3. Modelo está instalado: \`ollama pull deepseek-r1\`\n` +
+              `4. OLLAMA_BASE_URL está configurado corretamente`;
+            agentName = "Assistant Agent (Offline)";
+          } else {
+            response = `💭 **Conversa Detectada** (AutoGen não disponível)\n\n` +
+              `**Sua mensagem**: "${input.message}"\n\n` +
+              `⚠️ AutoGen não está disponível. Para respostas completas, certifique-se de que:\n` +
+              `1. AutoGen está instalado: \`pip install pyautogen\`\n` +
+              `2. Ollama está rodando: \`ollama serve\`\n` +
+              `3. Modelo está instalado: \`ollama pull deepseek-r1\`\n` +
+              `4. OLLAMA_BASE_URL está configurado corretamente`;
+          }
         }
         
         // Criar mensagem de resposta (se DB disponível)

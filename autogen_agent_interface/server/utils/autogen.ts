@@ -727,11 +727,18 @@ async function callOllamaWithAutoGenPrompt(
     }
 
     // Timeout de 10 segundos para evitar espera infinita
+    console.log(`[AutoGen] Preparando fetch com timeout de 10s...`);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeoutId = setTimeout(() => {
+      console.log(`[AutoGen] ⚠️ Timeout após 10 segundos - abortando...`);
+      controller.abort();
+    }, 10000);
     
     let response: Response;
     try {
+      console.log(`[AutoGen] Iniciando fetch para: ${url}`);
+      console.log(`[AutoGen] Request body (primeiros 500 chars): ${JSON.stringify(requestBody).substring(0, 500)}...`);
+      const fetchStartTime = Date.now();
       response = await fetch(url, {
         method: "POST",
         headers: {
@@ -741,10 +748,18 @@ async function callOllamaWithAutoGenPrompt(
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      const fetchElapsed = Date.now() - fetchStartTime;
+      console.log(`[AutoGen] ✅ Fetch concluído em ${fetchElapsed}ms - Status: ${response.status}`);
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
+        console.error(`[AutoGen] ❌ Timeout: Ollama demorou mais de 10 segundos`);
         throw new Error("Timeout: Ollama demorou mais de 10 segundos para responder");
+      }
+      console.error(`[AutoGen] ❌ Erro no fetch:`, error);
+      if (error instanceof Error) {
+        console.error(`[AutoGen] ❌ Mensagem: ${error.message}`);
+        console.error(`[AutoGen] ❌ Stack: ${error.stack}`);
       }
       throw error;
     }

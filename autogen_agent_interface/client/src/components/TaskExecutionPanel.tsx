@@ -75,8 +75,8 @@ export function TaskExecutionPanel() {
   // Simular progresso em tempo real
   useEffect(() => {
     const interval = setInterval(() => {
-      setSteps(prev =>
-        prev.map((step, idx) => {
+      setSteps(prev => {
+        const updatedSteps = prev.map((step, idx) => {
           // Atualizar progresso da etapa em execução
           if (step.status === 'running' && step.progress !== undefined) {
             const newProgress = Math.min(100, (step.progress || 0) + Math.random() * 5);
@@ -118,15 +118,17 @@ export function TaskExecutionPanel() {
           }
 
           return step;
-        })
-      );
+        });
 
-      // Calcular tempo médio por etapa
-      const completedSteps = prev.filter(s => s.status === 'completed' && s.duration);
-      if (completedSteps.length > 0) {
-        const avg = completedSteps.reduce((sum, s) => sum + (s.duration || 0), 0) / completedSteps.length;
-        setAverageStepTime(avg);
-      }
+        // Calcular tempo médio por etapa usando os steps atualizados
+        const completedSteps = updatedSteps.filter(s => s.status === 'completed' && s.duration);
+        if (completedSteps.length > 0) {
+          const avg = completedSteps.reduce((sum, s) => sum + (s.duration || 0), 0) / completedSteps.length;
+          setAverageStepTime(avg);
+        }
+
+        return updatedSteps;
+      });
     }, 500); // Atualizar a cada 500ms para animação mais suave
 
     return () => clearInterval(interval);

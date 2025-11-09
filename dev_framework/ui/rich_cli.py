@@ -16,7 +16,8 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from ..main import Notification, UnifiedDevAgentConfig, UnifiedDevAgentRunResult
+from ..configuration import UnifiedDevAgentConfig
+from ..main import Notification, UnifiedDevAgentRunResult
 from .base import AgentUI
 
 

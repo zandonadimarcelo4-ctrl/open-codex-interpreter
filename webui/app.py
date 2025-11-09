@@ -10,7 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from dev_framework.main import UnifiedDevAgent, UnifiedDevAgentConfig, UnifiedDevAgentRunResult
+from dev_framework.configuration import UnifiedDevAgentConfig
+from dev_framework.main import UnifiedDevAgent, UnifiedDevAgentRunResult
 
 app = FastAPI(title="Unified Dev Agent Studio", version="1.0")
 

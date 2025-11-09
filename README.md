@@ -125,6 +125,30 @@ Caso o extra `autogen` não esteja instalado, o comando `unified-agent` exibirá
 
 > 💡 **Rodando sem instalar o pacote:** se você apenas clonou o repositório, execute `python -m unified_agent` (repare no sublinhado) a partir da raiz do projeto para obter o mesmo comportamento do comando `unified-agent`.
 
+#### Perfis e configuração declarativa
+
+O orquestrador agora oferece perfis prontos e carregamento de arquivos de configuração para que você ajuste o comportamento sem editar código:
+
+- `unified-agent --list-profiles` lista os perfis internos com uma descrição resumida.
+- `--profile innovation` ativa todos os recursos multimodais e de automação sem exigir flags extras.
+- `--profile minimal` desliga observação, multimodalidade e auto-fork para rodar de forma enxuta.
+- `--config settings.json` aplica overrides vindos de um arquivo JSON/TOML/YAML (exige `pyyaml` para YAML).
+
+Exemplo de arquivo `settings.json` carregado com `--config`:
+
+```json
+{
+  "ollama_model": "deepseek-r1:14b",
+  "enable_auto_execution": false,
+  "plugin_auto_discover": false,
+  "auto_fork_repos": [
+    "https://github.com/seu-usuario/projeto-experimental.git"
+  ]
+}
+```
+
+Essas opções são combináveis — por exemplo, rode `unified-agent --profile innovation --config settings.json` para começar do preset completo e aplicar ajustes locais. Todas as chaves válidas estão documentadas no arquivo `dev_framework/configuration.py` e podem ser fornecidas no arquivo de configuração ou diretamente via CLI.
+
 ### Perfis de dependência compatíveis
 
 O `open-interpreter` agora depende exclusivamente do shim LiteLLM incluído no repositório, eliminando qualquer requisito direto do pacote `openai` e privilegiando provedores locais como o Ollama.

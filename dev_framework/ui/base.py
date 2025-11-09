@@ -4,7 +4,8 @@ from __future__ import annotations
 from typing import Iterable, Protocol, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover - for typing only
-    from ..main import Notification, UnifiedDevAgentConfig, UnifiedDevAgentRunResult
+    from ..configuration import UnifiedDevAgentConfig
+    from ..main import Notification, UnifiedDevAgentRunResult
 
 
 class AgentUI(Protocol):

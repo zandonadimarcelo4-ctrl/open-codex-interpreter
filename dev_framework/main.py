@@ -20,6 +20,7 @@ from .plugins.manager import PluginManager
 from .self_update.auto_fork import AutoForkManager
 from .intelligence.intention import Intention, IntentionDetector
 from .ui.base import AgentUI
+from .configuration import UnifiedDevAgentConfig
 
 autogen = require_autogen()
 
@@ -61,36 +62,6 @@ class UnifiedDevAgentRunResult:
             "execution_results": self.execution_results,
             "notifications": [note.to_dict() for note in self.notifications],
         }
-
-
-@dataclass
-class UnifiedDevAgentConfig:
-    """Runtime configuration for :class:`UnifiedDevAgent`."""
-
-    ollama_model: str = "deepseek-r1:8b"
-    ollama_base_url: str = "http://127.0.0.1:11434"
-    workspace: Path = Path.cwd()
-    memory_path: Path = Path("dev_framework/memory/context.json")
-    enable_auto_execution: bool = True
-    auto_execution_guard: bool = True
-    ide_integration_enabled: bool = False
-    after_effects_project_path: Optional[Path] = None
-    ufo_workspace: Optional[Path] = None
-    observe_automate_enabled: bool = True
-    multimodal_enabled: bool = True
-    reward_system_enabled: bool = True
-    plugin_auto_discover: bool = True
-    enable_agentic_seek: bool = True
-    enable_browser_search: bool = True
-    enable_intention_detection: bool = True
-    auto_fork_repos: tuple[str, ...] = (
-        "https://github.com/VolksRat71/after-effects-mcp-vision.git",
-        "https://github.com/microsoft/autogen.git",
-        "https://github.com/microsoft/UFO.git",
-        "https://github.com/OpenBMB/ChatDev.git",
-        "https://github.com/Fosowl/agenticSeek.git",
-        "https://github.com/browser-use/browser-use.git",
-    )
 
 
 @dataclass

@@ -966,21 +966,49 @@ export type AppRouter = typeof appRouter;
 function detectIntentLocal(message: string): { type: string; confidence: number; actionType?: string; reason?: string } {
   const lowerMessage = message.toLowerCase();
   
-  const actionKeywords = ['criar', 'fazer', 'executar', 'rodar', 'buscar', 'pesquisar', 'criar arquivo', 'escrever código'];
-  const questionKeywords = ['o que', 'como', 'quando', 'onde', 'quem', 'qual', 'por que'];
-  const commandKeywords = ['faça', 'execute', 'rode', 'crie', 'delete'];
+  // Palavras-chave para comandos diretos (alta prioridade)
+  const commandKeywords = ['faça', 'execute', 'rode', 'crie', 'delete', 'executa', 'abrir', 'abre', 'abrir meu', 'abrir o', 'abrir a', 'abre meu', 'abre o', 'abre a', 'abrir vs code', 'abrir code', 'executa vs code', 'executa code', 'abre vs code', 'abre code'];
   
+  // Palavras-chave para ações (média prioridade)
+  const actionKeywords = ['criar', 'fazer', 'executar', 'rodar', 'buscar', 'pesquisar', 'criar arquivo', 'escrever código', 'abrir aplicativo', 'abrir programa', 'iniciar', 'inicia', 'rodar aplicativo', 'rodar programa'];
+  
+  // Palavras-chave para perguntas
+  const questionKeywords = ['o que', 'como', 'quando', 'onde', 'quem', 'qual', 'por que', 'explique', 'me diga', 'me fale'];
+  
+  // Verificar comandos diretos primeiro (maior confiança)
   if (commandKeywords.some(kw => lowerMessage.includes(kw))) {
-    return { type: 'command', confidence: 0.9, reason: 'Comando direto detectado' };
+    // Detectar tipo de ação específica
+    let actionType = 'execute';
+    if (lowerMessage.includes('abrir') || lowerMessage.includes('abre')) {
+      actionType = 'open';
+    } else if (lowerMessage.includes('executar') || lowerMessage.includes('executa')) {
+      actionType = 'execute';
+    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie')) {
+      actionType = 'create';
+    } else if (lowerMessage.includes('delete') || lowerMessage.includes('deletar')) {
+      actionType = 'delete';
+    }
+    
+    return { type: 'command', confidence: 0.95, actionType, reason: 'Comando direto detectado' };
   }
   
+  // Verificar ações
   if (actionKeywords.some(kw => lowerMessage.includes(kw))) {
-    return { type: 'action', confidence: 0.8, actionType: 'execute', reason: 'Ação detectada' };
+    let actionType = 'execute';
+    if (lowerMessage.includes('abrir') || lowerMessage.includes('abre')) {
+      actionType = 'open';
+    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie')) {
+      actionType = 'create';
+    }
+    
+    return { type: 'action', confidence: 0.85, actionType, reason: 'Ação detectada' };
   }
   
+  // Verificar perguntas
   if (questionKeywords.some(kw => lowerMessage.includes(kw))) {
     return { type: 'question', confidence: 0.7, reason: 'Pergunta detectada' };
   }
   
+  // Padrão: conversa
   return { type: 'conversation', confidence: 0.6, reason: 'Conversa normal' };
 }

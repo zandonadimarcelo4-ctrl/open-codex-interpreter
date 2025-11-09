@@ -40,6 +40,12 @@ async function startServer() {
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   
+  // Health check endpoint (para plataformas de deploy)
+  app.get("/api/health", (req, res) => {
+    const { healthCheck } = await import("./health");
+    healthCheck(req, res);
+  });
+  
   // TTS API endpoint
   app.post("/api/tts", async (req, res) => {
     try {

@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "autogen_agent_interface/package.json",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "autogen_agent_interface/client/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "autogen_agent_interface/server/_core/index.ts"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "autogen_agent_interface/client/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "functions": {
+    "autogen_agent_interface/server/_core/index.ts": {
+      "maxDuration": 60
+    }
+  },
+  "regions": ["iad1"]
+}
+

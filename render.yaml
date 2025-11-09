@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: autogen-agent-interface
+    env: node
+    plan: starter
+    buildCommand: cd autogen_agent_interface && pnpm install && pnpm build
+    startCommand: cd autogen_agent_interface && pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: OLLAMA_BASE_URL
+        value: http://localhost:11434
+      - key: DEFAULT_MODEL
+        value: deepseek-r1
+    healthCheckPath: /api/health
+    autoDeploy: true
+
+  - type: worker
+    name: autogen-background-worker
+    env: node
+    plan: starter
+    buildCommand: cd autogen_agent_interface && pnpm install
+    startCommand: cd autogen_agent_interface && pnpm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OLLAMA_BASE_URL
+        sync: false
+        fromService:
+          name: autogen-agent-interface
+          type: web
+          property: OLLAMA_BASE_URL
+

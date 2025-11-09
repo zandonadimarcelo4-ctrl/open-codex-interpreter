@@ -6,7 +6,10 @@ pyautogen>=0.2.0
 # Open Interpreter
 open-interpreter>=0.1.0
 
-# Voice (TTS)
+# Voice (TTS) - Coqui TTS (XTTS) para voz realista
+# Coqui TTS é o melhor TTS open source realista
+TTS>=0.22.0
+# Fallbacks
 edge-tts>=6.1.0
 pyttsx3>=2.90
 piper-tts>=1.0.0

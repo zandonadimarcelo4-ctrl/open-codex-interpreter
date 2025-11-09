@@ -1,6 +1,7 @@
 """
 Auto Reward System - Sistema de Auto-Recompensa
 Baseado no ChatDev, sistema de recompensa automática para agentes
+Compatível com ChatDev Reward System
 """
 from __future__ import annotations
 

@@ -429,7 +429,7 @@ Sugira comandos diretos como:
           console.log(`[AutoGen] Executando comando simples: ${command}`);
           // Usar executeShell diretamente para comandos shell
           const { executeShell } = await import("./code_executor");
-          const result = await executeShell(command, { timeout: 5000 });
+          const result = await executeShell(command, { timeout: 3000 });
           
           if (result.success) {
             return `✅ Comando executado com sucesso: ${command}\n\n${result.output || 'Aplicativo aberto'}`;

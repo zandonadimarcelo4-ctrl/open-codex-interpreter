@@ -60,6 +60,12 @@ def run_migrations():
 
         # Set the script location dynamically
         migrations_path = OPEN_WEBUI_DIR / "migrations"
+        
+        # Verificar se o diretório de migrações existe
+        if not migrations_path.exists():
+            log.warning(f"Migrations directory not found at {migrations_path}. Skipping migrations.")
+            return
+        
         alembic_cfg.set_main_option("script_location", str(migrations_path))
 
         command.upgrade(alembic_cfg, "head")
@@ -67,7 +73,11 @@ def run_migrations():
         log.exception(f"Error running migrations: {e}")
 
 
-run_migrations()
+# Executar migrações apenas se o diretório existir
+try:
+    run_migrations()
+except Exception as e:
+    log.warning(f"Could not run migrations: {e}")
 
 
 class Config(Base):

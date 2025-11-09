@@ -507,7 +507,7 @@ export function AdvancedChatInterface() {
               {message.codeBlocks && message.codeBlocks.length > 0 && (
                 <div className="mt-2 space-y-2">
                   {message.codeBlocks.map((block, idx) => (
-                    <div key={idx} className="bg-muted/50 rounded-lg p-3 border border-border">
+                    <div key={`${message.id}-code-${idx}-${block.language}`} className="bg-muted/50 rounded-lg p-3 border border-border">
                       {block.code && (
                         <div className="mb-2">
                           <div className="text-xs text-muted-foreground mb-1">Código {block.language}:</div>

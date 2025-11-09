@@ -13,6 +13,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const TEMP_AUDIO_DIR = path.join(__dirname, "../../../temp_audio");
+// Garantir que o diretório existe
+if (!fs.existsSync(TEMP_AUDIO_DIR)) {
+  fs.mkdirSync(TEMP_AUDIO_DIR, { recursive: true });
+}
 if (!fs.existsSync(TEMP_AUDIO_DIR)) {
   fs.mkdirSync(TEMP_AUDIO_DIR, { recursive: true });
 }
@@ -105,7 +109,8 @@ export async function generateTTS(
     console.log(`[TTS] Arquivo de saída: ${outputFile}`);
     
     // Usar caminho absoluto para evitar problemas
-    const superAgentPath = path.resolve(__dirname, "../../../super_agent");
+    // super_agent está em autogen_agent_interface/super_agent
+    const superAgentPath = path.resolve(__dirname, "../../super_agent");
     console.log(`[TTS] Caminho do super_agent: ${superAgentPath}`);
     
     // Codificar o texto limpo em base64 para evitar problemas com emojis e caracteres especiais
@@ -360,7 +365,7 @@ export async function checkTTSAvailable(): Promise<boolean> {
   try {
     const pythonScript = `
 import sys
-sys.path.insert(0, "${path.join(__dirname, "../../../super_agent")}")
+sys.path.insert(0, "${path.join(__dirname, "../../super_agent")}")
 try:
     from voice.jarvis_voice import JarvisVoiceSystem
     jarvis = JarvisVoiceSystem()

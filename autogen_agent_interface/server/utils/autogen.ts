@@ -731,7 +731,7 @@ async function callOllamaWithAutoGenPrompt(
       options: {
         temperature: intent.type === "action" ? 0.2 : 0.7,
         top_p: 0.9,
-        num_predict: intent.type === "action" ? 2048 : 512, // Reduzido para resposta mais rápida
+        num_predict: intent.type === "action" ? 1024 : 256, // Reduzido ainda mais para resposta ultra-rápida
       },
     };
 

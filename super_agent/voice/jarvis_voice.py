@@ -523,13 +523,6 @@ class JarvisVoiceSystem:
                 # Fallback para Piper
                 if self.fallback_engine == "piper":
                     await self._piper_speak(text)
-                        # elif self.fallback_engine == "edge_tts":
-                        #     await self._edge_tts_speak(text)
-            else:
-                logger.error("❌ Biblioteca oficial do ElevenLabs e aiohttp não disponíveis")
-                # Fallback para Piper
-                if self.fallback_engine == "piper":
-                    await self._piper_speak(text)
                 else:
                     logger.error("❌ Nenhum fallback disponível")
         except ImportError:

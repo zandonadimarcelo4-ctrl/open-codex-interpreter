@@ -43,6 +43,12 @@ export async function setupVite(app: Express, server: Server) {
 
   // Interceptar requisições problemáticas do HTML proxy antes que cheguem ao Vite
   app.use((req, res, next) => {
+    // Ignorar requisições de API - deixar o Express lidar com elas
+    if (req.url && req.url.startsWith('/api/')) {
+      next();
+      return;
+    }
+    
     // Se a URL contém html-proxy, retornar 404 imediatamente
     if (req.url && req.url.includes('html-proxy')) {
       res.status(404).end();
@@ -54,6 +60,12 @@ export async function setupVite(app: Express, server: Server) {
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
+
+    // Ignorar requisições de API - deixar o Express lidar com elas
+    if (url && url.startsWith('/api/')) {
+      next();
+      return;
+    }
 
     // Ignorar requisições de HTML proxy
     if (url && url.includes('html-proxy')) {

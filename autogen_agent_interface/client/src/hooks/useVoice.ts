@@ -93,9 +93,21 @@ export function useVoice(options: UseVoiceOptions = {}) {
             return;
           }
         } else {
-          const errorText = await response.text();
+          // Tentar ler como JSON primeiro, depois como texto
+          let errorText = '';
+          try {
+            const errorJson = await response.json();
+            errorText = errorJson.error || JSON.stringify(errorJson);
+          } catch {
+            // Se não for JSON, ler como texto
+            errorText = await response.text();
+            // Se for HTML (página de erro), extrair mensagem útil
+            if (errorText.includes('<!doctype') || errorText.includes('<html')) {
+              errorText = `Erro ${response.status}: Página de erro HTML retornada (rota não encontrada?)`;
+            }
+          }
           console.error('❌ Erro na API de TTS:', response.status, errorText);
-          setError(`Erro na API de TTS: ${response.status} - ${errorText}`);
+          setError(`Erro na API de TTS: ${response.status} - ${errorText.substring(0, 100)}`);
           throw new Error(`API de TTS retornou erro: ${response.status}`);
         }
       } catch (apiError) {

@@ -74,13 +74,20 @@ async function startServer() {
         }
       } catch (ttsError) {
         console.error("[TTS] ❌ Erro ao gerar TTS:", ttsError);
+        const errorMessage = ttsError instanceof Error ? ttsError.message : String(ttsError);
+        console.error("[TTS] Mensagem de erro completa:", errorMessage);
         res.status(500).json({ 
-          error: `TTS error: ${ttsError instanceof Error ? ttsError.message : String(ttsError)}` 
+          error: `TTS error: ${errorMessage}`,
+          details: errorMessage
         });
       }
     } catch (error) {
       console.error("[TTS] ❌ Erro:", error);
-      res.status(500).json({ error: `Internal server error: ${error instanceof Error ? error.message : String(error)}` });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({ 
+        error: `Internal server error: ${errorMessage}`,
+        details: errorMessage
+      });
     }
   });
   

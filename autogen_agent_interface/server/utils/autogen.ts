@@ -53,7 +53,9 @@ export async function executeWithAutoGen(
     // A verificação será feita apenas quando necessário (se houver erro)
 
     // Inicializar AutoGen se necessário (cacheado, não bloqueia)
+    console.log(`[AutoGen] Iniciando execução para: "${task.substring(0, 50)}..."`);
     const framework = await initializeAutoGen();
+    console.log(`[AutoGen] Framework inicializado`);
 
     // Para conversas/perguntas simples, pular roteamento de agentes (mais rápido)
     let systemPrompt = "";

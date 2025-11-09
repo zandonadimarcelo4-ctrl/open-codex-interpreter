@@ -988,6 +988,22 @@ function detectIntentLocal(message: string): { type: string; confidence: number;
     'instalar', 'baixar', 'copiar', 'mover', 'deletar', 'apagar', 'editar', 'modificar'
   ];
   
+  // Palavras-chave para conversa/cumprimentos (alta prioridade - NÃO executar)
+  const conversationKeywords = [
+    'tudo bem', 'tudo bom', 'tudo certo', 'tudo certo?', 'tudo bem?', 'tudo bom?',
+    'eai', 'e aí', 'e ai', 'eae', 'e aê',
+    'oi', 'olá', 'opa', 'eae', 'e aê',
+    'como vai', 'como está', 'como vai?', 'como está?',
+    'beleza', 'beleza?', 'tranquilo', 'tranquilo?',
+    'bom dia', 'boa tarde', 'boa noite',
+    'tchau', 'até logo', 'até mais', 'falou',
+    'obrigado', 'obrigada', 'valeu', 'vlw',
+    'ok', 'okay', 'ok?', 'okay?',
+    'sim', 'não', 'talvez',
+    'entendi', 'entendeu?', 'sabe?',
+    'legal', 'massa', 'top', 'show'
+  ];
+  
   // Palavras-chave para perguntas (apenas perguntas explícitas)
   const questionKeywords = ['o que é', 'o que significa', 'como funciona', 'quando usar', 'onde fica', 'quem é', 'qual é', 'por que', 'explique', 'me diga sobre', 'me fale sobre', 'o que é isso', 'o que é aquilo'];
   
@@ -1030,6 +1046,12 @@ function detectIntentLocal(message: string): { type: string; confidence: number;
     return { type: 'action', confidence: 0.90, actionType, reason: 'Ação detectada - EXECUTAR AUTOMATICAMENTE' };
   }
   
+  // Verificar conversa/cumprimentos PRIMEIRO (antes de perguntas e ações)
+  // Isso evita que "tudo bem?" seja tratado como ação
+  if (conversationKeywords.some(kw => lowerMessage.includes(kw))) {
+    return { type: 'conversation', confidence: 0.9, reason: 'Conversa/cumprimento detectado' };
+  }
+  
   // Verificar perguntas explícitas (apenas perguntas claras)
   if (questionKeywords.some(kw => lowerMessage.includes(kw))) {
     return { type: 'question', confidence: 0.7, reason: 'Pergunta detectada' };
@@ -1046,7 +1068,7 @@ function detectIntentLocal(message: string): { type: string; confidence: number;
     return { type: 'action', confidence: 0.85, actionType: 'execute', reason: 'Padrão executável detectado - EXECUTAR AUTOMATICAMENTE' };
   }
   
-  // Padrão: se não for claramente uma pergunta, tratar como ação (executar automaticamente)
+  // Padrão: se não for claramente uma pergunta ou conversa, tratar como ação (executar automaticamente)
   // Isso garante que o sistema execute tudo que o usuário pedir, como Codex e Manus
   return { type: 'action', confidence: 0.75, actionType: 'execute', reason: 'Tratando como ação - EXECUTAR AUTOMATICAMENTE' };
 }

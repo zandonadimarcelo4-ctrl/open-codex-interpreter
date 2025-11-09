@@ -391,10 +391,15 @@ Sugira comandos diretos como:
         'notepad', 'bloco de notas', 'code', 'vs code', 'chrome', 'firefox', 'edge',
         'abrir notepad', 'abrir bloco de notas', 'abrir code', 'abrir vs code',
         'executa notepad', 'executa bloco de notas', 'executa code', 'executa vs code',
-        'abre notepad', 'abre bloco de notas', 'abre code', 'abre vs code'
+        'abre notepad', 'abre bloco de notas', 'abre code', 'abre vs code',
+        'calculadora', 'calc', 'explorer', 'explorador', 'cmd', 'powershell',
+        'abrir calculadora', 'abrir calc', 'abrir explorer', 'abrir cmd',
+        'executa calculadora', 'executa calc', 'executa explorer', 'executa cmd'
       ];
       
-      const isSimpleCommand = simpleCommands.some(cmd => lowerTask.includes(cmd));
+      // Detectar padrões de comandos simples (mais agressivo)
+      const isSimpleCommand = simpleCommands.some(cmd => lowerTask.includes(cmd)) ||
+        /^(abrir|abre|executa|execute|rodar|roda)\s+[a-z\s]+$/i.test(task.trim());
       
       if (isSimpleCommand) {
         // Executar comando simples diretamente (muito mais rápido)
@@ -570,7 +575,7 @@ Sugira comandos diretos como:
         let timeoutId: NodeJS.Timeout | null = null;
         
         const result = await new Promise<string>((resolve, reject) => {
-          // Timeout de 30 segundos
+          // Timeout de 15 segundos (reduzido para resposta mais rápida)
           timeoutId = setTimeout(() => {
             python.kill();
             try {
@@ -580,8 +585,8 @@ Sugira comandos diretos como:
             } catch (e) {
               console.warn("[AutoGen] Não foi possível remover script temporário:", e);
             }
-            reject(new Error("Timeout: Open Interpreter demorou mais de 30 segundos"));
-          }, 30000);
+            reject(new Error("Timeout: Open Interpreter demorou mais de 15 segundos"));
+          }, 15000);
           
           python.on("close", (code) => {
             if (timeoutId) clearTimeout(timeoutId);

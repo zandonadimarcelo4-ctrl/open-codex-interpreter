@@ -41,8 +41,8 @@ async function startServer() {
   registerOAuthRoutes(app);
   
   // Health check endpoint (para plataformas de deploy)
-  app.get("/api/health", (req, res) => {
-    const { healthCheck } = require("./health");
+  app.get("/api/health", async (req, res) => {
+    const { healthCheck } = await import("./health");
     healthCheck(req, res);
   });
   

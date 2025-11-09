@@ -145,12 +145,44 @@ export async function* callOllamaChatStream(
 }
 
 /**
+ * Verificar se Ollama está disponível
+ */
+export async function checkOllamaAvailable(): Promise<boolean> {
+  try {
+    const url = `${OLLAMA_BASE_URL}/api/tags`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
+    
+    const response = await fetch(url, {
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error("[Ollama] Timeout checking Ollama availability");
+    } else {
+      console.error("[Ollama] Error checking Ollama availability:", error);
+    }
+    return false;
+  }
+}
+
+/**
  * Verificar se o modelo está disponível
  */
 export async function checkModelAvailable(model: string = DEFAULT_MODEL): Promise<boolean> {
   try {
     const url = `${OLLAMA_BASE_URL}/api/tags`;
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 segundos timeout
+    
+    const response = await fetch(url, {
+      signal: controller.signal,
+    });
+    
+    clearTimeout(timeoutId);
     
     if (!response.ok) return false;
     
@@ -158,7 +190,11 @@ export async function checkModelAvailable(model: string = DEFAULT_MODEL): Promis
     const models = data.models || [];
     return models.some((m: { name: string }) => m.name === model || m.name.startsWith(`${model}:`));
   } catch (error) {
-    console.error("[Ollama] Error checking model:", error);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.error("[Ollama] Timeout checking model availability");
+    } else {
+      console.error("[Ollama] Error checking model:", error);
+    }
     return false;
   }
 }

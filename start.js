@@ -4,7 +4,7 @@
  * Substitui os scripts .bat antigos
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync } from 'fs';
@@ -34,7 +34,6 @@ function log(message, color = 'reset') {
 function checkPackageManager() {
   // Verificar se pnpm está instalado
   try {
-    const { execSync } = require('child_process');
     execSync(`${PNPM_CMD} --version`, { stdio: 'ignore' });
     return 'pnpm';
   } catch {
@@ -44,7 +43,12 @@ function checkPackageManager() {
       return 'npm';
     } catch {
       log('❌ Erro: pnpm ou npm não encontrado!', 'yellow');
-      log('Instale pnpm: npm install -g pnpm', 'cyan');
+      log('', 'reset');
+      log('📦 Soluções:', 'cyan');
+      log('1. Instale Node.js: https://nodejs.org/', 'cyan');
+      log('2. Instale pnpm: npm install -g pnpm', 'cyan');
+      log('3. Ou use npm diretamente (já vem com Node.js)', 'cyan');
+      log('', 'reset');
       process.exit(1);
     }
   }

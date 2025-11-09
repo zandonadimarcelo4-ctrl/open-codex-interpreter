@@ -1,12 +1,12 @@
 """
-Super Agent Framework - Framework Unificado
-Único ponto de entrada, sem conflitos
+Super Agent Framework - AutoGen como Base
+Framework unificado usando AutoGen
 """
 
-from .core.framework import SuperAgentFramework, SuperAgentConfig
+from .core.autogen_framework import SuperAgentFramework, AutoGenConfig
 
 __version__ = "1.0.0"
 __all__ = [
     "SuperAgentFramework",
-    "SuperAgentConfig",
+    "AutoGenConfig",
 ]

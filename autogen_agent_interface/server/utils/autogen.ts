@@ -639,23 +639,7 @@ Sugira comandos diretos como:
     // Pular Open Interpreter completamente para conversas/perguntas
     const modelUsed = framework.model || DEFAULT_MODEL;
     
-    // Para conversas simples, usar prompt mais curto e direto
-    if (intent.type === "conversation" || intent.type === "question") {
-      const shortPrompt = intent.type === "conversation" 
-        ? "Você é um assistente amigável e útil. Responda de forma breve e natural."
-        : "Você é um assistente especializado. Responda a pergunta de forma direta e concisa.";
-      
-      const ollamaResponse = await callOllamaWithAutoGenPrompt(
-        shortPrompt,
-        task,
-        modelUsed,
-        intent,
-        images.length > 0 ? images : undefined
-      );
-      return ollamaResponse;
-    }
-    
-    // Para ações, usar prompt completo
+    // Usar prompt já definido (curto para conversas, completo para ações)
     const ollamaResponse = await callOllamaWithAutoGenPrompt(
       systemPrompt,
       task,

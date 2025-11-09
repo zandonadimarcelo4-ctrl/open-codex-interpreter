@@ -134,7 +134,6 @@ export async function executeWithAutoGen(
     
     // Construir prompt baseado na intenção e agente selecionado - estilo Open Interpreter
     let systemPrompt = "";
-    let agentName = `Super Agent (${agentSelection.agentType})`;
     
     if (intent.type === "action" || intent.type === "command") {
       // Usar prompt específico do agente selecionado
@@ -349,7 +348,6 @@ YOU MUST:
 5. Report completion
 
 DO NOT EXPLAIN. DO NOT ASK PERMISSION. JUST EXECUTE WITH FULL CAPABILITIES.`;
-      agentName = "Autonomous Agent (AutoGen)";
     } else if (intent.type === "question") {
       systemPrompt = `Você é um assistente controlado pelo AutoGen Framework.
 O AutoGen orquestra todos os agentes especializados para fornecer respostas completas.
@@ -362,7 +360,6 @@ O AutoGen pode usar agentes especializados (Browser, Multimodal, etc.) se necess
 Responda a pergunta de forma detalhada e educativa.
 Se a pergunta for sobre código, forneça exemplos práticos.
 Se a pergunta for conceitual, explique de forma clara e didática.`;
-      agentName = "Assistant Agent (AutoGen)";
     } else {
       systemPrompt = `Você é um assistente de IA colaborativo controlado pelo AutoGen Framework.
 O AutoGen orquestra todos os agentes especializados:

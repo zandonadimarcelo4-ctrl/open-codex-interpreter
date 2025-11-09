@@ -635,9 +635,27 @@ Sugira comandos diretos como:
       }
     }
 
-    // Para perguntas/conversas, usar Ollama normalmente
-    // Usar modelo padrão diretamente (sem fallback automático para evitar demora)
+    // Para perguntas/conversas, usar Ollama diretamente (muito mais rápido)
+    // Pular Open Interpreter completamente para conversas/perguntas
     const modelUsed = framework.model || DEFAULT_MODEL;
+    
+    // Para conversas simples, usar prompt mais curto e direto
+    if (intent.type === "conversation" || intent.type === "question") {
+      const shortPrompt = intent.type === "conversation" 
+        ? "Você é um assistente amigável e útil. Responda de forma breve e natural."
+        : "Você é um assistente especializado. Responda a pergunta de forma direta e concisa.";
+      
+      const ollamaResponse = await callOllamaWithAutoGenPrompt(
+        shortPrompt,
+        task,
+        modelUsed,
+        intent,
+        images.length > 0 ? images : undefined
+      );
+      return ollamaResponse;
+    }
+    
+    // Para ações, usar prompt completo
     const ollamaResponse = await callOllamaWithAutoGenPrompt(
       systemPrompt,
       task,
@@ -731,7 +749,7 @@ async function callOllamaWithAutoGenPrompt(
       options: {
         temperature: intent.type === "action" ? 0.2 : 0.7,
         top_p: 0.9,
-        num_predict: intent.type === "action" ? 1024 : 256, // Reduzido ainda mais para resposta ultra-rápida
+        num_predict: intent.type === "action" ? 512 : 128, // Ultra-reduzido para resposta instantânea
       },
     };
 

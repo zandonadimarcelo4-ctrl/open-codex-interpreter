@@ -98,8 +98,28 @@ export async function generateTTS(
     console.log(`[TTS] Arquivo de saída: ${outputFile}`);
     
     // Usar caminho absoluto para evitar problemas
-    // super_agent está em autogen_agent_interface/super_agent
-    const superAgentPath = path.resolve(__dirname, "../../super_agent");
+    // super_agent pode estar em diferentes locais
+    const possiblePaths = [
+      path.resolve(__dirname, "../../super_agent"),
+      path.resolve(__dirname, "../../../super_agent"),
+      path.resolve(process.cwd(), "super_agent"),
+      path.resolve(process.cwd(), "autogen_agent_interface/super_agent"),
+    ];
+    
+    let superAgentPath: string | null = null;
+    for (const possiblePath of possiblePaths) {
+      const jarvisVoicePath = path.join(possiblePath, "voice", "jarvis_voice.py");
+      if (fs.existsSync(jarvisVoicePath)) {
+        superAgentPath = possiblePath;
+        break;
+      }
+    }
+    
+    if (!superAgentPath) {
+      console.error(`[TTS] ❌ super_agent não encontrado em nenhum dos caminhos:`, possiblePaths);
+      throw new Error(`super_agent não encontrado. Verifique se o diretório existe.`);
+    }
+    
     console.log(`[TTS] Caminho do super_agent: ${superAgentPath}`);
     
     // Codificar o texto limpo em base64 para evitar problemas com emojis e caracteres especiais

@@ -4,18 +4,19 @@ import react from "@vitejs/plugin-react";
 import fs from "node:fs";
 import path from "path";
 import { defineConfig } from "vite";
-import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
+// import { vitePluginManusRuntime } from "vite-plugin-manus-runtime"; // Desabilitado temporariamente devido a problemas com Vite 7
 
 
 // Configurar plugins com tratamento de erros
-// Nota: jsxLocPlugin pode causar problemas com Vite 7
-// Desabilitado devido ao erro "No matching HTML proxy module"
+// Nota: Alguns plugins podem causar problemas com Vite 7
+// Desabilitados temporariamente devido ao erro "No matching HTML proxy module"
 const plugins = [
   react(),
   tailwindcss(),
   // Desabilitar jsxLocPlugin temporariamente devido a problemas com Vite 7
   // jsxLocPlugin(),
-  vitePluginManusRuntime(),
+  // Desabilitar vitePluginManusRuntime temporariamente devido a problemas com Vite 7
+  // vitePluginManusRuntime(),
 ].filter(Boolean);
 
 export default defineConfig({
@@ -52,5 +53,7 @@ export default defineConfig({
     hmr: {
       overlay: false,
     },
+    // Desabilitar HTML proxy para evitar erros com Vite 7
+    proxy: undefined,
   },
 });

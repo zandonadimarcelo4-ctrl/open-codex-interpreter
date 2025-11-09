@@ -77,6 +77,16 @@ const DEEPSEEK_MODELS: Record<string, ModelConfig> = {
     qualityScore: 60,
     speedScore: 98,
   },
+  'gpt-oss:20b': {
+    name: 'gpt-oss:20b',
+    provider: 'ollama',
+    type: 'chat',
+    local: true,
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+    vramRequired: 12, // Quantizado, requer menos VRAM
+    qualityScore: 90,
+    speedScore: 80,
+  },
 };
 
 class ModelManager {
@@ -281,7 +291,8 @@ class ModelManager {
    */
   async getDeepSeekFallbackChain(): Promise<ModelConfig[]> {
     const chain: ModelConfig[] = [];
-    const order = ['deepseek-v3', 'deepseek-r1', 'deepseek-coder', 'deepseek-7b', 'deepseek-3b'];
+    // Ordem de fallback: DeepSeek primeiro, depois GPT-OSS como fallback final
+    const order = ['deepseek-v3', 'deepseek-r1', 'deepseek-coder', 'deepseek-7b', 'deepseek-3b', 'gpt-oss:20b'];
 
     for (const modelName of order) {
       const model = this.models.get(modelName);

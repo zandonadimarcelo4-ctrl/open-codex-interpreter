@@ -93,20 +93,23 @@ export async function executeWithAutoGen(
     // Inicializar AutoGen se necessário (cacheado, não bloqueia)
     const framework = await initializeAutoGen();
 
-    // Sistema de roteamento de agentes inspirado no AgenticSeek
-    // Integrado ao AutoGen Framework (único framework)
-    const agentSelection = selectAgent(task, intent);
-    const complexity = estimateComplexity(task);
-    const agentPrompt = generateAgentPrompt(agentSelection.agentType, task, intent);
-    
-    console.log(`[AutoGen] Agente selecionado: ${agentSelection.agentType} (confiança: ${(agentSelection.confidence * 100).toFixed(0)}%)`);
-    console.log(`[AutoGen] Complexidade: ${complexity}`);
-    console.log(`[AutoGen] Razão: ${agentSelection.reason}`);
-    
-    // Construir prompt baseado na intenção e agente selecionado - estilo Open Interpreter
+    // Para conversas/perguntas simples, pular roteamento de agentes (mais rápido)
     let systemPrompt = "";
     
-    if (intent.type === "action" || intent.type === "command") {
+    if (intent.type === "conversation" || intent.type === "question") {
+      // Pular roteamento para conversas/perguntas - resposta mais rápida
+      systemPrompt = intent.type === "conversation"
+        ? "Você é um assistente amigável e útil. Responda de forma breve e natural."
+        : "Você é um assistente especializado. Responda a pergunta de forma direta e concisa.";
+    } else if (intent.type === "action" || intent.type === "command") {
+      // Sistema de roteamento de agentes inspirado no AgenticSeek (apenas para ações)
+      const agentSelection = selectAgent(task, intent);
+      const complexity = estimateComplexity(task);
+      const agentPrompt = generateAgentPrompt(agentSelection.agentType, task, intent);
+      
+      console.log(`[AutoGen] Agente selecionado: ${agentSelection.agentType} (confiança: ${(agentSelection.confidence * 100).toFixed(0)}%)`);
+      console.log(`[AutoGen] Complexidade: ${complexity}`);
+      console.log(`[AutoGen] Razão: ${agentSelection.reason}`);
       // Usar prompt específico do agente selecionado
       systemPrompt = agentPrompt + `
 

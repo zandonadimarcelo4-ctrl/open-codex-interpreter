@@ -1,57 +1,141 @@
-# 🚀 Open Codex Interpreter
+# 🚀 AutoGen Agent Interface
 
-## ⚡ Início Rápido - Um Único Comando
+Sistema completo de agentes AI colaborativos com AutoGen Framework, otimizado para RTX 4080 Super.
 
-Execute este arquivo para iniciar tudo automaticamente:
+## ⚡ Início Rápido
 
-```batch
-INICIAR.bat
+### Opção 1: Script Moderno (Recomendado) ✨
+
+**Windows:**
+```bash
+start.bat
 ```
 
-Isso irá:
-- ✅ Verificar Python e Node.js
-- ✅ Criar ambiente virtual (se necessário)
-- ✅ Instalar dependências automaticamente
-- ✅ Iniciar Backend (porta 8080)
-- ✅ Iniciar Frontend (porta 3000)
-- ✅ Abrir navegadores automaticamente
+**Linux/Mac:**
+```bash
+chmod +x start.sh
+./start.sh
+```
 
-## 🌐 URLs
+**Node.js direto (qualquer plataforma):**
+```bash
+node start.js
+```
 
-### Backend
-- **API**: http://localhost:8080/api
-- **Docs**: http://localhost:8080/docs
+O script moderno:
+- ✅ Detecta automaticamente pnpm ou npm
+- ✅ Instala dependências automaticamente se necessário
+- ✅ Inicia o servidor de desenvolvimento
+- ✅ Output colorido e informativo
+- ✅ Cross-platform (Windows/Linux/Mac)
 
-### Frontend
-- **Interface**: http://localhost:3000
-- **Landing**: http://localhost:3000/
-- **Home**: http://localhost:3000/app
-- **Showcase**: http://localhost:3000/showcase
+### Opção 2: Manual
+
+```bash
+cd autogen_agent_interface
+pnpm install
+pnpm dev
+```
 
 ## 📋 Pré-requisitos
 
-- Python 3.10 ou superior
-- Node.js 18 ou superior
-- pnpm (instalado automaticamente)
+- **Node.js** 20+ ([Download](https://nodejs.org/))
+- **pnpm** 8+ (ou npm) - Instalado automaticamente pelo script
+- **Ollama** (para modelos locais) - [Download](https://ollama.ai/)
+- **Python** 3.10+ (para Super Agent Framework) - [Download](https://www.python.org/)
 
-## 🐛 Problemas?
+## 🌐 URLs
 
-### Ambiente virtual corrompido
-Execute:
-```batch
-recriar_venv.bat
-```
+Após iniciar:
 
-### Iniciar manualmente
-- **Backend**: `iniciar_backend.bat`
-- **Frontend**: `iniciar_frontend.bat`
+- **Frontend**: http://localhost:3000
+- **API**: http://localhost:3000/api
+- **Health Check**: http://localhost:3000/api/health
+- **WebSocket**: ws://localhost:3000/ws
+
+## 🚀 Deploy
+
+Veja o guia completo em [DEPLOY.md](./DEPLOY.md)
+
+Suporta:
+- ✅ Vercel (recomendado)
+- ✅ Render
+- ✅ Railway
+- ✅ Fly.io
+- ✅ Docker
 
 ## 📚 Documentação
 
-- **Como Iniciar**: `COMO_INICIAR.md`
-- **Testar Agora**: `TESTAR_AGORA.md`
-- **Status**: `STATUS_ATUAL.md`
+- **Deploy**: [DEPLOY.md](./DEPLOY.md)
+- **Funcionalidades**: [FUNCIONALIDADES_STATUS.md](./FUNCIONALIDADES_STATUS.md)
+- **Setup**: Veja `autogen_agent_interface/env.example`
+
+## 🛠️ Scripts Disponíveis
+
+```bash
+# Desenvolvimento
+pnpm dev              # Inicia servidor de desenvolvimento
+
+# Build
+pnpm build            # Build para produção
+pnpm start            # Inicia servidor de produção
+
+# Utilitários
+pnpm lint             # Lint do código
+pnpm type-check       # Verificação de tipos
+```
+
+## 🐛 Troubleshooting
+
+### Erro: "pnpm não encontrado"
+O script detecta automaticamente e usa npm como fallback, ou instale pnpm:
+```bash
+npm install -g pnpm
+```
+
+### Erro: "Dependências não instaladas"
+Execute manualmente:
+```bash
+cd autogen_agent_interface
+pnpm install
+```
+
+### Erro: "Porta já em uso"
+Altere a porta no arquivo `.env`:
+```env
+PORT=3001
+```
+
+## 📦 Estrutura do Projeto
+
+```
+open-codex-interpreter/
+├── autogen_agent_interface/    # Aplicação principal
+│   ├── client/                 # Frontend React
+│   ├── server/                 # Backend Node.js
+│   └── shared/                 # Código compartilhado
+├── super_agent/                # Super Agent Framework (Python)
+├── start.js                    # Script de inicialização moderno
+├── start.bat                   # Wrapper Windows
+├── start.sh                    # Wrapper Linux/Mac
+└── README.md                   # Este arquivo
+```
+
+## 🎯 Funcionalidades
+
+- ✅ Chat em tempo real com WebSocket
+- ✅ TTS/STT (ElevenLabs/Piper)
+- ✅ OCR e análise de imagens
+- ✅ Execução de código
+- ✅ Integração com Ollama/AutoGen
+- ✅ Background Worker 24/7
+- ✅ Resource Manager (otimizado para RTX 4080 Super)
+- ✅ Model Loader (carregamento automático na VRAM)
+
+## 📝 Licença
+
+MIT
 
 ---
 
-**Execute `INICIAR.bat` agora!** 🎉
+**Execute `start.bat` (Windows) ou `./start.sh` (Linux/Mac) agora!** 🎉

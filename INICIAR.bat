@@ -29,11 +29,45 @@ echo Python !PYTHON_VERSION! encontrado.
 echo.
 
 :: ============================================
-:: PASSO 2: Verificar/Criar Ambiente Virtual
+:: PASSO 2: Verificar/Criar/Recriar Ambiente Virtual
 :: ============================================
 echo [2/8] Verificando ambiente virtual...
-if not exist ".venv\Scripts\activate.bat" (
-    echo Ambiente virtual nao encontrado. Criando...
+
+:: Funcao para recriar ambiente virtual
+set VENV_OK=0
+if exist ".venv\Scripts\activate.bat" (
+    echo Ambiente virtual encontrado. Verificando se esta funcional...
+    :: Testar se o Python do venv funciona
+    .venv\Scripts\python.exe --version >nul 2>&1
+    if errorlevel 1 (
+        echo Ambiente virtual corrompido. Recriando...
+        set VENV_OK=0
+    ) else (
+        :: Testar se pip existe e funciona
+        .venv\Scripts\python.exe -c "import pip" >nul 2>&1
+        if errorlevel 1 (
+            echo pip nao encontrado no ambiente virtual. Recriando...
+            set VENV_OK=0
+        ) else (
+            echo Ambiente virtual OK.
+            set VENV_OK=1
+        )
+    )
+) else (
+    echo Ambiente virtual nao encontrado.
+    set VENV_OK=0
+)
+
+:: Recriar se necessario
+if !VENV_OK!==0 (
+    echo Recriando ambiente virtual...
+    if exist ".venv" (
+        echo Removendo ambiente virtual antigo...
+        rmdir /s /q .venv 2>nul
+        :: Aguardar um pouco para garantir que foi removido
+        timeout /t 1 /nobreak >nul
+    )
+    echo Criando novo ambiente virtual...
     python -m venv .venv
     if errorlevel 1 (
         echo ERRO: Falha ao criar ambiente virtual!
@@ -41,9 +75,8 @@ if not exist ".venv\Scripts\activate.bat" (
         exit /b 1
     )
     echo Ambiente virtual criado.
-) else (
-    echo Ambiente virtual encontrado.
 )
+
 echo.
 
 :: ============================================
@@ -53,34 +86,39 @@ echo [3/8] Ativando ambiente virtual...
 call .venv\Scripts\activate.bat
 if errorlevel 1 (
     echo ERRO: Falha ao ativar ambiente virtual!
-    echo Tentando recriar...
-    rmdir /s /q .venv 2>nul
-    python -m venv .venv
-    call .venv\Scripts\activate.bat
+    pause
+    exit /b 1
 )
 
-:: Verificar se pip existe (ambiente virtual pode estar corrompido)
+:: Usar Python do venv explicitamente
+set PYTHON_VENV=%~dp0.venv\Scripts\python.exe
+
+:: Verificar se pip funciona
 echo Verificando pip...
-python -c "import pip" >nul 2>&1
+%PYTHON_VENV% -c "import pip" >nul 2>&1
 if errorlevel 1 (
-    echo AVISO: pip nao encontrado no ambiente virtual!
-    echo Recriando ambiente virtual...
-    rmdir /s /q .venv 2>nul
-    python -m venv .venv
-    call .venv\Scripts\activate.bat
+    echo ERRO: pip nao funciona no ambiente virtual!
+    echo Tentando reinstalar pip...
+    %PYTHON_VENV% -m ensurepip --upgrade
+    %PYTHON_VENV% -c "import pip" >nul 2>&1
     if errorlevel 1 (
-        echo ERRO: Falha ao recriar ambiente virtual!
+        echo ERRO: Falha ao reinstalar pip!
         pause
         exit /b 1
     )
 )
 
 echo Atualizando pip...
-python -m pip install --upgrade pip setuptools wheel --quiet
+%PYTHON_VENV% -m pip install --upgrade pip setuptools wheel --quiet
 if errorlevel 1 (
     echo AVISO: Falha ao atualizar pip. Tentando reinstalar...
-    python -m ensurepip --upgrade
-    python -m pip install --upgrade pip setuptools wheel --quiet
+    %PYTHON_VENV% -m ensurepip --upgrade
+    %PYTHON_VENV% -m pip install --upgrade pip setuptools wheel --quiet
+    if errorlevel 1 (
+        echo ERRO: Falha ao atualizar pip!
+        pause
+        exit /b 1
+    )
 )
 echo.
 
@@ -88,15 +126,15 @@ echo.
 :: PASSO 4: Instalar Dependencias Python Basicas
 :: ============================================
 echo [4/8] Verificando dependencias Python...
-python -c "import fastapi" >nul 2>&1
+%PYTHON_VENV% -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
     echo Instalando dependencias basicas...
     echo (FastAPI, Uvicorn, Pydantic)
-    pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
+    %PYTHON_VENV% -m pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
     if errorlevel 1 (
         echo ERRO: Falha ao instalar dependencias basicas!
-        echo Tentando instalar sem cache...
-        pip install --no-cache-dir fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
+        echo Tentando instalar sem cache e sem quiet...
+        %PYTHON_VENV% -m pip install --no-cache-dir fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20
         if errorlevel 1 (
             echo ERRO: Falha ao instalar dependencias basicas!
             pause
@@ -220,7 +258,7 @@ echo.
 
 :: Iniciar Backend em janela separada
 echo Iniciando Backend (porta 8080)...
-start "Backend Python - Porta 8080" cmd /k "cd /d %~dp0 && title Backend Python && call .venv\Scripts\activate.bat && set WEBUI_SECRET_KEY=%WEBUI_SECRET_KEY% && echo. && echo ============================================ && echo   Backend Python - Porta 8080 && echo ============================================ && echo. && echo Iniciando servidor... && python -m uvicorn open_webui.main:app --host %HOST% --port 8080 --reload"
+start "Backend Python - Porta 8080" cmd /k "cd /d %~dp0 && title Backend Python && call .venv\Scripts\activate.bat && set WEBUI_SECRET_KEY=%WEBUI_SECRET_KEY% && echo. && echo ============================================ && echo   Backend Python - Porta 8080 && echo ============================================ && echo. && echo Iniciando servidor... && .venv\Scripts\python.exe -m uvicorn open_webui.main:app --host %HOST% --port 8080 --reload"
 
 :: Aguardar backend iniciar
 echo Aguardando backend iniciar (5 segundos)...

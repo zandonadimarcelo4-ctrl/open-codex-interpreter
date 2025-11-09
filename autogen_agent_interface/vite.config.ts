@@ -7,7 +7,14 @@ import { defineConfig } from "vite";
 import { vitePluginManusRuntime } from "vite-plugin-manus-runtime";
 
 
-const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+// Configurar plugins com tratamento de erros
+const plugins = [
+  react(),
+  tailwindcss(),
+  // jsxLocPlugin pode causar problemas com Vite 7, desabilitar temporariamente se necessário
+  jsxLocPlugin(),
+  vitePluginManusRuntime(),
+].filter(Boolean);
 
 export default defineConfig({
   plugins,
@@ -39,6 +46,9 @@ export default defineConfig({
     fs: {
       strict: true,
       deny: ["**/.*"],
+    },
+    hmr: {
+      overlay: false,
     },
   },
 });

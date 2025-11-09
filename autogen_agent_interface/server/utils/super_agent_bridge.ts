@@ -6,6 +6,7 @@
 import { spawn } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
+import * as os from "os";
 
 const PYTHON_PATH = process.env.PYTHON_PATH || "python";
 const SUPER_AGENT_PATH = path.join(process.cwd(), "..", "super_agent");

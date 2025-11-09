@@ -23,8 +23,12 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _db = drizzle(process.env.DATABASE_URL);
+      // Testar conexão
+      await _db.execute({ sql: "SELECT 1", params: [] });
+      console.log("[Database] ✅ Conectado ao banco de dados");
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      console.warn("[Database] ⚠️ Falha ao conectar ao banco de dados:", error);
+      console.warn("[Database] Sistema funcionará sem banco de dados (modo offline)");
       _db = null;
     }
   }
@@ -107,10 +111,17 @@ export async function getUserByOpenId(openId: string) {
 export async function createConversation(conversation: InsertConversation) {
   const db = await getDb();
   if (!db) {
-    throw new Error("Database not available");
+    // Modo offline: retornar ID temporário
+    console.warn("[Database] Modo offline: usando ID temporário para conversa");
+    return Date.now();
   }
-  const [result] = await db.insert(conversations).values(conversation);
-  return result.insertId;
+  try {
+    const [result] = await db.insert(conversations).values(conversation);
+    return result.insertId;
+  } catch (error) {
+    console.warn("[Database] Erro ao criar conversa, usando ID temporário:", error);
+    return Date.now();
+  }
 }
 
 export async function getConversationById(id: number) {
@@ -146,9 +157,18 @@ export async function deleteConversation(id: number) {
 
 export async function createMessage(message: InsertMessage) {
   const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(messages).values(message);
-  return result.insertId;
+  if (!db) {
+    // Modo offline: retornar ID temporário
+    console.warn("[Database] Modo offline: usando ID temporário para mensagem");
+    return Date.now();
+  }
+  try {
+    const [result] = await db.insert(messages).values(message);
+    return result.insertId;
+  } catch (error) {
+    console.warn("[Database] Erro ao criar mensagem, usando ID temporário:", error);
+    return Date.now();
+  }
 }
 
 export async function getMessagesByConversationId(conversationId: number) {

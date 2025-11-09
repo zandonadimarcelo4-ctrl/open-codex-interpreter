@@ -207,6 +207,10 @@ Sugira comandos diretos como:
           
           // Executar via Python usando Open Interpreter original
           const { spawn } = await import("child_process");
+          
+          // Escapar código para JSON seguro
+          const codeBlocksJson = JSON.stringify(codeBlocks);
+          
           const pythonScript = `
 import sys
 import os
@@ -221,9 +225,10 @@ interpreter.auto_run = True
 interpreter.local = True
 
 # Executar código usando Open Interpreter
-code_blocks = ${JSON.stringify(codeBlocks)}
+code_blocks = json.loads('''${codeBlocksJson.replace(/'/g, "\\'")}''')
 for block in code_blocks:
-    result = interpreter.chat(f"Execute this {block['language']} code:\\n\\`\\`\\`{block['language']}\\n{block['code']}\\n\\`\\`\\`", return_messages=False)
+    message = f"Execute this {block['language']} code:\\n```{block['language']}\\n{block['code']}\\n```"
+    result = interpreter.chat(message, return_messages=False)
     if interpreter.messages:
         last_msg = interpreter.messages[-1]
         if last_msg.get('role') == 'assistant':

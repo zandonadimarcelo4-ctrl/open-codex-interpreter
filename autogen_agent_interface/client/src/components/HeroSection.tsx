@@ -13,9 +13,9 @@ export function HeroSection() {
   }, []);
 
   const features = [
-    { icon: Brain, text: 'Múltiplos Agentes Inteligentes', delay: 0.1, color: 'primary' },
-    { icon: Zap, text: 'Execução Paralela e Otimizada', delay: 0.2, color: 'secondary' },
-    { icon: Sparkles, text: 'Interface Premium Nível Apple', delay: 0.3, color: 'accent' },
+    { icon: Brain, text: 'Múltiplos Agentes Inteligentes', delay: 0.1, bgClass: 'bg-primary/10', borderClass: 'border-primary/20', textClass: 'text-primary', hoverBgClass: 'group-hover:bg-primary/20' },
+    { icon: Zap, text: 'Execução Paralela e Otimizada', delay: 0.2, bgClass: 'bg-secondary/10', borderClass: 'border-secondary/20', textClass: 'text-secondary', hoverBgClass: 'group-hover:bg-secondary/20' },
+    { icon: Sparkles, text: 'Interface Premium Nível Apple', delay: 0.3, bgClass: 'bg-accent/10', borderClass: 'border-accent/20', textClass: 'text-accent', hoverBgClass: 'group-hover:bg-accent/20' },
   ];
 
   const stats = [
@@ -36,26 +36,23 @@ export function HeroSection() {
         {/* Subtle gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-b from-background via-background/98 to-background" />
         
-        {/* Premium soft light orbs - Apple style with parallax */}
+        {/* Premium soft light orbs - Apple style */}
         <motion.div
           initial={{ opacity: 0, scale: 0.8, x: -100 }}
           animate={{ opacity: 0.2, scale: 1, x: 0 }}
           transition={{ duration: 3, ease: [0.22, 1, 0.36, 1] }}
-          style={{ y: useTransform(scrollYProgress, [0, 1], [0, 100]) }}
           className="absolute top-1/4 left-1/4 w-[700px] h-[700px] bg-primary/25 rounded-full blur-[140px]"
         />
         <motion.div
           initial={{ opacity: 0, scale: 0.8, x: 100 }}
           animate={{ opacity: 0.15, scale: 1, x: 0 }}
           transition={{ duration: 3.5, ease: [0.22, 1, 0.36, 1], delay: 0.3 }}
-          style={{ y: useTransform(scrollYProgress, [0, 1], [0, -80]) }}
           className="absolute bottom-1/4 right-1/4 w-[600px] h-[600px] bg-secondary/25 rounded-full blur-[120px]"
         />
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 0.12, scale: 1 }}
           transition={{ duration: 4, ease: [0.22, 1, 0.36, 1], delay: 0.6 }}
-          style={{ y: useTransform(scrollYProgress, [0, 1], [0, 60]) }}
           className="absolute top-1/2 left-1/2 w-[500px] h-[500px] bg-accent/20 rounded-full blur-[100px] -translate-x-1/2 -translate-y-1/2"
         />
         
@@ -160,9 +157,9 @@ export function HeroSection() {
                   <motion.div
                     whileHover={{ scale: 1.15, rotate: 5 }}
                     whileTap={{ scale: 0.95 }}
-                    className={`w-14 h-14 rounded-2xl bg-${feature.color}/10 border border-${feature.color}/20 flex items-center justify-center group-hover:bg-${feature.color}/20 transition-all duration-500 shadow-lg shadow-${feature.color}/5`}
+                    className={`w-14 h-14 rounded-2xl ${feature.bgClass} border ${feature.borderClass} flex items-center justify-center ${feature.hoverBgClass} transition-all duration-500 shadow-lg`}
                   >
-                    <feature.icon className={`w-6 h-6 text-${feature.color} group-hover:scale-110 transition-transform duration-300`} />
+                    <feature.icon className={`w-6 h-6 ${feature.textClass} group-hover:scale-110 transition-transform duration-300`} />
                   </motion.div>
                   <span className="text-foreground/70 font-medium text-xl group-hover:text-foreground transition-colors duration-300 tracking-wide">
                     {feature.text}

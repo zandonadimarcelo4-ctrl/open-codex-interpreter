@@ -186,7 +186,100 @@ Sugira comandos diretos como:
     // Extrair imagens do contexto se disponíveis
     const images = context?.images || [];
 
-    // Chamar Ollama DeepSeek-R1 com o prompt do AutoGen e imagens
+    // Para ações/comandos, usar Open Interpreter diretamente (ele já executa automaticamente)
+    if (intent.type === "action" || intent.type === "command") {
+      try {
+        // Usar Open Interpreter existente do projeto (ele já faz tudo automaticamente)
+        const projectRoot = path.resolve(__dirname, "../../../");
+        const interpreterPath = path.join(projectRoot, "interpreter");
+        
+        // Executar via Python usando Open Interpreter original
+        const { spawn } = await import("child_process");
+        
+        // Escapar task para uso seguro no Python
+        const taskEscaped = task.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/"/g, '\\"');
+        
+        // Construir script Python de forma segura
+        const pythonScript = [
+          "import sys",
+          "import os",
+          "import json",
+          `sys.path.insert(0, "${projectRoot.replace(/\\/g, '/')}")`,
+          `sys.path.insert(0, "${interpreterPath.replace(/\\/g, '/')}")`,
+          "",
+          "from interpreter.interpreter import Interpreter",
+          "",
+          "interpreter = Interpreter()",
+          "interpreter.auto_run = True",
+          "interpreter.local = True",
+          "",
+          "# Open Interpreter já executa código automaticamente",
+          `result = interpreter.chat("${taskEscaped}", return_messages=False)`,
+          "",
+          "# Extrair última mensagem do assistente",
+          "if interpreter.messages:",
+          "    last_msg = interpreter.messages[-1]",
+          "    if last_msg.get('role') == 'assistant':",
+          "        print(json.dumps({\"success\": True, \"output\": last_msg.get('content', '')}))",
+          "    else:",
+          "        print(json.dumps({\"success\": False, \"output\": \"Nenhuma resposta do assistente\"}))",
+          "else:",
+          "    print(json.dumps({\"success\": False, \"output\": \"Nenhuma mensagem gerada\"}))"
+        ].join('\n');
+        
+        const python = spawn("python", ["-c", pythonScript], {
+          cwd: projectRoot,
+          env: { ...process.env, PYTHONUNBUFFERED: "1" },
+        });
+        
+        let output = "";
+        let errorOutput = "";
+        
+        python.stdout.on("data", (data) => {
+          output += data.toString();
+        });
+        
+        python.stderr.on("data", (data) => {
+          errorOutput += data.toString();
+        });
+        
+        const result = await new Promise<string>((resolve, reject) => {
+          python.on("close", (code) => {
+            if (code === 0 && output) {
+              try {
+                const parsed = JSON.parse(output.trim());
+                if (parsed.success) {
+                  resolve(parsed.output);
+                } else {
+                  resolve(parsed.output || "Erro desconhecido");
+                }
+              } catch (e) {
+                console.warn("[AutoGen] Erro ao parsear resultado do Open Interpreter:", e);
+                resolve(output || "Erro ao processar resposta");
+              }
+            } else {
+              console.warn("[AutoGen] Open Interpreter retornou código:", code);
+              console.warn("[AutoGen] stderr:", errorOutput);
+              resolve(errorOutput || output || "Erro ao executar Open Interpreter");
+            }
+          });
+          
+          python.on("error", (error) => {
+            console.warn("[AutoGen] Erro ao executar Open Interpreter:", error);
+            reject(error);
+          });
+        });
+        
+        return result;
+      } catch (error) {
+        console.warn("[AutoGen] Erro ao usar Open Interpreter:", error);
+        // Fallback para Ollama se Open Interpreter falhar
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return `⚠️ Erro ao executar com Open Interpreter: ${errorMessage}\n\nTentando com Ollama...`;
+      }
+    }
+
+    // Para perguntas/conversas, usar Ollama normalmente
     let ollamaResponse = await callOllamaWithAutoGenPrompt(
       systemPrompt,
       task,
@@ -194,101 +287,6 @@ Sugira comandos diretos como:
       intent,
       images.length > 0 ? images : undefined
     );
-
-    // Se a resposta contém código e não foi executado via function calling, usar Open Interpreter existente
-    if (intent.type === "action" || intent.type === "command") {
-      const { extractCodeBlocks } = await import("./code_executor");
-      const codeBlocks = extractCodeBlocks(ollamaResponse);
-
-      // Se houver código e não foi executado via function calling, usar Open Interpreter do projeto
-      if (codeBlocks.length > 0 && !ollamaResponse.includes("✅ Código executado")) {
-        try {
-          // Usar Open Interpreter existente do projeto (como ferramenta dentro do AutoGen)
-          const projectRoot = path.resolve(__dirname, "../../../");
-          const interpreterPath = path.join(projectRoot, "interpreter");
-          
-          // Executar via Python usando Open Interpreter original
-          const { spawn } = await import("child_process");
-          
-          // Escapar código para JSON seguro
-          const codeBlocksJson = JSON.stringify(codeBlocks).replace(/'/g, "\\'");
-          
-          // Construir script Python de forma segura
-          const pythonScript = [
-            "import sys",
-            "import os",
-            "import json",
-            `sys.path.insert(0, "${projectRoot.replace(/\\/g, '/')}")`,
-            `sys.path.insert(0, "${interpreterPath.replace(/\\/g, '/')}")`,
-            "",
-            "from interpreter.interpreter import Interpreter",
-            "",
-            "interpreter = Interpreter()",
-            "interpreter.auto_run = True",
-            "interpreter.local = True",
-            "",
-            "# Executar código usando Open Interpreter",
-            `code_blocks = json.loads('''${codeBlocksJson}''')`,
-            "for block in code_blocks:",
-            "    lang = block['language']",
-            "    code = block['code']",
-            '    message = "Execute this " + lang + " code:\\n```" + lang + "\\n" + code + "\\n```"',
-            "    result = interpreter.chat(message, return_messages=False)",
-            "    if interpreter.messages:",
-            "        last_msg = interpreter.messages[-1]",
-            "        if last_msg.get('role') == 'assistant':",
-            "            print(json.dumps({\"success\": True, \"output\": last_msg.get('content', '')}))"
-          ].join('\n');
-          
-          const python = spawn("python", ["-c", pythonScript], {
-            cwd: projectRoot,
-            env: { ...process.env, PYTHONUNBUFFERED: "1" },
-          });
-          
-          let output = "";
-          python.stdout.on("data", (data) => {
-            output += data.toString();
-          });
-          
-          await new Promise((resolve, reject) => {
-            python.on("close", (code) => {
-              if (code === 0 && output) {
-                try {
-                  const result = JSON.parse(output.trim());
-                  if (result.success) {
-                    ollamaResponse += `\n\n**✅ Código executado via Open Interpreter:**\n\`\`\`\n${result.output}\n\`\`\``;
-                  }
-                } catch (e) {
-                  // Ignorar erro de parsing
-                }
-              }
-              resolve(null);
-            });
-            python.on("error", reject);
-          });
-        } catch (error) {
-          console.warn("[AutoGen] Erro ao usar Open Interpreter:", error);
-          // Fallback: usar code_executor
-          const { executeCodeBlocks } = await import("./code_executor");
-          const executionResults = await executeCodeBlocks(codeBlocks, {
-            autoApprove: true,
-            timeout: 30000,
-          });
-          
-          const executionOutput = executionResults
-            .map((result, idx) => {
-              if (result.success) {
-                return `\n\n**✅ Código ${idx + 1} executado (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
-              } else {
-                return `\n\n**❌ Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
-              }
-            })
-            .join("\n");
-          
-          ollamaResponse += executionOutput;
-        }
-      }
-    }
 
     return ollamaResponse;
   } catch (error) {

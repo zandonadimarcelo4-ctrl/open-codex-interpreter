@@ -271,7 +271,10 @@ if not exist ".env" (
 if not exist "autogen_agent_interface\.env" (
     if exist "autogen_agent_interface\env.example" (
         copy "autogen_agent_interface\env.example" "autogen_agent_interface\.env" >nul 2>&1
+        echo Arquivo .env criado em autogen_agent_interface
     )
+) else (
+    echo Arquivo .env ja existe em autogen_agent_interface
 )
 
 :: Criar diretorios necessarios

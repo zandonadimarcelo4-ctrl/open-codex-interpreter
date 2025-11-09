@@ -633,6 +633,7 @@ async function callOllamaWithAutoGenPrompt(
   images?: string[] // URLs base64 de imagens
 ): Promise<string> {
   try {
+    console.log(`[AutoGen] callOllamaWithAutoGenPrompt: model=${model}, intent=${intent.type}, prompt length=${systemPrompt.length}`);
     const url = `${OLLAMA_BASE_URL}/api/chat`;
     
     // Construir mensagens com suporte a imagens

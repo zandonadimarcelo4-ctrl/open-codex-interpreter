@@ -18,6 +18,13 @@ try:
 except ImportError:
     AIOHTTP_AVAILABLE = False
 
+try:
+    from elevenlabs.client import ElevenLabs
+    from elevenlabs import stream as elevenlabs_stream
+    ELEVENLABS_AVAILABLE = True
+except ImportError:
+    ELEVENLABS_AVAILABLE = False
+
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -61,20 +68,32 @@ class JarvisVoiceSystem:
         try:
             # PRIORIDADE 1: ElevenLabs API - Voz ultra-realista (melhor qualidade)
             if self.elevenlabs_api_key and self.elevenlabs_voice_id:
-                if AIOHTTP_AVAILABLE:
-                    # Verificar se a API está disponível fazendo uma requisição de teste
+                if ELEVENLABS_AVAILABLE:
+                    # Usar biblioteca oficial do ElevenLabs
                     try:
-                        import aiohttp
-                        # Testar se a API está acessível (sem fazer requisição completa)
+                        self.elevenlabs_client = ElevenLabs(api_key=self.elevenlabs_api_key)
                         self.tts_engine = "elevenlabs"
                         logger.info("✅ ElevenLabs API configurada - Voz ultra-realista (PRIORIDADE)")
                         logger.info(f"   API Key: {self.elevenlabs_api_key[:20]}...")
                         logger.info(f"   Voice ID: {self.elevenlabs_voice_id}")
+                        logger.info("   Usando biblioteca oficial do ElevenLabs com suporte a streaming")
+                    except Exception as e:
+                        logger.warning(f"Erro ao inicializar ElevenLabs client: {e}")
+                        self.tts_engine = None
+                elif AIOHTTP_AVAILABLE:
+                    # Fallback para aiohttp se biblioteca oficial não estiver disponível
+                    try:
+                        import aiohttp
+                        self.tts_engine = "elevenlabs"
+                        logger.info("✅ ElevenLabs API configurada - Voz ultra-realista (PRIORIDADE)")
+                        logger.info(f"   API Key: {self.elevenlabs_api_key[:20]}...")
+                        logger.info(f"   Voice ID: {self.elevenlabs_voice_id}")
+                        logger.warning("   Usando aiohttp (biblioteca oficial não disponível)")
                     except Exception as e:
                         logger.warning(f"aiohttp não disponível para ElevenLabs API: {e}")
                         self.tts_engine = None
                 else:
-                    logger.warning("❌ aiohttp não disponível para ElevenLabs API")
+                    logger.warning("❌ Biblioteca oficial do ElevenLabs e aiohttp não disponíveis")
                     self.tts_engine = None
             else:
                 logger.warning("❌ ElevenLabs API Key ou Voice ID não configurados")
@@ -413,72 +432,111 @@ class JarvisVoiceSystem:
             logger.error(f"❌ Erro ao falar com edge-tts: {e}")
     
     async def _elevenlabs_speak(self, text: str):
-        """Falar usando ElevenLabs API - Voz ultra-realista"""
+        """Falar usando ElevenLabs API - Voz ultra-realista (usando biblioteca oficial)"""
         try:
-            import aiohttp
-            
-            output_path = Path("./temp_jarvis_audio.mp3")
-            
-            # Chamar API do ElevenLabs
-            url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.elevenlabs_voice_id}"
-            headers = {
-                "Accept": "audio/mpeg",
-                "Content-Type": "application/json",
-                "xi-api-key": self.elevenlabs_api_key
-            }
-            data = {
-                "text": text,  # IMPORTANTE: Texto deve estar em português brasileiro
-                # O modelo eleven_multilingual_v2 detecta automaticamente o idioma do texto
-                # Se o texto estiver em pt-BR, a voz falará em português brasileiro
-                "model_id": "eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
-                "voice_settings": {
-                    "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade (reduzido de 0.75)
-                    "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural (reduzido de 0.9)
-                    "style": 0.0,  # Estilo neutro para voz mais natural e menos robótica (reduzido de 0.3)
-                    "use_speaker_boost": True  # Melhorar clareza e naturalidade
+            if ELEVENLABS_AVAILABLE:
+                # Usar biblioteca oficial do ElevenLabs
+                output_path = Path("./temp_jarvis_audio.mp3")
+                
+                # Gerar áudio usando biblioteca oficial
+                audio_generator = self.elevenlabs_client.text_to_speech.convert(
+                    voice_id=self.elevenlabs_voice_id,
+                    text=text,
+                    model_id="eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
+                    voice_settings={
+                        "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade
+                        "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural
+                        "style": 0.0,  # Estilo neutro para voz mais natural e menos robótica
+                        "use_speaker_boost": True  # Melhorar clareza e naturalidade
+                    }
+                )
+                
+                # Salvar áudio
+                audio_data = b"".join(audio_generator)
+                with open(output_path, "wb") as f:
+                    f.write(audio_data)
+                
+                # Reproduzir áudio
+                try:
+                    import playsound
+                    playsound.playsound(str(output_path))
+                except ImportError:
+                    logger.warning("playsound não disponível")
+                
+                # Limpar arquivo
+                output_path.unlink()
+                logger.info(f"✅ ElevenLabs API (biblioteca oficial): Áudio gerado e reproduzido com sucesso!")
+                logger.info(f"   Texto: {text[:100]}...")
+            elif AIOHTTP_AVAILABLE:
+                # Fallback para aiohttp se biblioteca oficial não estiver disponível
+                import aiohttp
+                
+                output_path = Path("./temp_jarvis_audio.mp3")
+                
+                # Chamar API do ElevenLabs
+                url = f"https://api.elevenlabs.io/v1/text-to-speech/{self.elevenlabs_voice_id}"
+                headers = {
+                    "Accept": "audio/mpeg",
+                    "Content-Type": "application/json",
+                    "xi-api-key": self.elevenlabs_api_key
                 }
-            }
-            
-            # Fazer requisição assíncrona
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=data, headers=headers) as response:
-                    if response.status == 200:
-                        # Salvar áudio
-                        audio_data = await response.read()
-                        with open(output_path, "wb") as f:
-                            f.write(audio_data)
-                        
-                        # Reproduzir áudio
-                        try:
-                            import playsound
-                            playsound.playsound(str(output_path))
-                        except ImportError:
-                            logger.warning("playsound não disponível")
-                        
-                        # Limpar arquivo
-                        output_path.unlink()
-                        logger.info(f"✅ ElevenLabs API: Áudio gerado e reproduzido com sucesso!")
-                        logger.info(f"   Texto: {text[:100]}...")
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"❌ Erro na API ElevenLabs: {response.status} - {error_text}")
-                        logger.warning("⚠️ Usando fallback TTS...")
-                        # Fallback para Piper
-                        if self.fallback_engine == "piper":
-                            await self._piper_speak(text)
-                        # OUTROS FALLBACKS COMENTADOS - Usar apenas Piper
+                data = {
+                    "text": text,  # IMPORTANTE: Texto deve estar em português brasileiro
+                    "model_id": "eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
+                    "voice_settings": {
+                        "stability": 0.5,
+                        "similarity_boost": 0.75,
+                        "style": 0.0,
+                        "use_speaker_boost": True
+                    }
+                }
+                
+                # Fazer requisição assíncrona
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, json=data, headers=headers) as response:
+                        if response.status == 200:
+                            # Salvar áudio
+                            audio_data = await response.read()
+                            with open(output_path, "wb") as f:
+                                f.write(audio_data)
+                            
+                            # Reproduzir áudio
+                            try:
+                                import playsound
+                                playsound.playsound(str(output_path))
+                            except ImportError:
+                                logger.warning("playsound não disponível")
+                            
+                            # Limpar arquivo
+                            output_path.unlink()
+                            logger.info(f"✅ ElevenLabs API (aiohttp): Áudio gerado e reproduzido com sucesso!")
+                            logger.info(f"   Texto: {text[:100]}...")
+                        else:
+                            error_text = await response.text()
+                            logger.error(f"❌ Erro na API ElevenLabs: {response.status} - {error_text}")
+                            logger.warning("⚠️ Usando fallback TTS...")
+                            # Fallback para Piper
+                            if self.fallback_engine == "piper":
+                                await self._piper_speak(text)
+            else:
+                logger.error("❌ Biblioteca oficial do ElevenLabs e aiohttp não disponíveis")
+                # Fallback para Piper
+                if self.fallback_engine == "piper":
+                    await self._piper_speak(text)
                         # elif self.fallback_engine == "edge_tts":
                         #     await self._edge_tts_speak(text)
-                        else:
-                            logger.error("❌ Nenhum fallback disponível")
+            else:
+                logger.error("❌ Biblioteca oficial do ElevenLabs e aiohttp não disponíveis")
+                # Fallback para Piper
+                if self.fallback_engine == "piper":
+                    await self._piper_speak(text)
+                else:
+                    logger.error("❌ Nenhum fallback disponível")
         except ImportError:
-            logger.warning("aiohttp não disponível para ElevenLabs API, usando fallback")
+            logger.warning("Biblioteca oficial do ElevenLabs não disponível, usando fallback")
             # Fallback para Piper
             if self.fallback_engine == "piper":
                 await self._piper_speak(text)
-            # OUTROS FALLBACKS COMENTADOS - Usar apenas Piper
-            # elif self.fallback_engine == "edge_tts":
-            #     await self._edge_tts_speak(text)
             else:
                 logger.error("❌ Nenhum fallback disponível")
         except Exception as e:
@@ -486,9 +544,6 @@ class JarvisVoiceSystem:
             # Fallback para Piper
             if self.fallback_engine == "piper":
                 await self._piper_speak(text)
-            # OUTROS FALLBACKS COMENTADOS - Usar apenas Piper
-            # elif self.fallback_engine == "edge_tts":
-            #     await self._edge_tts_speak(text)
             else:
                 logger.error("❌ Nenhum fallback disponível")
     

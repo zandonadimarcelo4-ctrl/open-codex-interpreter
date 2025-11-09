@@ -11,12 +11,37 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from ..agents.base_agent import BaseAgent
-from ..capabilities.code_execution import CodeExecution
-from ..capabilities.web_browsing import WebBrowsing
-from ..capabilities.video_editing import VideoEditing
-from ..capabilities.gui_automation import GUIAutomation
-from ..capabilities.multimodal_ai import MultimodalAI
-from ..memory.unified_memory import UnifiedMemory
+
+# Imports opcionais - capabilities podem não existir ainda
+try:
+    from ..capabilities.code_execution import CodeExecution
+except ImportError:
+    CodeExecution = None
+
+try:
+    from ..capabilities.web_browsing import WebBrowsing
+except ImportError:
+    WebBrowsing = None
+
+try:
+    from ..capabilities.video_editing import VideoEditing
+except ImportError:
+    VideoEditing = None
+
+try:
+    from ..capabilities.gui_automation import GUIAutomation
+except ImportError:
+    GUIAutomation = None
+
+try:
+    from ..capabilities.multimodal_ai import MultimodalAI
+except ImportError:
+    MultimodalAI = None
+
+try:
+    from ..memory.unified_memory import UnifiedMemory
+except ImportError:
+    from ..memory.chromadb_backend import ChromaDBBackend as UnifiedMemory
 from .resource_manager import ResourceManager
 from .agent_registry import AgentRegistry
 from .execution_engine import ExecutionEngine

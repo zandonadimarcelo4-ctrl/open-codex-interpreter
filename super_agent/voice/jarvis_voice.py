@@ -86,31 +86,43 @@ class JarvisVoiceSystem:
             logger.warning(f"Falha ao inicializar TTS: {e}")
             self.tts_engine = None
     
-    async def speak(self, text: str, stream: bool = False) -> Optional[AsyncGenerator[bytes, None]]:
+    async def speak(self, text: str):
         """
-        Falar texto com voz estilo Jarvis
+        Falar texto com voz estilo Jarvis (modo direto)
         
         Args:
             text: Texto a falar
-            stream: Se True, retorna generator de áudio
-        
-        Returns:
-            Generator de áudio se stream=True, None caso contrário
         """
         if not self.tts_engine:
             logger.warning("TTS não disponível")
-            return None
+            return
         
         # Adicionar prefixo estilo Jarvis
         text = self._add_jarvis_style(text)
         
-        if stream:
-            # Retornar generator de áudio
-            async for audio_chunk in self._speak_stream(text):
-                yield audio_chunk
-        else:
-            # Falar diretamente
-            await self._speak_direct(text)
+        # Falar diretamente
+        await self._speak_direct(text)
+    
+    async def speak_stream(self, text: str) -> AsyncGenerator[bytes, None]:
+        """
+        Falar texto com voz estilo Jarvis (modo streaming)
+        
+        Args:
+            text: Texto a falar
+        
+        Yields:
+            Chunks de áudio
+        """
+        if not self.tts_engine:
+            logger.warning("TTS não disponível")
+            return
+        
+        # Adicionar prefixo estilo Jarvis
+        text = self._add_jarvis_style(text)
+        
+        # Retornar generator de áudio
+        async for audio_chunk in self._speak_stream(text):
+            yield audio_chunk
     
     def _add_jarvis_style(self, text: str) -> str:
         """Adicionar estilo Jarvis ao texto"""

@@ -1,13 +1,16 @@
 """
 Compatibilidade: audit.py
 """
+from __future__ import annotations
+
 from enum import Enum
 
 class AuditLevel(str, Enum):
     """Níveis de auditoria"""
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
+    NONE = "NONE"
+    METADATA = "METADATA"
+    REQUEST = "REQUEST"
+    REQUEST_RESPONSE = "REQUEST_RESPONSE"
 
 class AuditLoggingMiddleware:
     """Middleware de auditoria - placeholder"""

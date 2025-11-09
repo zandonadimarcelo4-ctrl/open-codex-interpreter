@@ -11,16 +11,53 @@ from typing import Any, Dict, List, Optional
 
 from autogen import AssistantAgent, GroupChat, GroupChatManager, UserProxyAgent
 
-from ..agents.executor_agent import ExecutorAgent
-from ..agents.generator_agent import GeneratorAgent
-from ..agents.critic_agent import CriticAgent
-from ..agents.planner_agent import PlannerAgent
-from ..agents.ufo_agent import UFOAgent
-from ..agents.multimodal_agent import MultimodalAgent
-from ..integrations.open_interpreter import OpenInterpreterIntegration
-from ..integrations.ufo import UFOIntegration
-from ..integrations.multimodal import MultimodalIntegration
-from ..memory.chromadb_store import ChromaDBStore
+# Imports opcionais - agentes especializados podem não existir ainda
+try:
+    from ..agents.executor_agent import ExecutorAgent
+except ImportError:
+    ExecutorAgent = None
+
+try:
+    from ..agents.generator_agent import GeneratorAgent
+except ImportError:
+    GeneratorAgent = None
+
+try:
+    from ..agents.critic_agent import CriticAgent
+except ImportError:
+    CriticAgent = None
+
+try:
+    from ..agents.planner_agent import PlannerAgent
+except ImportError:
+    PlannerAgent = None
+
+try:
+    from ..agents.ufo_agent import UFOAgent
+except ImportError:
+    UFOAgent = None
+
+try:
+    from ..agents.multimodal_agent import MultimodalAgent
+except ImportError:
+    MultimodalAgent = None
+
+try:
+    from ..integrations.open_interpreter import OpenInterpreterIntegration
+except ImportError:
+    OpenInterpreterIntegration = None
+
+try:
+    from ..integrations.ufo import UFOIntegration
+except ImportError:
+    UFOIntegration = None
+
+try:
+    from ..integrations.multimodal import MultimodalIntegration
+except ImportError:
+    MultimodalIntegration = None
+
+from ..memory.chromadb_backend import ChromaDBBackend
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +109,7 @@ class SuperAgentOrchestrator:
         self.config = config
         self.agents: Dict[str, Any] = {}
         self.integrations: Dict[str, Any] = {}
-        self.memory: Optional[ChromaDBStore] = None
+        self.memory: Optional[ChromaDBBackend] = None
         self.group_chat: Optional[GroupChat] = None
         self.manager: Optional[GroupChatManager] = None
         
@@ -86,7 +123,7 @@ class SuperAgentOrchestrator:
         """Inicializar ChromaDB para memória persistente"""
         if self.config.chromadb_enabled:
             try:
-                self.memory = ChromaDBStore(
+                self.memory = ChromaDBBackend(
                     persist_directory=str(self.config.chromadb_path)
                 )
                 logger.info("ChromaDB inicializado com sucesso")

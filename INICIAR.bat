@@ -29,9 +29,19 @@ echo Python !PYTHON_VERSION! encontrado.
 echo.
 
 :: ============================================
-:: PASSO 2: Verificar/Criar/Recriar Ambiente Virtual
+:: PASSO 2: Verificar/Criar/Recriar Ambiente Virtual com uv
 :: ============================================
 echo [2/8] Verificando ambiente virtual...
+
+:: Verificar se uv esta instalado
+uv --version >nul 2>&1
+if errorlevel 1 (
+    echo AVISO: uv nao encontrado. Usando pip tradicional...
+    set USE_UV=0
+) else (
+    echo uv encontrado. Usando uv para instalacao rapida...
+    set USE_UV=1
+)
 
 :: Funcao para recriar ambiente virtual
 set VENV_OK=0
@@ -43,15 +53,8 @@ if exist ".venv\Scripts\activate.bat" (
         echo Ambiente virtual corrompido. Recriando...
         set VENV_OK=0
     ) else (
-        :: Testar se pip existe e funciona
-        .venv\Scripts\python.exe -c "import pip" >nul 2>&1
-        if errorlevel 1 (
-            echo pip nao encontrado no ambiente virtual. Recriando...
-            set VENV_OK=0
-        ) else (
-            echo Ambiente virtual OK.
-            set VENV_OK=1
-        )
+        echo Ambiente virtual OK.
+        set VENV_OK=1
     )
 ) else (
     echo Ambiente virtual nao encontrado.
@@ -82,7 +85,11 @@ if "!VENV_OK!"=="0" (
             ) else (
                 echo AVISO: Nao foi possivel remover .venv completamente.
                 echo Tentando criar em local temporario...
-                python -m venv .venv_new
+                if "!USE_UV!"=="1" (
+                    uv venv .venv_new
+                ) else (
+                    python -m venv .venv_new
+                )
                 if errorlevel 1 (
                     echo ERRO: Falha ao criar ambiente virtual!
                     echo.
@@ -100,7 +107,11 @@ if "!VENV_OK!"=="0" (
         )
     )
     echo Criando novo ambiente virtual...
-    python -m venv .venv
+    if "!USE_UV!"=="1" (
+        uv venv .venv
+    ) else (
+        python -m venv .venv
+    )
     if errorlevel 1 (
         echo ERRO: Falha ao criar ambiente virtual!
         echo.
@@ -115,7 +126,7 @@ if "!VENV_OK!"=="0" (
 echo.
 
 :: ============================================
-:: PASSO 3: Ativar e Atualizar Ambiente Virtual
+:: PASSO 3: Ativar Ambiente Virtual
 :: ============================================
 echo [3/8] Ativando ambiente virtual...
 call .venv\Scripts\activate.bat
@@ -128,47 +139,31 @@ if errorlevel 1 (
 :: Usar Python do venv explicitamente
 set PYTHON_VENV=%~dp0.venv\Scripts\python.exe
 
-:: Verificar se pip funciona
-echo Verificando pip...
-%PYTHON_VENV% -c "import pip" >nul 2>&1
-if errorlevel 1 (
-    echo ERRO: pip nao funciona no ambiente virtual!
-    echo Tentando reinstalar pip...
-    %PYTHON_VENV% -m ensurepip --upgrade
-    %PYTHON_VENV% -c "import pip" >nul 2>&1
-    if errorlevel 1 (
-        echo ERRO: Falha ao reinstalar pip!
-        pause
-        exit /b 1
-    )
-)
-
-echo Atualizando pip...
-%PYTHON_VENV% -m pip install --upgrade pip setuptools wheel --quiet
-if errorlevel 1 (
-    echo AVISO: Falha ao atualizar pip. Tentando reinstalar...
-    %PYTHON_VENV% -m ensurepip --upgrade
-    %PYTHON_VENV% -m pip install --upgrade pip setuptools wheel --quiet
-    if errorlevel 1 (
-        echo ERRO: Falha ao atualizar pip!
-        pause
-        exit /b 1
-    )
-)
 echo.
 
 :: ============================================
-:: PASSO 4: Instalar Dependencias Python
+:: PASSO 4: Instalar Dependencias Python com uv
 :: ============================================
 echo [4/8] Verificando dependencias Python...
 %PYTHON_VENV% -c "import fastapi" >nul 2>&1
 if errorlevel 1 (
     echo Instalando dependencias Python do requirements.txt
-    echo Isso pode demorar alguns minutos...
+    echo Usando uv para instalacao rapida...
     if exist "requirements.txt" (
-        %PYTHON_VENV% -m pip install --no-cache-dir --quiet -r requirements.txt
-        if errorlevel 1 (
-            echo AVISO: Falha ao instalar com quiet. Tentando sem quiet...
+        if "!USE_UV!"=="1" (
+            echo Usando uv pip install (mais rapido)...
+            uv pip install --python "%PYTHON_VENV%" -r requirements.txt
+            if errorlevel 1 (
+                echo AVISO: Falha ao instalar com uv. Tentando com pip tradicional...
+                %PYTHON_VENV% -m pip install --no-cache-dir -r requirements.txt
+                if errorlevel 1 (
+                    echo ERRO: Falha ao instalar dependencias do requirements.txt!
+                    pause
+                    exit /b 1
+                )
+            )
+        ) else (
+            echo Usando pip tradicional...
             %PYTHON_VENV% -m pip install --no-cache-dir -r requirements.txt
             if errorlevel 1 (
                 echo ERRO: Falha ao instalar dependencias do requirements.txt!
@@ -185,7 +180,11 @@ if errorlevel 1 (
     ) else (
         echo AVISO: requirements.txt nao encontrado!
         echo Instalando dependencias basicas...
-        %PYTHON_VENV% -m pip install --no-cache-dir --quiet fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20 sqlalchemy==2.0.38
+        if "!USE_UV!"=="1" (
+            uv pip install --python "%PYTHON_VENV%" fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20 sqlalchemy==2.0.38
+        ) else (
+            %PYTHON_VENV% -m pip install --no-cache-dir fastapi==0.118.0 "uvicorn[standard]==0.37.0" pydantic==2.11.9 python-multipart==0.0.20 sqlalchemy==2.0.38
+        )
         if errorlevel 1 (
             echo ERRO: Falha ao instalar dependencias basicas!
             pause

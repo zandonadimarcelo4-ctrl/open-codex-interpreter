@@ -27,7 +27,7 @@ fastapi>=0.104.0
 websockets>=12.0
 uvicorn>=0.24.0
 
-# ChromaDB
+# ChromaDB - Memória Vetorial Persistente
 chromadb>=0.4.0
 
 # NumPy

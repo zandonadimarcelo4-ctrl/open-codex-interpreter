@@ -2227,6 +2227,8 @@ async def healthcheck_with_db():
     return {"status": True}
 
 
+# Garantir que o diretório static existe antes de montá-lo
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 

@@ -28,34 +28,53 @@ for name in _module_names:
     except ImportError:
         _modules[name] = None
 
-# Criar variáveis globais para cada módulo
-auths = _modules.get('auths')
-channels = _modules.get('channels')
-chats = _modules.get('chats')
-notes = _modules.get('notes')
-folders = _modules.get('folders')
-configs = _modules.get('configs')
-groups = _modules.get('groups')
-files = _modules.get('files')
-functions = _modules.get('functions')
-memories = _modules.get('memories')
-models = _modules.get('models')
-knowledge = _modules.get('knowledge')
-prompts = _modules.get('prompts')
-tools = _modules.get('tools')
-users = _modules.get('users')
-utils = _modules.get('utils')
-tasks = _modules.get('tasks')
-evaluations = _modules.get('evaluations')
-
 # Placeholders para routers que podem não existir ainda
-audio = None
-images = None
-ollama = None
-openai = None
-retrieval = None
-pipelines = None
-scim = None
+# Criar routers FastAPI básicos para evitar AttributeError
+from fastapi import APIRouter
+
+# Criar módulos placeholder com atributo router
+class RouterModule:
+    def __init__(self, router):
+        self.router = router
+
+# Criar variáveis globais para cada módulo
+# Garantir que todos tenham atributo router
+def ensure_router_module(module):
+    """Garantir que o módulo tenha atributo router"""
+    if module is None:
+        return RouterModule(APIRouter())
+    if not hasattr(module, 'router'):
+        # Se o módulo não tem router, criar um wrapper
+        return RouterModule(APIRouter())
+    return module
+
+auths = ensure_router_module(_modules.get('auths'))
+channels = ensure_router_module(_modules.get('channels'))
+chats = ensure_router_module(_modules.get('chats'))
+notes = ensure_router_module(_modules.get('notes'))
+folders = ensure_router_module(_modules.get('folders'))
+configs = ensure_router_module(_modules.get('configs'))
+groups = ensure_router_module(_modules.get('groups'))
+files = ensure_router_module(_modules.get('files'))
+functions = ensure_router_module(_modules.get('functions'))
+memories = ensure_router_module(_modules.get('memories'))
+models = ensure_router_module(_modules.get('models'))
+knowledge = ensure_router_module(_modules.get('knowledge'))
+prompts = ensure_router_module(_modules.get('prompts'))
+tools = ensure_router_module(_modules.get('tools'))
+users = ensure_router_module(_modules.get('users'))
+utils = ensure_router_module(_modules.get('utils'))
+tasks = ensure_router_module(_modules.get('tasks'))
+evaluations = ensure_router_module(_modules.get('evaluations'))
+
+# Criar routers placeholder
+audio = RouterModule(APIRouter())
+images = RouterModule(APIRouter())
+ollama = RouterModule(APIRouter())
+openai = RouterModule(APIRouter())
+retrieval = RouterModule(APIRouter())
+pipelines = RouterModule(APIRouter())
+scim = RouterModule(APIRouter())
 
 __all__ = [
     'auths', 'channels', 'chats', 'notes', 'folders', 

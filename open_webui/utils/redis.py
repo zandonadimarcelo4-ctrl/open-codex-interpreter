@@ -115,6 +115,20 @@ def get_redis_connection(
     async_mode=False,
     decode_responses=True,
 ):
+    # Verificar se redis_url está vazio ou None
+    if not redis_url or not redis_url.strip():
+        log.debug("Redis URL não configurada. Redis será desabilitado.")
+        return None
+
+    # Verificar se redis_url é uma URL válida
+    try:
+        parsed = urlparse(redis_url)
+        if not parsed.scheme or parsed.scheme not in ("redis", "rediss", "unix"):
+            log.debug(f"Redis URL inválida (scheme não reconhecido): {redis_url}. Redis será desabilitado.")
+            return None
+    except Exception as e:
+        log.debug(f"Erro ao parsear Redis URL: {e}. Redis será desabilitado.")
+        return None
 
     cache_key = (
         redis_url,
@@ -128,54 +142,58 @@ def get_redis_connection(
 
     connection = None
 
-    if async_mode:
-        import redis.asyncio as redis
+    try:
+        if async_mode:
+            import redis.asyncio as redis
 
-        # If using sentinel in async mode
-        if redis_sentinels:
-            redis_config = parse_redis_service_url(redis_url)
-            sentinel = redis.sentinel.Sentinel(
-                redis_sentinels,
-                port=redis_config["port"],
-                db=redis_config["db"],
-                username=redis_config["username"],
-                password=redis_config["password"],
-                decode_responses=decode_responses,
-            )
-            connection = SentinelRedisProxy(
-                sentinel,
-                redis_config["service"],
-                async_mode=async_mode,
-            )
-        elif redis_cluster:
-            connection = redis.cluster.RedisCluster.from_url(
-                redis_url, decode_responses=decode_responses
-            )
+            # If using sentinel in async mode
+            if redis_sentinels:
+                redis_config = parse_redis_service_url(redis_url)
+                sentinel = redis.sentinel.Sentinel(
+                    redis_sentinels,
+                    port=redis_config["port"],
+                    db=redis_config["db"],
+                    username=redis_config["username"],
+                    password=redis_config["password"],
+                    decode_responses=decode_responses,
+                )
+                connection = SentinelRedisProxy(
+                    sentinel,
+                    redis_config["service"],
+                    async_mode=async_mode,
+                )
+            elif redis_cluster:
+                connection = redis.cluster.RedisCluster.from_url(
+                    redis_url, decode_responses=decode_responses
+                )
+            else:
+                connection = redis.from_url(redis_url, decode_responses=decode_responses)
         else:
-            connection = redis.from_url(redis_url, decode_responses=decode_responses)
-    else:
-        # If using sentinel in sync mode
-        if redis_sentinels:
-            redis_config = parse_redis_service_url(redis_url)
-            sentinel = redis.sentinel.Sentinel(
-                redis_sentinels,
-                port=redis_config["port"],
-                db=redis_config["db"],
-                username=redis_config["username"],
-                password=redis_config["password"],
-                decode_responses=decode_responses,
-            )
-            connection = SentinelRedisProxy(
-                sentinel,
-                redis_config["service"],
-                async_mode=async_mode,
-            )
-        elif redis_cluster:
-            connection = redis.cluster.RedisCluster.from_url(
-                redis_url, decode_responses=decode_responses
-            )
-        else:
-            connection = redis.from_url(redis_url, decode_responses=decode_responses)
+            # If using sentinel in sync mode
+            if redis_sentinels:
+                redis_config = parse_redis_service_url(redis_url)
+                sentinel = redis.sentinel.Sentinel(
+                    redis_sentinels,
+                    port=redis_config["port"],
+                    db=redis_config["db"],
+                    username=redis_config["username"],
+                    password=redis_config["password"],
+                    decode_responses=decode_responses,
+                )
+                connection = SentinelRedisProxy(
+                    sentinel,
+                    redis_config["service"],
+                    async_mode=async_mode,
+                )
+            elif redis_cluster:
+                connection = redis.cluster.RedisCluster.from_url(
+                    redis_url, decode_responses=decode_responses
+                )
+            else:
+                connection = redis.from_url(redis_url, decode_responses=decode_responses)
+    except Exception as e:
+        log.warning(f"Erro ao conectar ao Redis: {e}. Redis será desabilitado.")
+        return None
 
     if connection:
         _CONNECTION_CACHE[cache_key] = connection

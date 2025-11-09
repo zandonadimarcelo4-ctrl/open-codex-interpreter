@@ -232,16 +232,15 @@ class ModelLoader extends EventEmitter {
     // Fazer uma chamada de teste para "aquecer" o modelo na VRAM
     // Isso força o Ollama a carregar o modelo na GPU
     try {
-      await callOllamaChat({
-        model: modelName,
-        messages: [
+      await callOllamaChat(
+        [
           {
             role: 'user',
             content: 'test',
           },
         ],
-        stream: false,
-      });
+        modelName
+      );
     } catch (error) {
       // Ignorar erros de teste, o modelo pode já estar carregado
       console.log(`Modelo ${modelName} já pode estar carregado`);

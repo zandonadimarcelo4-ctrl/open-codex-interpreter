@@ -277,8 +277,7 @@ class BackgroundWorker extends EventEmitter {
         task.payload.prompt || task.description,
         intent,
         task.payload.context || {}
-        );
-      }
+      );
 
       job.status = 'completed';
       job.result = {

@@ -278,8 +278,7 @@ class DeviceManager {
         task.payload.prompt || task.payload.message || '',
         intent,
         task.payload.context || {}
-        );
-      }
+      );
 
       task.status = 'completed';
       task.result = {

@@ -110,6 +110,19 @@ pip install pyautogui pynput pillow pytesseract speechrecognition sounddevice nu
 
 Instale `pytesseract` localmente conforme a documentação oficial para habilitar OCR. Para experimentar os recursos de planejamento, execute `unified-agent` normalmente e utilize prompts como "Planeje um roadmap de lançamento" ou prefixe uma habilidade com `plugin:minha_skill argumento` para invocar plugins.
 
+### Qual script usar?
+
+Depois de preparar o ambiente, escolha o fluxo desejado:
+
+| Comando | Quando usar | O que acontece |
+| --- | --- | --- |
+| `interpreter` | Somente o Open Interpreter clássico | Abre o chat local padrão sem AutoGen ou memória estendida. |
+| `unified-agent` | Fluxo completo com AutoGen, memória, observação e integrações | Executa `dev_framework/__main__.py`, que valida a instalação do `pyautogen`, carrega o **UnifiedDevAgent** (definido em `dev_framework/main.py`) e inicia o terminal cinematográfico com suporte a planejamento, execução local e memória ChromaDB. |
+| `unified-agent <prompt>` | Rodada única automatizada | Pula o modo interativo e executa imediatamente o prompt informado com AutoGen + Ollama. |
+| `unified-agent-web` | Interface web estilo "nível Apple" | Inicia o servidor FastAPI definido em `webui/app.py`, com UI paralaxe e timeline animada. |
+
+Caso o extra `autogen` não esteja instalado, o comando `unified-agent` exibirá uma mensagem informando como habilitar o suporte (`pip install -e .[autogen]`).
+
 ### Perfis de dependência compatíveis
 
 O `pyautogen` passou a depender do novo SDK `openai>=1.3`, enquanto o Open Interpreter clássico foi construído sobre a API antiga (`openai==0.27.x`). Para evitar conflitos resolvemos o impasse da seguinte forma:

@@ -227,7 +227,9 @@ interpreter.local = True
 # Executar código usando Open Interpreter
 code_blocks = json.loads('''${codeBlocksJson.replace(/'/g, "\\'")}''')
 for block in code_blocks:
-    message = f"Execute this {block['language']} code:\\n```{block['language']}\\n{block['code']}\\n```"
+    lang = block['language']
+    code = block['code']
+    message = f"Execute this {lang} code:\\n```{lang}\\n{code}\\n```"
     result = interpreter.chat(message, return_messages=False)
     if interpreter.messages:
         last_msg = interpreter.messages[-1]

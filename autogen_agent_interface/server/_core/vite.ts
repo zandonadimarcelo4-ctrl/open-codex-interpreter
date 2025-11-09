@@ -21,22 +21,45 @@ export async function setupVite(app: Express, server: Server) {
     return !pluginName.includes('jsxLoc') && !pluginName.includes('manusRuntime');
   });
 
+  // Remover proxy do serverConfig se existir
+  const { proxy, ...cleanServerConfig } = serverConfig || {};
+
   const vite = await createViteServer({
     ...restConfig,
     plugins: safePlugins,
     configFile: false,
     server: {
       ...serverOptions,
-      ...(serverConfig || {}),
+      ...cleanServerConfig,
       // Desabilitar HTML proxy explicitamente
       proxy: undefined,
     },
     appType: "custom",
+    optimizeDeps: {
+      // Desabilitar otimizações que podem causar problemas com HTML proxy
+      entries: [],
+    },
+  });
+
+  // Interceptar requisições problemáticas do HTML proxy antes que cheguem ao Vite
+  app.use((req, res, next) => {
+    // Se a URL contém html-proxy, retornar 404 imediatamente
+    if (req.url && req.url.includes('html-proxy')) {
+      res.status(404).end();
+      return;
+    }
+    next();
   });
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
+
+    // Ignorar requisições de HTML proxy
+    if (url && url.includes('html-proxy')) {
+      res.status(404).end();
+      return;
+    }
 
     try {
       const clientTemplate = path.resolve(

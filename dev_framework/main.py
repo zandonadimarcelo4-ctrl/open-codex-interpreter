@@ -5,8 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
-from autogen import UserProxyAgent
-
+from ._compat import require_autogen
 from .agents.critic import CriticAgent
 from .agents.executor import ExecutorAgent
 from .agents.generator import GeneratorAgent
@@ -21,6 +20,8 @@ from .plugins.manager import PluginManager
 from .self_update.auto_fork import AutoForkManager
 from .intelligence.intention import Intention, IntentionDetector
 from .ui.base import AgentUI
+
+autogen = require_autogen()
 
 
 @dataclass
@@ -132,7 +133,7 @@ class UnifiedDevAgent:
             },
             memory=self._memory,
         )
-        user_proxy = UserProxyAgent("UnifiedDevUser")
+        user_proxy = autogen.UserProxyAgent("UnifiedDevUser")
         self._executor = ExecutorAgent(
             name="Executor",
             user_proxy=user_proxy,

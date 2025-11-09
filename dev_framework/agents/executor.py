@@ -6,12 +6,14 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-from autogen import UserProxyAgent
-
+from .._compat import require_autogen
 from ..integrations.after_effects import AfterEffectsIntegration
 from ..integrations.ufo import UFOIntegration
 from ..memory.auto_context import AutoContextMemory
 from ..memory.memory_manager import MemoryManager
+
+autogen = require_autogen()
+UserProxyAgent = autogen.UserProxyAgent
 
 
 class ExecutorAgent:

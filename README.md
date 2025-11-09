@@ -64,7 +64,13 @@ cd open-interpreter
 python -m venv .venv
 source .venv/bin/activate  # No Windows use: .venv\Scripts\activate
 pip install --upgrade pip
+
+# Instalação base (somente Open Interpreter + CLI cinematográfica)
 pip install -e .
+
+# Para habilitar o fluxo com AutoGen execute UMA das linhas abaixo:
+# pip install -e .[autogen]
+# poetry install --extras "autogen"
 
 # Dependências opcionais para as integrações (rodam localmente)
 git clone https://github.com/VolksRat71/after-effects-mcp-vision.git integrations/after-effects-mcp-vision
@@ -103,6 +109,17 @@ pip install pyautogui pynput pillow pytesseract speechrecognition sounddevice nu
 ```
 
 Instale `pytesseract` localmente conforme a documentação oficial para habilitar OCR. Para experimentar os recursos de planejamento, execute `unified-agent` normalmente e utilize prompts como "Planeje um roadmap de lançamento" ou prefixe uma habilidade com `plugin:minha_skill argumento` para invocar plugins.
+
+### Perfis de dependência compatíveis
+
+O `pyautogen` passou a depender do novo SDK `openai>=1.3`, enquanto o Open Interpreter clássico foi construído sobre a API antiga (`openai==0.27.x`). Para evitar conflitos resolvemos o impasse da seguinte forma:
+
+| Caso de uso | Comando sugerido | Observações |
+| --- | --- | --- |
+| **Somente Open Interpreter** | `pip install -e .` | Mantém o comportamento original e usa o shim LiteLLM incluído no projeto. |
+| **Fluxo multiagente com AutoGen** | `pip install -e .[autogen]` <br>ou `poetry install --extras "autogen"` | Instala `pyautogen>=0.2.35` e `openai>=1.3`, compatíveis com o novo cliente oficial. |
+
+Todos os módulos do `dev_framework` verificam automaticamente se o pacote `autogen` está disponível e exibem uma mensagem guiando a instalação do extra quando necessário. Assim você pode alternar entre os dois perfis sem editar manualmente o `pyproject.toml`.
 
 ### CLI cinematográfica
 

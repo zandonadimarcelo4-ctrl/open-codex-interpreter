@@ -1,9 +1,11 @@
 """Generator agent that uses Ollama-backed models via AutoGen."""
 from __future__ import annotations
 
-from autogen import AssistantAgent
-
+from .._compat import require_autogen
 from ..memory.memory_manager import MemoryManager
+
+autogen = require_autogen()
+AssistantAgent = autogen.AssistantAgent
 
 
 class GeneratorAgent(AssistantAgent):

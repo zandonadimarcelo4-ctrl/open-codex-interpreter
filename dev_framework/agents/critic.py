@@ -1,9 +1,11 @@
 """Critic agent that reviews generator output."""
 from __future__ import annotations
 
-from autogen import AssistantAgent
-
+from .._compat import require_autogen
 from ..memory.memory_manager import MemoryManager
+
+autogen = require_autogen()
+AssistantAgent = autogen.AssistantAgent
 
 
 class CriticAgent(AssistantAgent):

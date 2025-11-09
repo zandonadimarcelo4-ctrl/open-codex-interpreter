@@ -4,7 +4,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from .main import UnifiedDevAgent, UnifiedDevAgentConfig
+from ._compat import ensure_autogen
+
+ensure_autogen()
+
+from .main import UnifiedDevAgent, UnifiedDevAgentConfig  # noqa: E402
 from .ui.rich_cli import RichConsoleUI
 
 

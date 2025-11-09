@@ -73,9 +73,24 @@ export async function setupVite(app: Express, server: Server) {
       return;
     }
 
+    // Ignorar requisições de WebSocket do Vite HMR
+    if (url && (url.includes('/@vite/client') || url.includes('/@react-refresh'))) {
+      next();
+      return;
+    }
+
     // Ignorar requisições de HTML proxy
     if (url && url.includes('html-proxy')) {
       res.status(404).end();
+      return;
+    }
+
+    // Ignorar requisições de arquivos estáticos (js, css, etc) - deixar o Vite lidar
+    if (url && (url.endsWith('.js') || url.endsWith('.ts') || url.endsWith('.tsx') || 
+                url.endsWith('.css') || url.endsWith('.json') || url.endsWith('.png') || 
+                url.endsWith('.jpg') || url.endsWith('.svg') || url.endsWith('.ico') ||
+                url.startsWith('/src/') || url.startsWith('/node_modules/'))) {
+      next();
       return;
     }
 
@@ -87,6 +102,13 @@ export async function setupVite(app: Express, server: Server) {
         "index.html"
       );
 
+      // Verificar se o arquivo existe
+      if (!fs.existsSync(clientTemplate)) {
+        console.error(`[Vite] Template não encontrado: ${clientTemplate}`);
+        res.status(404).send('Template não encontrado');
+        return;
+      }
+
       // always reload the index.html file from disk incase it changes
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
@@ -96,6 +118,7 @@ export async function setupVite(app: Express, server: Server) {
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
+      console.error('[Vite] Erro ao processar template:', e);
       vite.ssrFixStacktrace(e as Error);
       next(e);
     }

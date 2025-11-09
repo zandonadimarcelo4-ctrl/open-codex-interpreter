@@ -17,9 +17,6 @@ const TEMP_AUDIO_DIR = path.join(__dirname, "../../../temp_audio");
 if (!fs.existsSync(TEMP_AUDIO_DIR)) {
   fs.mkdirSync(TEMP_AUDIO_DIR, { recursive: true });
 }
-if (!fs.existsSync(TEMP_AUDIO_DIR)) {
-  fs.mkdirSync(TEMP_AUDIO_DIR, { recursive: true });
-}
 
 /**
  * Limpar texto removendo caracteres não essenciais (emojis, markdown, etc.)

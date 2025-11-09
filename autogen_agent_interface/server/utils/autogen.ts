@@ -297,10 +297,11 @@ Sugira comandos diretos como:
         // Salvar script temporário
         fs.writeFileSync(tempScriptPath, pythonScript, 'utf-8');
         
-        // Executar script Python
-        const python = spawn("python", [tempScriptPath], {
+        // Executar script Python usando -m para garantir que os imports relativos funcionem
+        // Usar python -c para executar o script inline, garantindo que o diretório está correto
+        const python = spawn("python", ["-c", pythonScript], {
           cwd: projectRoot,
-          env: { ...process.env, PYTHONUNBUFFERED: "1" },
+          env: { ...process.env, PYTHONUNBUFFERED: "1", PYTHONPATH: projectRoot },
         });
         
         let output = "";
@@ -316,14 +317,7 @@ Sugira comandos diretos como:
         
         const result = await new Promise<string>((resolve, reject) => {
           python.on("close", (code) => {
-            // Limpar arquivo temporário
-            try {
-              if (fs.existsSync(tempScriptPath)) {
-                fs.unlinkSync(tempScriptPath);
-              }
-            } catch (e) {
-              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
-            }
+            // Não precisa limpar arquivo temporário (não estamos usando mais)
             
             if (code === 0 && output) {
               try {
@@ -363,15 +357,6 @@ Sugira comandos diretos como:
           });
           
           python.on("error", (error) => {
-            // Limpar arquivo temporário em caso de erro
-            try {
-              if (fs.existsSync(tempScriptPath)) {
-                fs.unlinkSync(tempScriptPath);
-              }
-            } catch (e) {
-              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
-            }
-            
             console.warn("[AutoGen] Erro ao executar Open Interpreter:", error);
             reject(error);
           });

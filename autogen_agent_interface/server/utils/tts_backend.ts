@@ -100,10 +100,10 @@ export async function generateTTS(
     // Usar caminho absoluto para evitar problemas
     // super_agent pode estar em diferentes locais
     const possiblePaths = [
-      path.resolve(__dirname, "../../super_agent"),
-      path.resolve(__dirname, "../../../super_agent"),
-      path.resolve(process.cwd(), "super_agent"),
-      path.resolve(process.cwd(), "autogen_agent_interface/super_agent"),
+      path.resolve(__dirname, "../../../super_agent"), // open-codex-interpreter/super_agent
+      path.resolve(__dirname, "../../super_agent"), // autogen_agent_interface/super_agent (se existir)
+      path.resolve(process.cwd(), "super_agent"), // Raiz do projeto
+      path.resolve(process.cwd(), "autogen_agent_interface/super_agent"), // Dentro de autogen_agent_interface
     ];
     
     let superAgentPath: string | null = null;

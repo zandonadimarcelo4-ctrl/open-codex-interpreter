@@ -639,7 +639,6 @@ async function callOllamaWithAutoGenPrompt(
 ): Promise<string> {
   try {
     console.log(`[AutoGen] callOllamaWithAutoGenPrompt: model=${model}, intent=${intent.type}, prompt length=${systemPrompt.length}`);
-    const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
     console.log(`[AutoGen] OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}`);
     const url = `${OLLAMA_BASE_URL}/api/chat`;
     console.log(`[AutoGen] URL completa: ${url}`);

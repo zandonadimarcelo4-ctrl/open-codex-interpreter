@@ -20,10 +20,11 @@ except ImportError:
 
 try:
     from elevenlabs.client import ElevenLabs
-    from elevenlabs import stream as elevenlabs_stream
+    from elevenlabs import stream as elevenlabs_stream_play
     ELEVENLABS_AVAILABLE = True
 except ImportError:
     ELEVENLABS_AVAILABLE = False
+    elevenlabs_stream_play = None
 
 import numpy as np
 
@@ -519,11 +520,11 @@ class JarvisVoiceSystem:
         """Falar usando ElevenLabs API - Voz ultra-realista (usando biblioteca oficial)"""
         try:
             if ELEVENLABS_AVAILABLE:
-                # Usar biblioteca oficial do ElevenLabs
+                # Usar biblioteca oficial do ElevenLabs com streaming
                 output_path = Path("./temp_jarvis_audio.mp3")
                 
-                # Gerar áudio usando biblioteca oficial
-                audio_generator = self.elevenlabs_client.text_to_speech.convert(
+                # Gerar áudio usando biblioteca oficial com streaming
+                audio_stream = self.elevenlabs_client.text_to_speech.stream(
                     voice_id=self.elevenlabs_voice_id,
                     text=text,
                     model_id="eleven_multilingual_v2",  # Modelo multilíngue (detecta pt-BR automaticamente)
@@ -535,8 +536,8 @@ class JarvisVoiceSystem:
                     }
                 )
                 
-                # Salvar áudio
-                audio_data = b"".join(audio_generator)
+                # Opção 1: Salvar áudio completo e reproduzir
+                audio_data = b"".join(chunk for chunk in audio_stream if isinstance(chunk, bytes))
                 with open(output_path, "wb") as f:
                     f.write(audio_data)
                 
@@ -549,7 +550,7 @@ class JarvisVoiceSystem:
                 
                 # Limpar arquivo
                 output_path.unlink()
-                logger.info(f"✅ ElevenLabs API (biblioteca oficial): Áudio gerado e reproduzido com sucesso!")
+                logger.info(f"✅ ElevenLabs API (biblioteca oficial com streaming): Áudio gerado e reproduzido com sucesso!")
                 logger.info(f"   Texto: {text[:100]}...")
             elif AIOHTTP_AVAILABLE:
                 # Fallback para aiohttp se biblioteca oficial não estiver disponível

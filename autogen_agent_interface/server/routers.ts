@@ -329,7 +329,7 @@ export const appRouter = router({
 
   // ==================== Chat ====================
   chat: router({
-    process: protectedProcedure
+    process: publicProcedure
       .input(
         z.object({
           message: z.string(),
@@ -337,7 +337,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        if (!ctx.user?.id) throw new Error("User not found");
+        // Permitir acesso sem autenticação (modo demo)
+        // Se não houver usuário, usar usuário demo
+        const userId = ctx.user?.id || 1; // ID demo padrão
         
         // Detectar intenção da mensagem
         const intent = detectIntent(input.message);
@@ -345,34 +347,52 @@ export const appRouter = router({
         // Criar ou obter conversa
         let conversationId = input.conversationId;
         if (!conversationId) {
-          const convId = await db.createConversation({
-            userId: ctx.user.id,
-            title: input.message.substring(0, 50),
-          });
-          conversationId = convId;
+          try {
+            const convId = await db.createConversation({
+              userId,
+              title: input.message.substring(0, 50),
+            });
+            conversationId = convId;
+          } catch (error) {
+            // Se falhar ao criar conversa (ex: sem DB), usar ID temporário
+            console.warn("[Chat] Failed to create conversation:", error);
+            conversationId = Date.now(); // ID temporário
+          }
         }
         
-        // Criar mensagem do usuário
-        const userMessageId = await db.createMessage({
-          conversationId,
-          role: "user",
-          content: input.message,
-        });
+        // Criar mensagem do usuário (se DB disponível)
+        let userMessageId: number | undefined;
+        try {
+          userMessageId = await db.createMessage({
+            conversationId,
+            role: "user",
+            content: input.message,
+          });
+        } catch (error) {
+          console.warn("[Chat] Failed to create message:", error);
+          userMessageId = Date.now(); // ID temporário
+        }
         
         // Processar baseado na intenção
         let response: string;
         let agentName = "Super Agent";
         
         if (intent.type === "action" || intent.type === "command") {
-          // Criar tarefa para ação
-          const taskId = await db.createTask({
-            userId: ctx.user.id,
-            conversationId,
-            title: input.message.substring(0, 100),
-            description: input.message,
-            status: "running",
-            progress: 0,
-          });
+          // Criar tarefa para ação (se DB disponível)
+          let taskId: number | undefined;
+          try {
+            taskId = await db.createTask({
+              userId,
+              conversationId,
+              title: input.message.substring(0, 100),
+              description: input.message,
+              status: "running",
+              progress: 0,
+            });
+          } catch (error) {
+            console.warn("[Chat] Failed to create task:", error);
+            taskId = Date.now(); // ID temporário
+          }
           
           // Simular processamento da ação
           response = `🔧 **Ação Detectada**: ${intent.actionType || "execução"}\n\n` +
@@ -411,13 +431,19 @@ export const appRouter = router({
           agentName = "Super Agent";
         }
         
-        // Criar mensagem de resposta
-        const assistantMessageId = await db.createMessage({
-          conversationId,
-          role: "assistant",
-          content: response,
-          metadata: JSON.stringify({ intent, messageId: userMessageId }),
-        });
+        // Criar mensagem de resposta (se DB disponível)
+        let assistantMessageId: number;
+        try {
+          assistantMessageId = await db.createMessage({
+            conversationId,
+            role: "assistant",
+            content: response,
+            metadata: JSON.stringify({ intent, messageId: userMessageId }),
+          });
+        } catch (error) {
+          console.warn("[Chat] Failed to create assistant message:", error);
+          assistantMessageId = Date.now(); // ID temporário
+        }
         
         return {
           messageId: assistantMessageId,

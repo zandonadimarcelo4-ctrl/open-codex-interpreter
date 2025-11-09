@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1762545033751,
+      "tag": "0000_harsh_jocasta",
+      "breakpoints": true
+    }
+  ]
+}

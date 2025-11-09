@@ -83,19 +83,28 @@ export async function generateTTS(
     console.log(`[TTS] Texto original (primeiros 100 chars): ${text.substring(0, 100)}`);
     console.log(`[TTS] Texto limpo (primeiros 100 chars): ${cleanedText.substring(0, 100)}`);
     
-    // Verificar se ainda há emojis ou caracteres especiais
+    // Verificar se ainda há emojis ou caracteres especiais e limpar agressivamente
+    // Remover TODOS os caracteres Unicode acima de 0x7F exceto acentos portugueses
+    cleanedText = cleanedText.split('').filter(char => {
+      const code = char.charCodeAt(0);
+      // Manter apenas ASCII básico (0-127) e acentos portugueses (0x00C0-0x017F)
+      return code <= 0x7F || (code >= 0x00C0 && code <= 0x017F);
+    }).join('');
+    
+    // Verificar se ainda há emojis após limpeza agressiva
     const hasEmojis = /[\u{1F300}-\u{1F9FF}\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu.test(cleanedText);
     if (hasEmojis) {
-      console.warn(`[TTS] ⚠️ Ainda há emojis no texto limpo!`);
-      // Limpar novamente de forma mais agressiva
-      const reCleaned = cleanedText.split('').filter(char => {
+      console.warn(`[TTS] ⚠️ Ainda há emojis no texto após limpeza agressiva!`);
+      // Limpar novamente de forma ainda mais agressiva - remover TUDO que não for ASCII ou acento português
+      cleanedText = cleanedText.split('').filter(char => {
         const code = char.charCodeAt(0);
         return code <= 0x7F || (code >= 0x00C0 && code <= 0x017F);
       }).join('');
-      console.log(`[TTS] Texto re-limpado (${reCleaned.length} chars): ${reCleaned.substring(0, 100)}`);
-      // Usar o texto re-limpado
-      cleanedText = reCleaned;
+      console.log(`[TTS] Texto re-limpado (${cleanedText.length} chars): ${cleanedText.substring(0, 100)}`);
     }
+    
+    // Garantir que não há caracteres especiais problemáticos
+    cleanedText = cleanedText.replace(/[^\x00-\x7F\u00C0-\u017F\s.,!?;:()\-]/g, '');
     // Garantir que o diretório existe
     if (!fs.existsSync(TEMP_AUDIO_DIR)) {
       fs.mkdirSync(TEMP_AUDIO_DIR, { recursive: true });

@@ -34,7 +34,7 @@ export default function Landing() {
             </Link>
             <Link href="/app">
               <Button className="bg-foreground text-background hover:bg-foreground/90 rounded-xl px-6 py-2.5 font-medium transition-all duration-200 hover:scale-105">
-                Entrar
+                Iniciar Chat
               </Button>
             </Link>
           </motion.div>

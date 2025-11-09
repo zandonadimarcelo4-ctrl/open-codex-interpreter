@@ -30,68 +30,67 @@ export async function executeWithSuperAgent(
     // Usar diretório temporário do sistema para evitar que o file watcher detecte mudanças
     const tempDir = os.tmpdir();
     const scriptPath = path.join(tempDir, `temp_super_agent_exec_${Date.now()}_${Math.random().toString(36).substring(7)}.py`);
+    // Adicionar caminho do projeto para importar interpreter
+    const projectRoot = path.resolve(process.cwd(), "..");
+    const interpreterPath = path.join(projectRoot, "interpreter");
+    
     const scriptContent = `
 import sys
 import os
 import json
-import asyncio
-from pathlib import Path
 
-# Adicionar caminho do super_agent
-sys.path.insert(0, "${SUPER_AGENT_PATH.replace(/\\/g, "/")}")
+# Adicionar caminhos do projeto
+project_root = "${projectRoot.replace(/\\/g, '/')}"
+interpreter_path = "${interpreterPath.replace(/\\/g, '/')}"
+sys.path.insert(0, project_root)
+sys.path.insert(0, interpreter_path)
 
-from super_agent import SuperAgentFramework, AutoGenConfig
-
-async def main():
-    # Configuração
-    config = AutoGenConfig(
-        use_local=True,
-        local_model="deepseek-r1",
-        local_base_url="${process.env.OLLAMA_BASE_URL || "http://localhost:11434"}",
-        code_execution_enabled=True,
-        web_browsing_enabled=True,
-        video_editing_enabled=False,
-        gui_automation_enabled=False,
-        multimodal_enabled=True,
-        memory_enabled=True,
-        chromadb_path="./super_agent/memory"
-    )
+# Usar Open Interpreter existente do projeto
+try:
+    from interpreter.interpreter import Interpreter
     
-    # Inicializar framework
-    framework = SuperAgentFramework(config)
+    # Inicializar Open Interpreter
+    interpreter = Interpreter()
+    interpreter.auto_run = True  # Executar código automaticamente
+    interpreter.local = True  # Usar modelo local (Ollama)
     
-    # Executar tarefa
+    # Configurar para usar Ollama
+    import os
+    os.environ['OLLAMA_BASE_URL'] = "${process.env.OLLAMA_BASE_URL || "http://localhost:11434"}"
+    
+    print("[SuperAgent] Open Interpreter inicializado", file=sys.stderr)
+    
+    # Executar tarefa usando Open Interpreter
     task = ${JSON.stringify(task)}
     intent = ${JSON.stringify(intent)}
-    context = ${JSON.stringify(context || {})}
     
-    # Construir mensagem com contexto de intenção
-    message = f"Tarefa: {task}\\n\\nIntenção detectada: {intent.get('type', 'conversation')}\\n"
-    if intent.get('actionType'):
-        message += f"Tipo de ação: {intent['actionType']}\\n"
-    message += f"Confiança: {intent.get('confidence', 0) * 100:.0f}%\\n"
-    if intent.get('reason'):
-        message += f"Razão: {intent['reason']}\\n"
+    # Construir mensagem
+    message = task
+    if intent.get('type') in ['action', 'command']:
+        message = f"{task}\\n\\n(Execute this task automatically using code)"
     
-    # Executar usando AutoGen
-    result = await framework.execute(message, context)
+    # Usar chat do Open Interpreter (ele já faz tudo: detecta código, executa, etc)
+    result = interpreter.chat(message, return_messages=False)
     
-    # Retornar resultado
-    if result.get('success'):
-        # Extrair mensagens do GroupChat
-        messages = result.get('messages', [])
-        if messages:
-            # Pegar última mensagem do assistente
-            for msg in reversed(messages):
-                if hasattr(msg, 'content') and msg.content:
-                    print(json.dumps({"success": True, "content": msg.content}))
-                    return
-        print(json.dumps({"success": True, "content": str(result.get('result', 'Tarefa executada com sucesso'))}))
+    # Extrair última resposta do assistente
+    if interpreter.messages:
+        for msg in reversed(interpreter.messages):
+            if msg.get('role') == 'assistant' and msg.get('content'):
+                print(json.dumps({"success": True, "content": msg['content']}))
+                break
+        else:
+            print(json.dumps({"success": True, "content": "Tarefa executada"}))
     else:
-        print(json.dumps({"success": False, "error": result.get('error', 'Erro desconhecido')}))
-
-if __name__ == "__main__":
-    asyncio.run(main())
+        print(json.dumps({"success": True, "content": "Tarefa executada"}))
+        
+except ImportError as e:
+    print(f"[SuperAgent] Erro ao importar Open Interpreter: {e}", file=sys.stderr)
+    print(json.dumps({"success": False, "error": f"Open Interpreter não disponível: {e}"}))
+except Exception as e:
+    import traceback
+    print(f"[SuperAgent] Erro: {e}", file=sys.stderr)
+    print(traceback.format_exc(), file=sys.stderr)
+    print(json.dumps({"success": False, "error": str(e)}))
 `;
 
     // Escrever script temporário

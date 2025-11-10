@@ -44,15 +44,27 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   const app = express();
   
-  // Configurar CORS para permitir acesso da rede local
+  // Middleware para permitir TODOS os hosts (incluindo Tailscale Funnel)
+  app.use((req, res, next) => {
+    // Permitir qualquer host - necessário para Tailscale Funnel
+    const host = req.headers.host;
+    if (host) {
+      // Log para debug
+      console.log(`[Server] Requisição recebida de host: ${host}`);
+    }
+    next();
+  });
+  
+  // Configurar CORS para permitir acesso de qualquer origem
   let cors: any;
   try {
     cors = (await import('cors')).default;
     app.use(cors({
-      origin: true, // Permitir qualquer origem (útil para desenvolvimento e rede local)
+      origin: true, // Permitir QUALQUER origem (incluindo Tailscale Funnel .ts.net)
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin', 'Host'],
+      exposedHeaders: ['Content-Type', 'Authorization'],
     }));
   } catch (e) {
     console.warn('[CORS] ⚠️ CORS não instalado. Execute: pnpm install cors');

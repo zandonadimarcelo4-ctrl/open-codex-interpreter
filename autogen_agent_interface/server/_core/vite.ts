@@ -50,6 +50,13 @@ export async function setupVite(app: Express, server: Server) {
 
   // Interceptar requisições problemáticas antes que cheguem ao Vite
   app.use((req, res, next) => {
+    // Permitir TODOS os hosts - necessário para Tailscale Funnel
+    const host = req.headers.host;
+    if (host) {
+      // Log para debug
+      console.log(`[Vite] Requisição recebida de host: ${host}`);
+    }
+    
     // Ignorar requisições de API - deixar o Express lidar com elas
     if (req.url && req.url.startsWith('/api/')) {
       next();

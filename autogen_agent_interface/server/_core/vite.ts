@@ -7,24 +7,16 @@ import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
 import { viteAllowAllHosts } from "./vite-allow-all-hosts";
 
-export async function setupVite(app: Express, server: Server) {
-  // Obter porta do servidor HTTP/HTTPS (pode não estar disponível ainda, usar fallback)
-  let serverPort = 3000;
-  try {
-    const serverAddress = server.address();
-    if (typeof serverAddress === 'object' && serverAddress && serverAddress.port) {
-      serverPort = serverAddress.port;
-    }
-  } catch (e) {
-    // Se não conseguir obter a porta, usar fallback
-    serverPort = parseInt(process.env.PORT || '3000', 10);
-  }
+export async function setupVite(app: Express, server: Server, port?: number) {
+  // Obter porta do servidor (passada como parâmetro ou do env)
+  const serverPort = port || parseInt(process.env.PORT || '3000', 10);
   
   const serverOptions = {
     middlewareMode: true,
     hmr: { 
       server,
       // HMR deve usar localhost para o navegador conseguir conectar
+      // Não usar '0.0.0.0' pois navegadores não conseguem conectar a esse endereço
       host: 'localhost',
       port: serverPort,
       clientPort: serverPort,
@@ -34,6 +26,8 @@ export async function setupVite(app: Express, server: Server) {
     // Desabilitar completamente a verificação de host
     strictPort: false,
   };
+  
+  console.log('[Vite] Configurando HMR na porta:', serverPort);
 
   // Criar configuração do Vite sem plugins problemáticos
   const { plugins, server: serverConfig, ...restConfig } = viteConfig;

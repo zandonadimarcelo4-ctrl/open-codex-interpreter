@@ -13,8 +13,9 @@ export async function setupVite(app: Express, server: Server) {
       server,
       host: '0.0.0.0', // Permitir HMR de qualquer IP da rede
       port: undefined, // Usar a mesma porta do servidor
+      clientPort: undefined, // Usar a mesma porta do servidor
     },
-    allowedHosts: true as const, // Permitir qualquer host (útil para rede local)
+    allowedHosts: 'all', // Permitir TODOS os hosts (incluindo Tailscale Funnel .ts.net)
   };
 
   // Criar configuração do Vite sem plugins problemáticos
@@ -26,7 +27,7 @@ export async function setupVite(app: Express, server: Server) {
   });
 
   // Remover proxy do serverConfig se existir
-  const { proxy, ...cleanServerConfig } = serverConfig || {};
+  const { proxy, allowedHosts, ...cleanServerConfig } = serverConfig || {};
 
   const vite = await createViteServer({
     ...restConfig,
@@ -35,6 +36,8 @@ export async function setupVite(app: Express, server: Server) {
     server: {
       ...serverOptions,
       ...cleanServerConfig,
+      // Garantir que allowedHosts está definido como 'all'
+      allowedHosts: 'all',
       // Desabilitar HTML proxy explicitamente
       proxy: undefined,
     },

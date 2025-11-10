@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import viteConfig from "../../vite.config";
+import { viteAllowAllHosts } from "./vite-allow-all-hosts";
 
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
@@ -28,6 +29,9 @@ export async function setupVite(app: Express, server: Server) {
     const pluginName = p?.name || '';
     return !pluginName.includes('jsxLoc') && !pluginName.includes('manusRuntime');
   });
+  
+  // Adicionar plugin para permitir todos os hosts (DEVE ser o primeiro)
+  safePlugins.unshift(viteAllowAllHosts());
 
   // Remover proxy do serverConfig se existir
   const { proxy, allowedHosts, ...cleanServerConfig } = serverConfig || {};
@@ -157,6 +161,14 @@ export function serveStatic(app: Express) {
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
+
+  app.use(express.static(distPath));
+
+  // fall through to index.html if the file doesn't exist
+  app.use("*", (_req, res) => {
+    res.sendFile(path.resolve(distPath, "index.html"));
+  });
+}
 
   app.use(express.static(distPath));
 

@@ -563,50 +563,49 @@ async function startServer() {
         }, 2000);
       }
     } else {
-      // Funnel não está ativo - verificar se Tailscale está instalado
-      const tailscaleInstalled = await checkTailscaleInstalled();
-      
-      if (tailscaleInstalled) {
-        console.log(`\n🌐 Tailscale detectado!`);
-        
-        // Tentar iniciar o Funnel automaticamente se USE_TAILSCALE_FUNNEL=true
-        if (process.env.USE_TAILSCALE_FUNNEL === 'true') {
-          console.log(`   🔄 Iniciando Tailscale Funnel automaticamente...`);
-          const result = await startTailscaleFunnel(port);
-          if (result.success) {
-            console.log(`   ✅ Tailscale Funnel iniciado com sucesso!`);
-            if (result.url) {
-              console.log(`      🌐 URL: ${result.url}`);
-              console.log(`      📡 WebSocket: ${result.url.replace('https://', 'wss://')}/ws`);
-            } else {
-              console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
-              // Tentar obter a URL após um delay
-              setTimeout(async () => {
-                const retryStatus = await checkTailscaleFunnel(port);
-                if (retryStatus.url) {
-                  console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
-                  console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
-                }
-              }, 2000);
-            }
+      // Funnel não está ativo - tentar iniciar se USE_TAILSCALE_FUNNEL=true
+      if (process.env.USE_TAILSCALE_FUNNEL === 'true') {
+        console.log(`\n🔄 Iniciando Tailscale Funnel automaticamente (USE_TAILSCALE_FUNNEL=true)...`);
+        const result = await startTailscaleFunnel(port);
+        if (result.success) {
+          console.log(`   ✅ Tailscale Funnel iniciado com sucesso!`);
+          if (result.url) {
+            console.log(`      🌐 URL: ${result.url}`);
+            console.log(`      📡 WebSocket: ${result.url.replace('https://', 'wss://')}/ws`);
           } else {
-            console.log(`   ⚠️  Não foi possível iniciar Tailscale Funnel automaticamente:`);
-            console.log(`      ${result.error || 'Erro desconhecido'}`);
-            console.log(`   💡 Para iniciar manualmente, execute:`);
-            console.log(`      tailscale funnel --bg ${port}`);
+            console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
+            // Tentar obter a URL após um delay
+            setTimeout(async () => {
+              const retryStatus = await checkTailscaleFunnel(port);
+              if (retryStatus.url) {
+                console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
+                console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
+              }
+            }, 2000);
           }
         } else {
+          console.log(`   ⚠️  Não foi possível iniciar Tailscale Funnel automaticamente:`);
+          console.log(`      ${result.error || 'Erro desconhecido'}`);
+          console.log(`   💡 Para iniciar manualmente, execute:`);
+          console.log(`      tailscale funnel --bg ${port}`);
+        }
+      } else {
+        // Verificar se Tailscale está instalado para mostrar mensagem apropriada
+        const tailscaleInstalled = await checkTailscaleInstalled();
+        
+        if (tailscaleInstalled) {
+          console.log(`\n🌐 Tailscale detectado!`);
           console.log(`   💡 Para usar Tailscale Funnel (acesso de qualquer lugar):`);
           console.log(`      1. Configure USE_TAILSCALE_FUNNEL=true no .env`);
           console.log(`      2. Ou execute manualmente: tailscale funnel --bg ${port}`);
+        } else {
+          console.log(`\n💡 Para acesso de qualquer lugar (sem configurar firewall):`);
+          console.log(`   Use Tailscale Funnel:`);
+          console.log(`   1. Instale o Tailscale: https://tailscale.com/download`);
+          console.log(`   2. Configure USE_TAILSCALE_FUNNEL=true no .env`);
+          console.log(`   3. Ou execute: tailscale funnel --bg ${port}`);
         }
       }
-    } else {
-      console.log(`\n💡 Para acesso de qualquer lugar (sem configurar firewall):`);
-      console.log(`   Use Tailscale Funnel:`);
-      console.log(`   1. Instale o Tailscale: https://tailscale.com/download`);
-      console.log(`   2. Configure USE_TAILSCALE_FUNNEL=true no .env`);
-      console.log(`   3. Ou execute: tailscale funnel --bg ${port}`);
     }
     
     console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${port}/`);

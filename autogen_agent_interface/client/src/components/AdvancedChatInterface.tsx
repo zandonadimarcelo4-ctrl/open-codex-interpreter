@@ -787,7 +787,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             <Button
               variant={isRecording ? "default" : "ghost"}
               size="icon"
-              className={`${isRecording ? 'bg-red-500 hover:bg-red-600' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`${isMobile ? 'h-11 w-11 rounded-full' : ''} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'} ${isMobile ? 'transition-all duration-200 hover:scale-110' : ''}`}
               title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
               onClick={() => {
                 sounds.playClick(); // Som de clique
@@ -796,9 +796,9 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               disabled={isLoading}
             >
               {isRecording ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
+                <Loader2 className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'} animate-spin`} />
               ) : (
-                <Mic className="w-5 h-5" />
+                <Mic className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
               )}
             </Button>
           </div>
@@ -811,8 +811,8 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                 handleSendMessage();
               }
             }}
-            placeholder={isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)"}
-            className="flex-1 bg-background border-border text-sm sm:text-base"
+            placeholder={isMobile ? (isRecording ? "Gravando..." : "Digite sua mensagem...") : (isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)")}
+            className={`flex-1 ${isMobile ? 'h-12 text-base rounded-2xl bg-background/80 backdrop-blur-sm border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 shadow-sm' : 'bg-background border-border text-sm sm:text-base'} transition-all duration-200`}
             disabled={isLoading || isRecording || isProcessingImage}
           />
           {isSpeaking && (

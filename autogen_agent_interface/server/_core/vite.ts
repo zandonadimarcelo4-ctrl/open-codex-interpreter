@@ -99,21 +99,39 @@ export async function setupVite(app: Express, server: Server) {
     next();
   });
 
-  // Wrapper AGGRESSIVO para o middleware do Vite que FORÇA permitir todos os hosts
-  // Interceptar resposta ANTES que o Vite envie erro de host bloqueado
+  // SOLUÇÃO DEFINITIVA: Modificar header Host antes de passar para o Vite
+  // Se o host não for localhost, mudar temporariamente para localhost
+  // Isso faz o Vite aceitar a requisição, e depois processamos normalmente
   app.use((req, res, next) => {
     const originalHost = req.headers.host;
     
-    // Interceptar writeHead para capturar status 403/400
+    // Se for um host externo (Tailscale Funnel, etc), modificar temporariamente
+    if (originalHost && !originalHost.includes('localhost') && !originalHost.includes('127.0.0.1')) {
+      console.log(`[Vite Wrapper] 🔄 Host externo detectado: ${originalHost} - modificando para localhost temporariamente`);
+      
+      // Salvar host original
+      (req as any)._originalHost = originalHost;
+      
+      // Modificar header Host para localhost (com porta se houver)
+      const portMatch = originalHost.match(/:(\d+)$/);
+      const port = portMatch ? portMatch[1] : '3000';
+      req.headers.host = `localhost:${port}`;
+      
+      console.log(`[Vite Wrapper] ✅ Host modificado de "${originalHost}" para "${req.headers.host}"`);
+    }
+    
+    // Interceptar resposta para restaurar host original se necessário
     const originalWriteHead = res.writeHead.bind(res);
     res.writeHead = function(statusCode: number, statusMessage?: any, headers?: any): typeof res {
-      // Se for erro 403 ou 400, pode ser bloqueio de host
-      if ((statusCode === 403 || statusCode === 400) && originalHost) {
-        console.log(`[Vite Wrapper] ⚠️ Status ${statusCode} detectado para host: ${originalHost}`);
-        // Marcar que vamos interceptar a resposta
-        (res as any)._hostBlocked = true;
+      // Se for erro 403/400, pode ser que ainda esteja bloqueando
+      if ((statusCode === 403 || statusCode === 400) && (req as any)._originalHost) {
+        const chunkStr = (res as any)._responseBody || '';
+        if (chunkStr.includes('not allowed') || chunkStr.includes('host')) {
+          console.log(`[Vite Wrapper] ⚠️ Ainda bloqueando mesmo com host modificado - tentando interceptar resposta`);
+          (res as any)._shouldIntercept = true;
+        }
       }
-      // Chamar writeHead original com argumentos corretos
+      // Chamar writeHead original
       if (headers) {
         return originalWriteHead(statusCode, headers);
       } else if (statusMessage && typeof statusMessage !== 'string') {
@@ -123,42 +141,38 @@ export async function setupVite(app: Express, server: Server) {
       }
     };
     
-    // Interceptar write para capturar mensagem de erro
-    const originalWrite = res.write;
+    // Interceptar write para capturar corpo da resposta
+    const originalWrite = res.write.bind(res);
     res.write = function(chunk: any, encoding?: any) {
-      // Se detectamos bloqueio, verificar se é mensagem de erro de host
-      if ((res as any)._hostBlocked && chunk) {
-        const chunkStr = chunk.toString();
-        if (chunkStr.includes('not allowed') && chunkStr.includes('host')) {
-          console.log(`[Vite Wrapper] ⚠️ Mensagem de erro de host detectada e bloqueada`);
-          console.log(`[Vite Wrapper] ✅ Host ${originalHost} será permitido - ignorando erro do Vite`);
-          // Não escrever a mensagem de erro - vamos processar normalmente
-          (res as any)._hostBlocked = false;
-          // Restaurar funções originais
-          res.writeHead = originalWriteHead;
-          res.write = originalWrite;
-          // Continuar para próximo middleware (ignorar erro do Vite)
-          next();
-          return true; // Simular que escrevemos com sucesso
+      if (chunk) {
+        (res as any)._responseBody = ((res as any)._responseBody || '') + chunk.toString();
+        
+        // Se for mensagem de erro de host, bloquear
+        if ((res as any)._responseBody.includes('not allowed') && (res as any)._responseBody.includes('host')) {
+          console.log(`[Vite Wrapper] ⚠️ Erro de host detectado mesmo com host modificado - bloqueando resposta`);
+          (res as any)._shouldIntercept = true;
+          // Não escrever esta resposta
+          return true;
         }
       }
-      return originalWrite.call(this, chunk, encoding);
+      return originalWrite(chunk, encoding);
     };
     
     // Chamar middleware do Vite
     vite.middlewares(req, res, (err?: any) => {
-      // Restaurar funções originais
-      res.writeHead = originalWriteHead;
-      res.write = originalWrite;
+      // Restaurar host original após processamento do Vite
+      if ((req as any)._originalHost) {
+        req.headers.host = (req as any)._originalHost;
+      }
       
       if (err) {
         const errorMessage = err.message || String(err);
         if (errorMessage.includes('not allowed') || 
             errorMessage.includes('Invalid Host header') || 
             errorMessage.includes('host')) {
-          console.log(`[Vite Wrapper] ⚠️ Erro de host capturado: ${errorMessage}`);
-          console.log(`[Vite Wrapper] ✅ Ignorando e continuando com host: ${originalHost}`);
-          next(); // Continuar processamento
+          console.log(`[Vite Wrapper] ⚠️ Erro de host mesmo com modificação: ${errorMessage}`);
+          console.log(`[Vite Wrapper] ✅ Continuando mesmo assim com host: ${(req as any)._originalHost || originalHost}`);
+          next();
         } else {
           next(err);
         }

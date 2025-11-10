@@ -78,8 +78,9 @@ async function startServer() {
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     
     // Permissions-Policy (Feature-Policy)
+    // Removido 'interest-cohort' pois é uma feature deprecada/removida
     res.setHeader('Permissions-Policy', 
-      'camera=(), microphone=(self), geolocation=(), interest-cohort=()'
+      'camera=(), microphone=(self), geolocation=()'
     );
     
     // Strict-Transport-Security (HSTS) - Apenas se HTTPS

@@ -10,20 +10,12 @@ export function useSoundEffects(enabled: boolean = true) {
   const [useElevenLabsSFX, setUseElevenLabsSFX] = useState(false); // Desabilitado por padrão (usa Web Audio API)
 
   // Inicializar AudioContext apenas quando necessário (lazy initialization)
-  // Não tentar retomar aqui - será feito quando necessário (após interação do usuário)
+  // NÃO criar o AudioContext aqui - será criado apenas quando for realmente necessário (após interação do usuário)
   const getAudioContext = useCallback(() => {
     if (!enabled) return null;
     
-    if (!audioContextRef.current) {
-      try {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-        // Não tentar retomar aqui - será feito quando necessário (após interação do usuário)
-      } catch (error) {
-        // Silenciosamente ignorar - AudioContext será criado quando necessário
-        return null;
-      }
-    }
-    
+    // Não criar o AudioContext aqui - será criado apenas quando for realmente necessário
+    // Isso evita avisos de "AudioContext não permitido sem interação do usuário"
     return audioContextRef.current;
   }, [enabled]);
 
@@ -33,7 +25,17 @@ export function useSoundEffects(enabled: boolean = true) {
   const playTone = useCallback(async (frequency: number, duration: number, type: OscillatorType = 'sine') => {
     if (!enabled) return;
     
-    const ctx = getAudioContext();
+    // Criar AudioContext apenas quando for realmente necessário (após interação do usuário)
+    if (!audioContextRef.current) {
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (error) {
+        // Silenciosamente ignorar - AudioContext não disponível
+        return;
+      }
+    }
+    
+    const ctx = audioContextRef.current;
     if (!ctx) return;
 
     try {
@@ -62,7 +64,7 @@ export function useSoundEffects(enabled: boolean = true) {
       // Silenciosamente ignorar erros de autoplay - não logar para não poluir o console
       // O som simplesmente não será reproduzido se o usuário não interagiu com a página
     }
-  }, [enabled, getAudioContext]);
+  }, [enabled]);
 
   /**
    * Som de sucesso (tom ascendente)
@@ -104,8 +106,19 @@ export function useSoundEffects(enabled: boolean = true) {
    */
   const playSend = useCallback(async () => {
     if (!enabled) return;
+    
+    // Criar AudioContext apenas quando for realmente necessário (após interação do usuário)
+    if (!audioContextRef.current) {
+      try {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      } catch (error) {
+        // Silenciosamente ignorar - AudioContext não disponível
+        return;
+      }
+    }
+    
     // Som de whoosh (ruído branco com filtro)
-    const ctx = getAudioContext();
+    const ctx = audioContextRef.current;
     if (!ctx) return;
 
     try {
@@ -139,7 +152,7 @@ export function useSoundEffects(enabled: boolean = true) {
       // Silenciosamente ignorar erros de autoplay - não logar para não poluir o console
       // O som simplesmente não será reproduzido se o usuário não interagiu com a página
     }
-  }, [enabled, getAudioContext]);
+  }, [enabled]);
 
   /**
    * Som de receber mensagem (ding)

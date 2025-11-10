@@ -514,7 +514,13 @@ export const appRouter = router({
               baseResponse;
           }
         } catch (error) {
+          console.error("[Chat] ========== ERRO no chat.process ==========");
           console.error("[Chat] Error calling AutoGen:", error);
+          if (error instanceof Error) {
+            console.error("[Chat] Error message:", error.message);
+            console.error("[Chat] Error stack:", error.stack);
+          }
+          console.error("[Chat] ===========================================");
           
           // Usar mensagem de erro detalhada se disponível
           const errorMessage = error instanceof Error ? error.message : String(error);

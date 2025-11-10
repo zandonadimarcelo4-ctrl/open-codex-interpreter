@@ -626,13 +626,16 @@ Sugira comandos diretos como:
     console.log(`[AutoGen] ✅ Resposta recebida em ${elapsed}ms (${ollamaResponse.length} chars)`);
 
     console.log(`[AutoGen] ✅ Retornando resposta final de executeWithAutoGen (${ollamaResponse.length} chars)`);
+    console.log(`[AutoGen] ========== FIM executeWithAutoGen ==========`);
     return ollamaResponse;
   } catch (error) {
+    console.error("[AutoGen] ========== ERRO no executeWithAutoGen ==========");
     console.error("[AutoGen] ❌ Erro ao executar:", error);
     if (error instanceof Error) {
       console.error("[AutoGen] ❌ Mensagem de erro:", error.message);
       console.error("[AutoGen] ❌ Stack trace:", error.stack);
     }
+    console.error("[AutoGen] ==============================================");
     throw error;
   }
 }

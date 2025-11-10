@@ -737,10 +737,11 @@ async function callOllamaWithAutoGenPrompt(
       messages,
       stream: false, // Não usar streaming por enquanto (requer mudanças no frontend)
       options: {
-        temperature: intent.type === "action" ? 0.2 : 0.7,
-        top_p: 0.9,
-        num_predict: intent.type === "action" ? 512 : 64, // Ultra-reduzido: 128 -> 64 para conversas
-        num_ctx: 2048, // Reduzir contexto também
+        // PREMIUM QUALITY: Sempre usar melhor qualidade possível
+        temperature: intent.type === "action" ? 0.3 : 0.8, // Mais criatividade para melhor qualidade
+        top_p: 0.95, // Melhor qualidade de resposta
+        num_predict: intent.type === "action" ? 2048 : 1024, // PREMIUM: Respostas completas e detalhadas
+        num_ctx: 8192, // PREMIUM: Muito mais contexto para melhor compreensão
         num_gpu: 1, // Usar apenas 1 GPU
         num_thread: 6, // Balanceado: 6 threads para boa performance sem excesso de VRAM
         use_mmap: true, // Usar memory mapping para economizar VRAM (não afeta qualidade)

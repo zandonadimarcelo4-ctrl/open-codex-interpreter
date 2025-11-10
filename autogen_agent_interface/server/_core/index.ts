@@ -46,6 +46,72 @@ async function startServer() {
     healthCheck(req, res);
   });
   
+  // Sound Effects API endpoint (ElevenLabs SFX)
+  app.post("/api/sfx", async (req, res) => {
+    try {
+      console.log("[SFX] Requisição recebida:", req.body.description?.substring(0, 50) + "...");
+      
+      const { generateSoundEffect } = await import("../utils/sound_effects_backend");
+      const { description } = req.body;
+      
+      if (!description) {
+        console.error("[SFX] ❌ Descrição não fornecida");
+        return res.status(400).json({ error: "Description is required" });
+      }
+      
+      if (!description.trim()) {
+        console.error("[SFX] ❌ Descrição vazia");
+        return res.status(400).json({ error: "Description is empty" });
+      }
+      
+      console.log("[SFX] 🎵 Gerando efeito sonoro com ElevenLabs SFX API...");
+      
+      try {
+        const audioBuffer = await generateSoundEffect(description);
+        
+        if (audioBuffer && audioBuffer.length > 0) {
+          console.log("[SFX] ✅ Efeito sonoro gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
+          
+          res.setHeader("Content-Type", "audio/mpeg");
+          res.setHeader("Content-Length", audioBuffer.length.toString());
+          res.setHeader("Accept-Ranges", "bytes");
+          res.send(audioBuffer);
+        } else {
+          console.error("[SFX] ❌ SFX não disponível - audioBuffer é null ou vazio");
+          res.status(500).json({ 
+            error: "SFX not available - ElevenLabs SFX API não configurado ou falhou",
+            details: "O efeito sonoro não foi gerado. Verifique se ElevenLabs SFX API está configurado.",
+            suggestion: "Verifique os logs do servidor para mais detalhes sobre o erro."
+          });
+        }
+      } catch (sfxError) {
+        console.error("[SFX] ❌ Erro ao gerar SFX:", sfxError);
+        const errorMessage = sfxError instanceof Error ? sfxError.message : String(sfxError);
+        const errorStack = sfxError instanceof Error ? sfxError.stack : undefined;
+        console.error("[SFX] Mensagem de erro completa:", errorMessage);
+        if (errorStack) {
+          console.error("[SFX] Stack trace:", errorStack);
+        }
+        res.status(500).json({ 
+          error: `SFX error: ${errorMessage}`,
+          details: errorMessage,
+          suggestion: "Verifique se Python está instalado, se aiohttp está instalado, e se ElevenLabs SFX API está configurado."
+        });
+      }
+    } catch (error) {
+      console.error("[SFX] ❌ Erro geral:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      if (errorStack) {
+        console.error("[SFX] Stack trace:", errorStack);
+      }
+      res.status(500).json({ 
+        error: `Internal server error: ${errorMessage}`,
+        details: errorMessage
+      });
+    }
+  });
+  
   // TTS API endpoint
   app.post("/api/tts", async (req, res) => {
     try {

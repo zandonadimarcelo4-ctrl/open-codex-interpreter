@@ -186,13 +186,13 @@ export function useSoundEffects(enabled: boolean = true) {
     }
 
     try {
-      // Usar API do backend que já tem ElevenLabs configurado
-      const response = await fetch('/api/tts', {
+      // Usar API de efeitos sonoros do backend (ElevenLabs SFX API)
+      const response = await fetch('/api/sfx', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ description: text }),
       });
 
       if (response.ok) {

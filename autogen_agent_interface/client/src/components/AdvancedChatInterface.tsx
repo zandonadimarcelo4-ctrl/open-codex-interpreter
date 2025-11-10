@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Plus, Paperclip, Mic, Copy, Check, Volume2, VolumeX, Loader2, Image as ImageIcon, Code, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -353,7 +353,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const handleSendMessage = async (text?: string) => {
+  const handleSendMessage = useCallback(async (text?: string) => {
     const messageText = text || inputValue;
     if (!messageText.trim()) {
       console.log('[Chat] Mensagem vazia, não enviando');

@@ -8,14 +8,27 @@ import viteConfig from "../../vite.config";
 import { viteAllowAllHosts } from "./vite-allow-all-hosts";
 
 export async function setupVite(app: Express, server: Server) {
+  // Obter porta do servidor HTTP/HTTPS (pode não estar disponível ainda, usar fallback)
+  let serverPort = 3000;
+  try {
+    const serverAddress = server.address();
+    if (typeof serverAddress === 'object' && serverAddress && serverAddress.port) {
+      serverPort = serverAddress.port;
+    }
+  } catch (e) {
+    // Se não conseguir obter a porta, usar fallback
+    serverPort = parseInt(process.env.PORT || '3000', 10);
+  }
+  
   const serverOptions = {
     middlewareMode: true,
     hmr: { 
       server,
-      host: '0.0.0.0', // Permitir HMR de qualquer IP da rede
-      port: undefined, // Usar a mesma porta do servidor
-      clientPort: undefined, // Usar a mesma porta do servidor
-      protocol: undefined, // Usar o mesmo protocolo do servidor
+      // HMR deve usar localhost para o navegador conseguir conectar
+      host: 'localhost',
+      port: serverPort,
+      clientPort: serverPort,
+      protocol: process.env.USE_HTTPS === 'true' ? 'wss' : 'ws',
     },
     allowedHosts: 'all', // Permitir TODOS os hosts (incluindo Tailscale Funnel .ts.net)
     // Desabilitar completamente a verificação de host
@@ -52,14 +65,8 @@ export async function setupVite(app: Express, server: Server) {
     proxy: undefined,
     // Permitir qualquer origem
     cors: true,
-    // Configurar HMR para usar localhost (navegador não consegue conectar a 0.0.0.0)
-    hmr: {
-      ...serverOptions.hmr,
-      host: 'localhost', // HMR deve usar localhost para o navegador conseguir conectar
-      port: serverPort,
-      clientPort: serverPort,
-      protocol: process.env.USE_HTTPS === 'true' ? 'wss' : 'ws',
-    },
+    // Configurar HMR (já configurado em serverOptions acima)
+    hmr: serverOptions.hmr,
   };
   
   console.log('[Vite] Configuração do servidor:', {

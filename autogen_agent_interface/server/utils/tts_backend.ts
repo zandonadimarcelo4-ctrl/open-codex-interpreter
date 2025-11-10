@@ -190,15 +190,14 @@ async def generate():
             
             data = {
                 "text": text_data,
-                "model_id": "eleven_turbo_v2_5",  # Modelo Turbo v2.5 - MUITO mais rápido (75ms latência)
+                "model_id": "eleven_multilingual_v2",  # Modelo estável e confiável (multilíngue, suporta pt-BR)
                 "voice_settings": {
                     "stability": 0.6,  # Estabilidade moderada para voz natural e grave (não muito alta para evitar voz aguda)
                     "similarity_boost": 0.8,  # Similaridade alta para manter timbre original masculino
                     "style": 0.0,  # Estilo neutro para voz mais natural
                     "use_speaker_boost": True  # Habilitar para melhorar clareza sem afinar demais
                 },
-                "optimize_streaming_latency": 3,  # Otimização máxima de latência (0-4, 4 = mais rápido)
-                "output_format": "mp3_44100_128"  # Formato MP3 otimizado para streaming rápido
+                "output_format": "mp3_44100_128"  # Formato MP3 otimizado para streaming
             }
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=data, headers=headers) as response:

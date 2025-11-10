@@ -27,6 +27,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
   const audioChunksRef = useRef<Blob[]>([]);
   const audioContextRef = useRef<AudioContext | null>(null);
   const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const isStartingRef = useRef<boolean>(false); // Flag para evitar múltiplas chamadas simultâneas
 
   // Inicializar áudio element
   useEffect(() => {
@@ -431,9 +432,14 @@ export function useVoice(options: UseVoiceOptions = {}) {
    * Iniciar gravação de voz (STT)
    */
   const startListening = useCallback(async () => {
-    if (!sttEnabled || isRecording) return;
+    // Proteção contra múltiplas chamadas simultâneas
+    if (!sttEnabled || isRecording || isStartingRef.current) {
+      console.log('[STT] ⚠️ Gravação já em andamento ou iniciando, ignorando chamada duplicada');
+      return;
+    }
 
     try {
+      isStartingRef.current = true; // Marcar que está iniciando
       setError(null);
       console.log('[STT] Iniciando gravação...');
 

@@ -487,7 +487,13 @@ async function startServer() {
     console.log(`   Background Worker: ${backgroundWorker.isWorkerRunning() ? '✅ Running' : '❌ Stopped'}`);
     console.log(`   Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
     console.log(`   VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
-    console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${port}/\n`);
+    console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${port}/`);
+    console.log(`\n⚠️  IMPORTANTE: Se não conseguir conectar de outro PC:`);
+    console.log(`   1. Verifique se o Firewall do Windows permite conexões na porta ${port}`);
+    console.log(`   2. Execute no PowerShell (como Administrador):`);
+    console.log(`      New-NetFirewallRule -DisplayName "AutoGen Agent Interface" -Direction Inbound -LocalPort ${port} -Protocol TCP -Action Allow`);
+    console.log(`   3. Ou permita manualmente no Firewall do Windows`);
+    console.log(`   4. Certifique-se de que ambos os PCs estão na mesma rede\n`);
   });
 }
 

@@ -3,7 +3,7 @@
  */
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "okamototk/deepseek-r1:8b";
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "lucasmg/deepseek-r1-8b-0528-qwen3-q4_K_M-tool-true";
 
 export interface OllamaChatMessage {
   role: "user" | "assistant" | "system";

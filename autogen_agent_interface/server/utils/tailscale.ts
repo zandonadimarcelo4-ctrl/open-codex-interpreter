@@ -6,31 +6,72 @@ import { promisify } from 'util';
  */
 export async function checkTailscaleInstalled(): Promise<boolean> {
   return new Promise((resolve) => {
-    const process = spawn('tailscale', ['status'], { 
-      shell: true,
-      stdio: 'pipe'
-    });
+    // Tentar múltiplos comandos para verificar se o Tailscale está instalado
+    const commands = [
+      ['status'],
+      ['version'],
+      ['ip', '-4']
+    ];
     
-    let output = '';
-    process.stdout.on('data', (data) => {
-      output += data.toString();
-    });
+    let attempts = 0;
+    const maxAttempts = commands.length;
     
-    process.on('close', (code) => {
-      // Se o comando retornou 0, o Tailscale está instalado e rodando
-      resolve(code === 0);
-    });
+    const tryCommand = (index: number) => {
+      if (index >= maxAttempts) {
+        resolve(false);
+        return;
+      }
+      
+      const process = spawn('tailscale', commands[index], { 
+        shell: true,
+        stdio: 'pipe',
+        windowsHide: true
+      });
+      
+      let output = '';
+      let errorOutput = '';
+      
+      process.stdout.on('data', (data) => {
+        output += data.toString();
+      });
+      
+      process.stderr.on('data', (data) => {
+        errorOutput += data.toString();
+      });
+      
+      process.on('close', (code) => {
+        // Se o comando retornou 0, o Tailscale está instalado e rodando
+        if (code === 0) {
+          resolve(true);
+        } else {
+          // Tentar próximo comando
+          tryCommand(index + 1);
+        }
+      });
+      
+      process.on('error', (error) => {
+        // Se houver erro, tentar próximo comando
+        if (index < maxAttempts - 1) {
+          tryCommand(index + 1);
+        } else {
+          resolve(false);
+        }
+      });
+      
+      // Timeout de 2 segundos por comando
+      setTimeout(() => {
+        if (!process.killed) {
+          process.kill();
+          if (index < maxAttempts - 1) {
+            tryCommand(index + 1);
+          } else {
+            resolve(false);
+          }
+        }
+      }, 2000);
+    };
     
-    process.on('error', () => {
-      // Se houver erro, o Tailscale não está instalado ou não está no PATH
-      resolve(false);
-    });
-    
-    // Timeout de 3 segundos
-    setTimeout(() => {
-      process.kill();
-      resolve(false);
-    }, 3000);
+    tryCommand(0);
   });
 }
 

@@ -68,7 +68,18 @@ export async function executeWithAutoGen(
     if (intent.type === "conversation" || intent.type === "question") {
       // Pular roteamento para conversas/perguntas - resposta mais rápida
       systemPrompt = intent.type === "conversation"
-        ? "Você é um assistente amigável e útil. Responda de forma breve e natural."
+        ? `Você é um assistente amigável e útil. Responda de forma breve e natural, como um amigo conversando.
+
+IMPORTANTE:
+- Se o usuário cumprimentar (oi, olá, tudo bem, e aí, etc.), responda de forma amigável e pergunte como pode ajudar
+- NÃO responda com informações técnicas ou horas/data a menos que seja explicitamente solicitado
+- Mantenha o tom conversacional e amigável
+- Seja breve e direto, mas caloroso
+
+Exemplos:
+- Usuário: "oi tudo bem?" → Você: "Oi! Tudo bem sim, obrigado! Como posso te ajudar hoje?"
+- Usuário: "e aí" → Você: "E aí! Tudo certo? Em que posso ajudar?"
+- Usuário: "olá" → Você: "Olá! Como posso te ajudar hoje?"`
         : "Você é um assistente especializado. Responda a pergunta de forma direta e concisa.";
     } else if (intent.type === "action" || intent.type === "command") {
       // Sistema de roteamento de agentes inspirado no AgenticSeek (apenas para ações)

@@ -36,7 +36,10 @@ const CONVERSATION_KEYWORDS = [
   'quando', 'onde', 'quem', 'qual', 'quais', 'por que', 'porque',
   'explique', 'explicar', 'me diga', 'me conte', 'me fale',
   'você sabe', 'você pode', 'você consegue',
-  'obrigado', 'obrigada', 'valeu', 'tchau', 'até logo', 'oi', 'olá', 'olá', 'bom dia', 'boa tarde', 'boa noite',
+  'obrigado', 'obrigada', 'valeu', 'tchau', 'até logo', 
+  'oi', 'olá', 'bom dia', 'boa tarde', 'boa noite',
+  'tudo bem', 'tudo bom', 'e aí', 'eai', 'e ai', 'beleza', 'blz',
+  'salve', 'opa', 'eae', 'e aê', 'fala', 'fala aí',
 ];
 
 /**

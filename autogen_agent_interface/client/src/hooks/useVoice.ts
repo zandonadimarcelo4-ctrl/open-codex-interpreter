@@ -493,24 +493,46 @@ export function useVoice(options: UseVoiceOptions = {}) {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'recording.webm');
 
+            console.log(`[STT] Enviando áudio: ${audioBlob.size} bytes`);
             const response = await fetch('/api/stt', {
               method: 'POST',
               body: formData,
             });
 
+            console.log(`[STT] Resposta recebida: status=${response.status}, ok=${response.ok}`);
+
             if (!response.ok) {
-              throw new Error('Erro ao processar áudio');
+              let errorMessage = 'Erro ao processar áudio';
+              try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorData.details || errorMessage;
+                console.error(`[STT] ❌ Erro da API:`, errorData);
+              } catch {
+                const errorText = await response.text();
+                errorMessage = errorText || errorMessage;
+                console.error(`[STT] ❌ Erro da API (texto):`, errorText);
+              }
+              throw new Error(errorMessage);
             }
 
             const data = await response.json();
-            if (data.text) {
-              onTextReceived?.(data.text);
+            console.log(`[STT] Dados recebidos:`, data);
+            
+            if (data.text && data.text.trim()) {
+              // Verificar se não é mensagem de "não implementado"
+              if (data.text.includes('ainda não implementada') || data.text.includes('ainda não implementado')) {
+                setError('STT ainda não está completamente implementado. Use texto por enquanto.');
+                console.warn('[STT] ⚠️ STT não implementado, mas resposta recebida');
+              } else {
+                onTextReceived?.(data.text);
+              }
             } else {
               setError('Não foi possível transcrever o áudio. Tente novamente.');
             }
           } catch (err) {
-            console.error('Erro ao processar áudio:', err);
-            setError(err instanceof Error ? err.message : 'Erro ao processar áudio');
+            console.error('❌ Erro ao processar áudio:', err);
+            const errorMessage = err instanceof Error ? err.message : 'Erro ao processar áudio';
+            setError(errorMessage);
           } finally {
             // Parar todas as tracks
             stream.getTracks().forEach(track => track.stop());

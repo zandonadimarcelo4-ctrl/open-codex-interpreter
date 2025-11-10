@@ -13,6 +13,7 @@ import { useImageAnalysis } from '@/hooks/useImageAnalysis';
 import { useCodeExecution } from '@/hooks/useCodeExecution';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
 import { useIsMobile } from '@/hooks/useMobile';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
   id: string;
@@ -508,8 +509,25 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     sounds.playClick();
   };
 
+  // Haptic feedback para mobile (vibração tátil)
+  const triggerHaptic = (type: 'light' | 'medium' | 'heavy' = 'light') => {
+    if (isMobile && 'vibrate' in navigator) {
+      const patterns = {
+        light: 10,
+        medium: 20,
+        heavy: 30,
+      };
+      navigator.vibrate(patterns[type]);
+    }
+  };
+
   return (
-    <div className={`flex flex-col h-full bg-background ${isMobile ? 'mobile-layout' : ''}`}>
+    <motion.div 
+      className={`flex flex-col h-full bg-background ${isMobile ? 'mobile-layout' : ''}`}
+      initial={isMobile ? { opacity: 0 } : {}}
+      animate={isMobile ? { opacity: 1 } : {}}
+      transition={{ duration: 0.3 }}
+    >
       {/* Status Bar - Premium Mobile Style */}
       {activeAgents.length > 0 && (
         <div className={`border-b border-border/50 ${isMobile ? 'p-2 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-md' : 'p-2 bg-card/50 backdrop-blur-sm'}`}>
@@ -529,28 +547,39 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         </div>
       )}
 
-      {/* Messages Container - Premium Mobile Style com Melhor Visibilidade */}
+      {/* Messages Container - Premium Mobile Style com Animações React */}
       <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4 space-y-4' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'} ${isMobile ? 'scroll-smooth' : ''}`}>
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${isMobile ? 'animate-in fade-in slide-in-from-bottom-2 duration-300' : ''}`}
-          >
-            <div
-              className={`w-full ${isMobile ? 'max-w-[88%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
-                message.role === 'user'
-                  ? isMobile 
-                    ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm shadow-lg shadow-primary/20'
-                    : 'bg-primary text-primary-foreground rounded-lg rounded-tr-none'
-                  : message.role === 'system'
-                  ? isMobile
-                    ? 'bg-muted/60 backdrop-blur-sm border border-border/50 rounded-2xl shadow-sm'
-                    : 'bg-muted/50 border border-border rounded-lg'
-                  : isMobile
-                    ? 'bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl rounded-tl-sm shadow-md'
-                    : 'bg-card border border-border rounded-lg rounded-tl-none'
-              } ${isMobile ? 'p-4 space-y-2' : 'p-3 sm:p-4 space-y-2'} ${isMobile ? 'transition-all duration-200 hover:scale-[1.01]' : ''}`}
+        <AnimatePresence mode="popLayout">
+          {messages.map((message, index) => (
+            <motion.div
+              key={message.id}
+              initial={isMobile ? { opacity: 0, y: 20, scale: 0.95 } : {}}
+              animate={isMobile ? { opacity: 1, y: 0, scale: 1 } : {}}
+              exit={isMobile ? { opacity: 0, y: -10, scale: 0.95 } : {}}
+              transition={{ 
+                duration: 0.3, 
+                delay: isMobile ? index * 0.05 : 0,
+                ease: [0.22, 1, 0.36, 1] // iOS-like easing
+              }}
+              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
+              <motion.div
+                whileHover={isMobile ? { scale: 1.02 } : {}}
+                whileTap={isMobile ? { scale: 0.98 } : {}}
+                className={`w-full ${isMobile ? 'max-w-[88%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
+                  message.role === 'user'
+                    ? isMobile 
+                      ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-3xl rounded-tr-sm shadow-xl shadow-primary/30'
+                      : 'bg-primary text-primary-foreground rounded-lg rounded-tr-none'
+                    : message.role === 'system'
+                    ? isMobile
+                      ? 'bg-muted/70 backdrop-blur-xl border border-border/50 rounded-3xl shadow-lg'
+                      : 'bg-muted/50 border border-border rounded-lg'
+                    : isMobile
+                      ? 'bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl rounded-tl-sm shadow-xl'
+                      : 'bg-card border border-border rounded-lg rounded-tl-none'
+                } ${isMobile ? 'p-4 space-y-2' : 'p-3 sm:p-4 space-y-2'}`}
+              >
               {message.agentName && message.role === 'assistant' && (
                 <div className={`flex items-center gap-2 ${isMobile ? 'text-sm font-bold' : 'text-xs font-semibold'} text-accent ${isMobile ? 'mb-2' : ''}`}>
                   <span className={isMobile ? 'bg-accent/20 px-3 py-1 rounded-full' : ''}>{message.agentName}</span>
@@ -662,9 +691,10 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                   )}
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
+              </motion.div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
         
         {/* Streaming content */}
         {streamingContent && (
@@ -725,8 +755,13 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         </div>
       )}
 
-      {/* Input Area - Premium Mobile Style com Áreas de Toque Maiores */}
-      <div className={`border-t border-border/50 ${isMobile ? 'p-4 pb-safe bg-gradient-to-t from-card via-card/95 to-card backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)]' : 'p-2 sm:p-4 bg-card'}`}>
+      {/* Input Area - Premium Mobile Style com Animações e Haptic Feedback */}
+      <motion.div 
+        className={`border-t border-border/50 ${isMobile ? 'p-4 pb-safe bg-gradient-to-t from-card/95 via-card/98 to-card backdrop-blur-2xl shadow-[0_-8px_32px_rgba(0,0,0,0.12)]' : 'p-2 sm:p-4 bg-card'}`}
+        initial={isMobile ? { y: 100, opacity: 0 } : {}}
+        animate={isMobile ? { y: 0, opacity: 1 } : {}}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+      >
         <div className={`flex ${isMobile ? 'flex-row gap-3 items-end' : 'flex-col sm:flex-row gap-2'}`}>
           <div className={`flex ${isMobile ? 'gap-3' : 'gap-2'}`}>
             <input
@@ -784,25 +819,35 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                 <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               )}
             </Button>
-            <Button
-              variant={isRecording ? "default" : "ghost"}
-              size="icon"
-              className={`${isMobile ? 'h-14 w-14 rounded-full min-w-[56px]' : 'h-11 w-11'} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'} ${isMobile ? 'transition-all duration-200 active:scale-95' : ''}`}
-              title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
-              onClick={() => {
-                sounds.playClick(); // Som de clique
-                toggleListening();
-              }}
-              disabled={isLoading}
+            <motion.div
+              whileHover={isMobile ? { scale: 1.1 } : {}}
+              whileTap={isMobile ? { scale: 0.9 } : {}}
             >
-              {isRecording ? (
-                <Loader2 className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} animate-spin`} />
-              ) : (
-                <Mic className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
-              )}
-            </Button>
+              <Button
+                variant={isRecording ? "default" : "ghost"}
+                size="icon"
+                className={`${isMobile ? 'h-14 w-14 rounded-full min-w-[56px]' : 'h-11 w-11'} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
+                title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
+                onClick={() => {
+                  triggerHaptic('medium');
+                  sounds.playClick();
+                  toggleListening();
+                }}
+                disabled={isLoading}
+              >
+                {isRecording ? (
+                  <Loader2 className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} animate-spin`} />
+                ) : (
+                  <Mic className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
+                )}
+              </Button>
+            </motion.div>
           </div>
-          <Input
+          <motion.div
+            whileFocus={isMobile ? { scale: 1.02 } : {}}
+            className="flex-1"
+          >
+            <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyPress={(e) => {
@@ -812,9 +857,10 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               }
             }}
             placeholder={isMobile ? (isRecording ? "Gravando..." : "Digite sua mensagem...") : (isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)")}
-            className={`flex-1 ${isMobile ? 'h-14 text-lg rounded-2xl bg-background/80 backdrop-blur-sm border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/30 shadow-sm px-4 py-3' : 'bg-background border-border text-sm sm:text-base'} transition-all duration-200`}
-            disabled={isLoading || isRecording || isProcessingImage}
-          />
+              className={`flex-1 ${isMobile ? 'h-14 text-lg rounded-3xl bg-background/90 backdrop-blur-xl border-2 border-border/50 focus:border-primary focus:ring-4 focus:ring-primary/20 shadow-lg px-4 py-3' : 'bg-background border-border text-sm sm:text-base'} transition-all duration-300`}
+              disabled={isLoading || isRecording || isProcessingImage}
+            />
+          </motion.div>
           {isSpeaking && (
             <Button
               variant="ghost"
@@ -826,14 +872,22 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               <VolumeX className="w-5 h-5" />
             </Button>
           )}
-          <Button
-            onClick={() => handleSendMessage()}
-            disabled={!inputValue.trim() || isLoading || isRecording}
-            className={`${isMobile ? 'h-14 w-14 rounded-full shadow-lg shadow-primary/30 hover:shadow-primary/50 transition-all duration-200 active:scale-95 min-w-[56px]' : 'h-12 w-12'} bg-primary hover:bg-primary/90 ${isMobile ? 'flex items-center justify-center' : ''}`}
-            title="Enviar mensagem"
+          <motion.div
+            whileHover={isMobile ? { scale: 1.1 } : {}}
+            whileTap={isMobile ? { scale: 0.9 } : {}}
           >
-            <Send className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
-          </Button>
+            <Button
+              onClick={() => {
+                triggerHaptic('light');
+                handleSendMessage();
+              }}
+              disabled={!inputValue.trim() || isLoading || isRecording}
+              className={`${isMobile ? 'h-14 w-14 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[56px]' : 'h-12 w-12'} bg-primary hover:bg-primary/90 ${isMobile ? 'flex items-center justify-center' : ''}`}
+              title="Enviar mensagem"
+            >
+              <Send className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
+            </Button>
+          </motion.div>
         </div>
         <div className="flex items-center justify-between mt-2">
           <div className="text-xs text-muted-foreground">

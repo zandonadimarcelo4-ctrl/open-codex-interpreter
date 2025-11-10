@@ -153,10 +153,10 @@ async def generate():
         print("[TTS] Python: Inicializando JarvisVoiceSystem...", file=sys.stderr)
         jarvis = JarvisVoiceSystem(
             language="pt-BR",
-            voice_speed=0.95,  # Ligeiramente mais lento para soar mais natural
+            voice_speed=0.92,  # Ligeiramente mais lento para soar mais natural e grave
             voice_style="professional",
             elevenlabs_api_key="872680f98ad6eababb9f8f1e89ec0c939bb1f004364f6b3bb36e2f917c8bef01",
-            elevenlabs_voice_id="1qyUTInppoHkRcPT9t6b"
+            elevenlabs_voice_id="1qyUTInppoHkRcPT9t6b"  # Voz masculina brasileira
         )
         print(f"[TTS] Python: JarvisVoiceSystem inicializado. Engine: {jarvis.tts_engine}", file=sys.stderr)
         
@@ -192,9 +192,9 @@ async def generate():
                 "text": text_data,
                 "model_id": "eleven_turbo_v2_5",  # Modelo Turbo v2.5 - MUITO mais rápido (75ms latência)
                 "voice_settings": {
-                    "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade
-                    "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural
-                    "style": 0.0,  # Estilo neutro para voz mais natural
+                    "stability": 0.75,  # Maior estabilidade = voz mais consistente e grave
+                    "similarity_boost": 0.9,  # Alta similaridade para manter características da voz original
+                    "style": 0.2,  # Estilo ligeiramente expressivo para voz mais natural
                     "use_speaker_boost": True  # Melhorar clareza e naturalidade
                 },
                 "optimize_streaming_latency": 3,  # Otimização máxima de latência (0-4, 4 = mais rápido)

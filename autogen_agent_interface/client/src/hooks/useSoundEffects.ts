@@ -6,7 +6,6 @@ import { useCallback, useRef, useState } from 'react';
  */
 export function useSoundEffects(enabled: boolean = true) {
   const audioContextRef = useRef<AudioContext | null>(null);
-  const [useElevenLabs, setUseElevenLabs] = useState(true); // Tentar usar ElevenLabs por padrão
 
   // Inicializar AudioContext apenas quando necessário
   const getAudioContext = useCallback(() => {
@@ -176,156 +175,23 @@ export function useSoundEffects(enabled: boolean = true) {
     playTone(800, 0.03, 'sine');
   }, [enabled, playTone]);
 
-  /**
-   * Gerar efeito sonoro usando ElevenLabs API (mais específico)
-   */
-  const playElevenLabsSound = useCallback(async (text: string, fallbackFn: () => void) => {
-    if (!enabled || !useElevenLabs) {
-      fallbackFn();
-      return;
-    }
-
-    try {
-      // Usar API de efeitos sonoros do backend (ElevenLabs SFX API)
-      const response = await fetch('/api/sfx', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ description: text }),
-      });
-
-      if (response.ok) {
-        const audioBlob = await response.blob();
-        const audioUrl = URL.createObjectURL(audioBlob);
-        const audio = new Audio(audioUrl);
-        
-        audio.onended = () => {
-          URL.revokeObjectURL(audioUrl);
-        };
-        
-        audio.onerror = () => {
-          URL.revokeObjectURL(audioUrl);
-          fallbackFn(); // Fallback para Web Audio API
-        };
-        
-        await audio.play();
-      } else {
-        // Se ElevenLabs falhar, usar fallback
-        fallbackFn();
-      }
-    } catch (error) {
-      console.warn('Erro ao usar ElevenLabs para efeito sonoro, usando fallback:', error);
-      fallbackFn(); // Fallback para Web Audio API
-    }
-  }, [enabled, useElevenLabs]);
-
-  /**
-   * Som de sucesso (tom ascendente) - versão ElevenLabs
-   */
-  const playSuccessElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de sucesso: tom ascendente curto e agradável, como um ping de notificação positiva",
-      playSuccess
-    );
-  }, [playElevenLabsSound, playSuccess]);
-
-  /**
-   * Som de erro (tom descendente) - versão ElevenLabs
-   */
-  const playErrorElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de erro: tom descendente grave e curto, como um alerta de problema",
-      playError
-    );
-  }, [playElevenLabsSound, playError]);
-
-  /**
-   * Som de notificação (ping curto) - versão ElevenLabs
-   */
-  const playNotificationElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de notificação: ping curto e agudo, como um sino pequeno",
-      playNotification
-    );
-  }, [playElevenLabsSound, playNotification]);
-
-  /**
-   * Som de clique (click curto) - versão ElevenLabs
-   */
-  const playClickElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de clique: click curto e seco, como um botão sendo pressionado",
-      playClick
-    );
-  }, [playElevenLabsSound, playClick]);
-
-  /**
-   * Som de enviar mensagem (whoosh) - versão ElevenLabs
-   */
-  const playSendElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de enviar: whoosh suave e rápido, como algo sendo lançado",
-      playSend
-    );
-  }, [playElevenLabsSound, playSend]);
-
-  /**
-   * Som de receber mensagem (ding) - versão ElevenLabs
-   */
-  const playReceiveElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de receber: ding agradável e claro, como uma notificação chegando",
-      playReceive
-    );
-  }, [playElevenLabsSound, playReceive]);
-
-  /**
-   * Som de pensando (pulso suave) - versão ElevenLabs
-   */
-  const playThinkingElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de pensando: pulso suave e baixo, como um batimento cardíaco sutil",
-      playThinking
-    );
-  }, [playElevenLabsSound, playThinking]);
-
-  /**
-   * Som de processando (beep contínuo suave) - versão ElevenLabs
-   */
-  const playProcessingElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de processando: beep contínuo suave e médio, como um processamento em andamento",
-      playProcessing
-    );
-  }, [playElevenLabsSound, playProcessing]);
-
-  /**
-   * Som de copiar (click duplo) - versão ElevenLabs
-   */
-  const playCopyElevenLabs = useCallback(() => {
-    playElevenLabsSound(
-      "Som de copiar: dois clicks rápidos e secos, como algo sendo copiado",
-      playCopy
-    );
-  }, [playElevenLabsSound, playCopy]);
+  // Remover tentativa de usar ElevenLabs para efeitos sonoros
+  // ElevenLabs é para TTS (texto para fala), não para efeitos sonoros
+  // Vamos usar apenas Web Audio API que é mais adequado para efeitos sonoros
 
   return {
-    // Versões com ElevenLabs (mais específicas)
-    playSuccess: playSuccessElevenLabs,
-    playError: playErrorElevenLabs,
-    playNotification: playNotificationElevenLabs,
-    playClick: playClickElevenLabs,
-    playSend: playSendElevenLabs,
-    playReceive: playReceiveElevenLabs,
-    playThinking: playThinkingElevenLabs,
-    playProcessing: playProcessingElevenLabs,
-    playCopy: playCopyElevenLabs,
-    // Versões originais (Web Audio API) - fallback
+    // Usar Web Audio API diretamente (mais adequado para efeitos sonoros)
+    playSuccess,
+    playError,
+    playNotification,
+    playClick,
+    playSend,
+    playReceive,
+    playThinking,
+    playProcessing,
+    playCopy,
     playDelete,
     playHover,
-    // Controle
-    setUseElevenLabs,
   };
 }
 

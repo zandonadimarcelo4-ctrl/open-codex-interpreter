@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
+import os from "os";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -314,7 +315,6 @@ async function startServer() {
   });
 
   // Obter IP da rede local
-  const os = await import('os');
   const networkInterfaces = os.networkInterfaces();
   let localIP = 'localhost';
   

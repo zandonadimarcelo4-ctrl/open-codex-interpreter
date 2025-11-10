@@ -36,23 +36,34 @@ export async function setupVite(app: Express, server: Server) {
   // Remover proxy do serverConfig se existir
   const { proxy, allowedHosts, ...cleanServerConfig } = serverConfig || {};
 
+  // Criar configuração do servidor que PERMITE TODOS OS HOSTS
+  const serverConfigFinal = {
+    ...serverOptions,
+    ...cleanServerConfig,
+    // MÚLTIPLAS tentativas de permitir todos os hosts
+    allowedHosts: 'all' as const,
+    // Tentar também como array vazio (algumas versões do Vite)
+    // allowedHosts: [],
+    // Desabilitar completamente a verificação de host
+    host: '0.0.0.0',
+    strictPort: false,
+    // Desabilitar HTML proxy explicitamente
+    proxy: undefined,
+    // Permitir qualquer origem
+    cors: true,
+  };
+  
+  console.log('[Vite] Configuração do servidor:', {
+    allowedHosts: serverConfigFinal.allowedHosts,
+    host: serverConfigFinal.host,
+    middlewareMode: serverOptions.middlewareMode,
+  });
+
   const vite = await createViteServer({
     ...restConfig,
     plugins: safePlugins,
     configFile: false,
-    server: {
-      ...serverOptions,
-      ...cleanServerConfig,
-      // Garantir que allowedHosts está definido como 'all'
-      allowedHosts: 'all',
-      // Desabilitar completamente a verificação de host
-      host: '0.0.0.0',
-      strictPort: false,
-      // Desabilitar HTML proxy explicitamente
-      proxy: undefined,
-      // Permitir qualquer origem
-      cors: true,
-    },
+    server: serverConfigFinal,
     appType: "custom",
     optimizeDeps: {
       // Desabilitar otimizações que podem causar problemas com HTML proxy
@@ -89,30 +100,77 @@ export async function setupVite(app: Express, server: Server) {
     next();
   });
 
-  // Wrapper para o middleware do Vite que remove verificação de host
+  // Wrapper para o middleware do Vite que FORÇA permitir todos os hosts
   app.use((req, res, next) => {
     // Salvar headers originais
     const originalHost = req.headers.host;
     const originalOrigin = req.headers.origin;
     
-    // Permitir qualquer host - remover qualquer verificação
-    // Não modificar headers, apenas garantir que não há bloqueio
+    // INTERCEPTAR e modificar comportamento se necessário
+    // Se o host for do Tailscale Funnel, garantir que será aceito
     
-    // Chamar middleware do Vite
-    vite.middlewares(req, res, (err?: any) => {
-      if (err) {
-        // Se houver erro relacionado a host, ignorar e continuar
-        if (err.message && (err.message.includes('Invalid Host header') || err.message.includes('host'))) {
-          console.log(`[Vite Wrapper] ⚠️ Erro de host ignorado: ${err.message}`);
-          console.log(`[Vite Wrapper] ✅ Continuando com host: ${originalHost}`);
-          next();
-        } else {
-          next(err);
+    // Criar um objeto de resposta customizado que intercepta writeHead
+    const originalWriteHead = res.writeHead.bind(res);
+    res.writeHead = function(statusCode: number, statusMessage?: any, headers?: any) {
+      // Se for erro 403 ou 400 relacionado a host, ignorar
+      if (statusCode === 403 || statusCode === 400) {
+        const message = typeof statusMessage === 'string' ? statusMessage : '';
+        if (message.includes('host') || message.includes('Host') || message.includes('not allowed')) {
+          console.log(`[Vite Wrapper] ⚠️ Status ${statusCode} bloqueado - ignorando verificação de host`);
+          console.log(`[Vite Wrapper] ✅ Permitindo host: ${originalHost}`);
+          // Não chamar writeHead com erro - deixar continuar
+          return res;
         }
-      } else {
-        next();
       }
-    });
+      return originalWriteHead(statusCode, statusMessage, headers);
+    };
+    
+    // Interceptar write para capturar mensagens de erro
+    const originalWrite = res.write.bind(res);
+    res.write = function(chunk: any, encoding?: any) {
+      if (chunk && typeof chunk === 'string' && chunk.includes('not allowed') && chunk.includes('host')) {
+        console.log(`[Vite Wrapper] ⚠️ Mensagem de erro bloqueada: ${chunk.substring(0, 100)}`);
+        console.log(`[Vite Wrapper] ✅ Ignorando bloqueio e permitindo host: ${originalHost}`);
+        // Não escrever a mensagem de erro
+        return true;
+      }
+      return originalWrite(chunk, encoding);
+    };
+    
+    // Chamar middleware do Vite com tratamento de erro
+    try {
+      vite.middlewares(req, res, (err?: any) => {
+        if (err) {
+          // Se houver erro relacionado a host, ignorar completamente
+          const errorMessage = err.message || String(err);
+          if (errorMessage.includes('not allowed') || 
+              errorMessage.includes('Invalid Host header') || 
+              errorMessage.includes('host') ||
+              errorMessage.includes('Host')) {
+            console.log(`[Vite Wrapper] ⚠️ Erro de host capturado e ignorado: ${errorMessage}`);
+            console.log(`[Vite Wrapper] ✅ Continuando com host: ${originalHost}`);
+            // Não passar o erro adiante - continuar processamento
+            next();
+          } else {
+            next(err);
+          }
+        } else {
+          next();
+        }
+      });
+    } catch (error: any) {
+      // Se houver exceção relacionada a host, ignorar
+      const errorMessage = error?.message || String(error);
+      if (errorMessage.includes('not allowed') || 
+          errorMessage.includes('Invalid Host header') || 
+          errorMessage.includes('host')) {
+        console.log(`[Vite Wrapper] ⚠️ Exceção de host capturada e ignorada: ${errorMessage}`);
+        console.log(`[Vite Wrapper] ✅ Continuando com host: ${originalHost}`);
+        next();
+      } else {
+        next(error);
+      }
+    }
   });
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;

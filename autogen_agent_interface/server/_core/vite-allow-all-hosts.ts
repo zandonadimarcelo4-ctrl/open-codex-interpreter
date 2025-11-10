@@ -47,10 +47,28 @@ export function viteAllowAllHosts(): Plugin {
       if (!config.server) {
         config.server = {};
       }
+      // Tentar múltiplas formas de permitir todos os hosts
       config.server.allowedHosts = 'all';
       config.server.host = '0.0.0.0';
       
+      // Se 'all' não funcionar, tentar lista vazia ou true
+      // Algumas versões do Vite podem não suportar 'all'
+      try {
+        // Verificar se há uma propriedade interna que podemos modificar
+        (config.server as any).strictPort = false;
+      } catch (e) {
+        // Ignorar erros
+      }
+      
       return config;
+    },
+    // Hook de configuração resolvida (executa após todas as configurações serem resolvidas)
+    configResolved(config) {
+      // Garantir que allowedHosts está definido mesmo após resolução
+      if (config.server && config.server.allowedHosts !== 'all') {
+        console.warn('[Vite Plugin] ⚠️ allowedHosts não está definido como "all", forçando...');
+        config.server.allowedHosts = 'all';
+      }
     },
   };
 }

@@ -231,12 +231,37 @@ async function startServer() {
     console.warn(`⚠️ Não foi possível pré-carregar modelo ${defaultModel}:`, err);
   });
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-    console.log(`WebSocket server running on ws://localhost:${port}/ws`);
-    console.log(`Background Worker: ${backgroundWorker.isWorkerRunning() ? '✅ Running' : '❌ Stopped'}`);
-    console.log(`Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
-    console.log(`VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
+  // Obter IP da rede local
+  const os = require('os');
+  const networkInterfaces = os.networkInterfaces();
+  let localIP = 'localhost';
+  
+  // Encontrar primeiro IP IPv4 não loopback
+  for (const interfaceName in networkInterfaces) {
+    const addresses = networkInterfaces[interfaceName];
+    if (addresses) {
+      for (const address of addresses) {
+        if (address.family === 'IPv4' && !address.internal) {
+          localIP = address.address;
+          break;
+        }
+      }
+      if (localIP !== 'localhost') break;
+    }
+  }
+
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`\n🚀 Server running on:`);
+    console.log(`   Local:   http://localhost:${port}/`);
+    console.log(`   Network: http://${localIP}:${port}/`);
+    console.log(`\n📡 WebSocket server running on:`);
+    console.log(`   Local:   ws://localhost:${port}/ws`);
+    console.log(`   Network: ws://${localIP}:${port}/ws`);
+    console.log(`\n📊 Status:`);
+    console.log(`   Background Worker: ${backgroundWorker.isWorkerRunning() ? '✅ Running' : '❌ Stopped'}`);
+    console.log(`   Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
+    console.log(`   VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
+    console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${port}/\n`);
   });
 }
 

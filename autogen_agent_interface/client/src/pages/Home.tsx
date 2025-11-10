@@ -14,6 +14,7 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false); // Fechado por padrão no mobile
   const isMobile = useIsMobile(); // Detecção automática de mobile
+  const [newChatTrigger, setNewChatTrigger] = useState(0); // Trigger para nova conversa
 
   // Permitir acesso sem autenticação (modo demo)
   // Se loading demorar muito, permitir acesso
@@ -78,7 +79,11 @@ export default function Home() {
       <Sidebar
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onNewChat={() => setSidebarOpen(false)}
+        onNewChat={() => {
+          setSidebarOpen(false);
+          setRightPanelOpen(false);
+          setNewChatTrigger(prev => prev + 1); // Trigger nova conversa
+        }}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden">
@@ -127,6 +132,7 @@ export default function Home() {
           <div className={`flex-1 flex flex-col min-w-0 ${isMobile && (sidebarOpen || rightPanelOpen) ? 'hidden' : ''}`}>
             <div className={`flex-1 ${isMobile ? 'bg-background shadow-inner' : 'bg-card rounded-lg border border-border'} overflow-hidden flex flex-col`}>
               <AdvancedChatInterface 
+                key={newChatTrigger} // Force re-render on new chat
                 onNewChat={() => {
                   setSidebarOpen(false);
                   setRightPanelOpen(false);

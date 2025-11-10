@@ -347,6 +347,9 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        console.log(`[Chat] ========== ROTA chat.process CHAMADA ==========`);
+        console.log(`[Chat] Input recebido:`, JSON.stringify(input, null, 2));
+        console.log(`[Chat] Context:`, JSON.stringify({ userId: ctx.user?.id, sessionId: ctx.sessionId }, null, 2));
         // Permitir acesso sem autenticação (modo demo)
         // Se não houver usuário, usar usuário demo
         const userId = ctx.user?.id || 1; // ID demo padrão

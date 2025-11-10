@@ -105,15 +105,22 @@ export async function setupVite(app: Express, server: Server) {
     const originalHost = req.headers.host;
     
     // Interceptar writeHead para capturar status 403/400
-    const originalWriteHead = res.writeHead;
-    res.writeHead = function(statusCode: number, statusMessage?: any, headers?: any) {
+    const originalWriteHead = res.writeHead.bind(res);
+    res.writeHead = function(statusCode: number, statusMessage?: any, headers?: any): typeof res {
       // Se for erro 403 ou 400, pode ser bloqueio de host
       if ((statusCode === 403 || statusCode === 400) && originalHost) {
         console.log(`[Vite Wrapper] ⚠️ Status ${statusCode} detectado para host: ${originalHost}`);
         // Marcar que vamos interceptar a resposta
         (res as any)._hostBlocked = true;
       }
-      return originalWriteHead.call(this, statusCode, statusMessage, headers);
+      // Chamar writeHead original com argumentos corretos
+      if (headers) {
+        return originalWriteHead(statusCode, headers);
+      } else if (statusMessage && typeof statusMessage !== 'string') {
+        return originalWriteHead(statusCode, statusMessage);
+      } else {
+        return originalWriteHead(statusCode, statusMessage as any);
+      }
     };
     
     // Interceptar write para capturar mensagem de erro

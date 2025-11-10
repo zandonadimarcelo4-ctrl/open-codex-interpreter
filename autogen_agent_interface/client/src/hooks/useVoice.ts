@@ -37,7 +37,8 @@ export function useVoice(options: UseVoiceOptions = {}) {
       if (audioElementRef.current?.error) {
         const errorCode = audioElementRef.current.error.code;
         // Ignorar erros comuns que não são críticos
-        if (errorCode !== MediaError.MEDIA_ERR_ABORTED) {
+        // MEDIA_ERR_ABORTED = 1 (usuário cancelou)
+        if (errorCode !== 1) {
           console.warn('[TTS] Erro no elemento de áudio (código', errorCode, ')');
           setError('Erro ao reproduzir áudio');
         }
@@ -201,7 +202,8 @@ export function useVoice(options: UseVoiceOptions = {}) {
               const errorMessage = newAudioElement.error.message;
               
               // Ignorar erros comuns que não são críticos
-              if (errorCode === MediaError.MEDIA_ERR_ABORTED) {
+              // MEDIA_ERR_ABORTED = 1 (usuário cancelou)
+              if (errorCode === 1) {
                 // Usuário cancelou - não é um erro real
                 console.log('[TTS] Reprodução cancelada pelo usuário');
                 setIsSpeaking(false);

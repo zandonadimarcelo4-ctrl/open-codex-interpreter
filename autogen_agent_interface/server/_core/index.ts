@@ -37,6 +37,14 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  // Configurar multer para upload de arquivos (STT)
+  let multer: any;
+  try {
+    multer = require('multer');
+  } catch (e) {
+    console.warn('[STT] ⚠️ Multer não instalado. STT pode não funcionar. Execute: npm install multer');
+  }
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   
@@ -107,6 +115,80 @@ async function startServer() {
       }
       res.status(500).json({ 
         error: `Internal server error: ${errorMessage}`,
+        details: errorMessage
+      });
+    }
+  });
+  
+  // STT API endpoint (Speech-to-Text)
+  app.post("/api/stt", async (req, res) => {
+    try {
+      console.log("[STT] Requisição recebida para transcrição de áudio");
+      
+      if (!multer) {
+        console.error("[STT] ❌ Multer não está disponível");
+        return res.status(500).json({
+          error: "STT não disponível",
+          details: "Multer não está instalado. Execute: npm install multer",
+          suggestion: "STT ainda não está completamente implementado. Use texto por enquanto."
+        });
+      }
+      
+      // Configurar multer para processar multipart/form-data
+      const upload = multer({ 
+        storage: multer.memoryStorage(),
+        limits: { fileSize: 16 * 1024 * 1024 } // 16MB max
+      });
+      
+      // Usar multer como middleware
+      const uploadMiddleware = upload.single('audio');
+      
+      uploadMiddleware(req, res, async (err: any) => {
+        if (err) {
+          console.error("[STT] ❌ Erro ao processar upload:", err);
+          return res.status(400).json({ 
+            error: "Erro ao processar arquivo de áudio",
+            details: err.message 
+          });
+        }
+        
+        if (!req.file) {
+          console.error("[STT] ❌ Arquivo de áudio não fornecido");
+          return res.status(400).json({ 
+            error: "Arquivo de áudio é obrigatório",
+            details: "Nenhum arquivo foi enviado no campo 'audio'"
+          });
+        }
+        
+        try {
+          console.log(`[STT] 🎙️ Processando áudio: ${req.file.size} bytes, tipo: ${req.file.mimetype}`);
+          
+          // Por enquanto, retornar mensagem informativa
+          // Em produção, integrar com serviço de STT (Whisper, etc.)
+          console.log("[STT] ⚠️ STT ainda não implementado completamente - retornando mensagem informativa");
+          
+          // Simular processamento (remover em produção)
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          res.status(200).json({
+            text: "[STT] Transcrição de áudio ainda não implementada. Use texto por enquanto.",
+            language: "pt-BR",
+            segments: []
+          });
+        } catch (sttError) {
+          console.error("[STT] ❌ Erro ao processar áudio:", sttError);
+          const errorMessage = sttError instanceof Error ? sttError.message : String(sttError);
+          res.status(500).json({
+            error: "Erro ao processar áudio",
+            details: errorMessage
+          });
+        }
+      });
+    } catch (error) {
+      console.error("[STT] ❌ Erro geral:", error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      res.status(500).json({
+        error: `Erro interno: ${errorMessage}`,
         details: errorMessage
       });
     }

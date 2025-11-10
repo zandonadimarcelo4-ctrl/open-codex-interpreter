@@ -70,16 +70,22 @@ export async function executeWithAutoGen(
       systemPrompt = intent.type === "conversation"
         ? `Você é um assistente amigável e útil. Responda de forma breve e natural, como um amigo conversando.
 
-IMPORTANTE:
-- Se o usuário cumprimentar (oi, olá, tudo bem, e aí, etc.), responda de forma amigável e pergunte como pode ajudar
-- NÃO responda com informações técnicas ou horas/data a menos que seja explicitamente solicitado
-- Mantenha o tom conversacional e amigável
-- Seja breve e direto, mas caloroso
+REGRAS CRÍTICAS:
+1. Se o usuário cumprimentar (oi, olá, tudo bem, e aí, etc.), responda APENAS com uma saudação amigável e pergunte como pode ajudar
+2. NÃO responda com informações técnicas, horas, data, ou qualquer outra coisa a menos que seja explicitamente solicitado
+3. Mantenha o tom conversacional e amigável
+4. Seja breve e direto, mas caloroso
+5. NÃO execute código ou ações para saudações - apenas responda amigavelmente
 
-Exemplos:
+Exemplos CORRETOS:
 - Usuário: "oi tudo bem?" → Você: "Oi! Tudo bem sim, obrigado! Como posso te ajudar hoje?"
 - Usuário: "e aí" → Você: "E aí! Tudo certo? Em que posso ajudar?"
-- Usuário: "olá" → Você: "Olá! Como posso te ajudar hoje?"`
+- Usuário: "olá" → Você: "Olá! Como posso te ajudar hoje?"
+
+Exemplos INCORRETOS (NÃO FAÇA ISSO):
+- Usuário: "oi tudo bem?" → Você: "São 06:54" ❌
+- Usuário: "oi tudo bem?" → Você: "Executando código..." ❌
+- Usuário: "oi tudo bem?" → Você: "Informações do sistema..." ❌`
         : "Você é um assistente especializado. Responda a pergunta de forma direta e concisa.";
     } else if (intent.type === "action" || intent.type === "command") {
       // Sistema de roteamento de agentes inspirado no AgenticSeek (apenas para ações)

@@ -59,6 +59,23 @@ const COMMAND_KEYWORDS = [
 export function detectIntent(message: string): IntentResult {
   const lowerMessage = message.toLowerCase().trim();
   
+  // Verificar se é uma saudação ou conversa casual primeiro
+  const greetingKeywords = ['oi', 'olá', 'tudo bem', 'tudo bom', 'e aí', 'eai', 'e ai', 'beleza', 'blz', 'salve', 'opa', 'eae', 'e aê', 'fala', 'fala aí', 'bom dia', 'boa tarde', 'boa noite'];
+  if (greetingKeywords.some(keyword => lowerMessage.includes(keyword))) {
+    // Se for apenas uma saudação sem palavras de ação, é conversa
+    const hasActionKeywords = Object.values(ACTION_KEYWORDS).flat().some(keyword => 
+      lowerMessage.includes(keyword)
+    );
+    
+    if (!hasActionKeywords) {
+      return {
+        type: 'conversation',
+        confidence: 0.95,
+        reason: 'Saudação detectada',
+      };
+    }
+  }
+  
   // Verificar se é uma pergunta direta
   if (CONVERSATION_KEYWORDS.some(keyword => lowerMessage.includes(keyword))) {
     // Mas verificar se também tem palavras de ação

@@ -829,10 +829,10 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
           <Button
             onClick={() => handleSendMessage()}
             disabled={!inputValue.trim() || isLoading || isRecording}
-            className="bg-primary hover:bg-primary/90"
+            className={`${isMobile ? 'h-12 w-12 rounded-full shadow-lg shadow-primary/30 hover:shadow-primary/50 transition-all duration-200 hover:scale-110' : ''} bg-primary hover:bg-primary/90 ${isMobile ? 'flex items-center justify-center' : ''}`}
             title="Enviar mensagem"
           >
-            <Send className="w-5 h-5" />
+            <Send className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
           </Button>
         </div>
         <div className="flex items-center justify-between mt-2">

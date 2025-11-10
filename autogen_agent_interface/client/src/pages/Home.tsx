@@ -82,19 +82,21 @@ export default function Home() {
       />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        <header className="border-b border-border bg-card p-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <header className={`border-b border-border/50 ${isMobile ? 'p-3 bg-gradient-to-r from-card via-card/95 to-card backdrop-blur-xl shadow-sm sticky top-0 z-50' : 'p-4 bg-card'} flex items-center justify-between`}>
+          <div className="flex items-center gap-2 sm:gap-4">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="lg:hidden"
+              className={`lg:hidden ${isMobile ? 'h-10 w-10 rounded-full hover:bg-primary/10 transition-all duration-200' : ''}`}
             >
-              <Menu className="w-5 h-5" />
+              <Menu className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
             </Button>
             <div>
-              <h2 className="text-lg font-semibold text-foreground">AutoGen Super Agent</h2>
-              <p className="text-xs text-muted-foreground">Equipe de Desenvolvimento IA</p>
+              <h2 className={`${isMobile ? 'text-base font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent' : 'text-lg font-semibold'} text-foreground`}>AutoGen Super Agent</h2>
+              {!isMobile && (
+                <p className="text-xs text-muted-foreground">Equipe de Desenvolvimento IA</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -117,9 +119,9 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="flex-1 flex overflow-hidden gap-4 p-4">
+        <div className={`flex-1 flex overflow-hidden ${isMobile ? 'gap-0 p-0' : 'gap-4 p-4'}`}>
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden flex flex-col">
+            <div className={`flex-1 ${isMobile ? 'bg-background shadow-inner' : 'bg-card rounded-lg border border-border'} overflow-hidden flex flex-col`}>
               <AdvancedChatInterface 
                 onNewChat={() => {
                   setSidebarOpen(false);

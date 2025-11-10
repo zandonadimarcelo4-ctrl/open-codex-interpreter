@@ -960,7 +960,19 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                     className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
                     onClick={async () => {
                       try {
+                        console.log('[STT] Solicitando permissão de microfone...');
+                        
+                        // Limpar erro antes de tentar
+                        setVoiceError(null);
+                        
+                        // Verificar se a API está disponível
+                        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                          setVoiceError('API de mídia não suportada neste navegador');
+                          return;
+                        }
+                        
                         // Tentar solicitar permissão novamente
+                        console.log('[STT] Chamando getUserMedia...');
                         const stream = await navigator.mediaDevices.getUserMedia({ 
                           audio: { 
                             echoCancellation: true, 
@@ -968,22 +980,37 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                             autoGainControl: true 
                           } 
                         });
+                        
+                        console.log('[STT] ✅ Permissão concedida!');
+                        
                         // Permissão concedida - parar stream de teste
-                        stream.getTracks().forEach(track => track.stop());
-                        // Limpar erro e tentar iniciar gravação
+                        stream.getTracks().forEach(track => {
+                          track.stop();
+                          console.log('[STT] Track parado:', track.label);
+                        });
+                        
+                        // Limpar erro completamente
                         setVoiceError(null);
+                        
+                        // Aguardar um pouco antes de tentar iniciar gravação
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        
                         // Tentar iniciar gravação novamente
-                        setTimeout(() => {
-                          toggleListening();
-                        }, 100);
+                        console.log('[STT] Tentando iniciar gravação após permissão concedida...');
+                        toggleListening();
                       } catch (err: any) {
-                        console.error('[STT] Erro ao solicitar permissão:', err);
+                        console.error('[STT] ❌ Erro ao solicitar permissão:', err);
+                        console.error('[STT] Nome do erro:', err.name);
+                        console.error('[STT] Mensagem do erro:', err.message);
+                        
                         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                          setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços).');
+                          setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços) e recarregue a página.');
                         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                           setVoiceError('Nenhum microfone encontrado. Verifique se há um microfone conectado.');
+                        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                          setVoiceError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
                         } else {
-                          setVoiceError(`Erro ao acessar microfone: ${err.message || 'Erro desconhecido'}`);
+                          setVoiceError(`Erro ao acessar microfone: ${err.message || err.name || 'Erro desconhecido'}`);
                         }
                       }
                     }}

@@ -406,11 +406,18 @@ export function useVoice(options: UseVoiceOptions = {}) {
 
     try {
       setError(null);
+      console.log('[STT] Iniciando gravação...');
 
-      // Verificar permissão primeiro
-      const hasPermission = await checkMicrophonePermission();
-      if (!hasPermission) {
-        return;
+      // Verificar permissão primeiro (mas não bloquear se não conseguir verificar)
+      try {
+        const hasPermission = await checkMicrophonePermission();
+        if (!hasPermission) {
+          console.warn('[STT] Permissão não concedida, mas tentando mesmo assim...');
+          // Não retornar aqui - tentar acessar diretamente pode solicitar permissão
+        }
+      } catch (permErr) {
+        console.warn('[STT] Erro ao verificar permissão, tentando acessar diretamente:', permErr);
+        // Continuar mesmo se a verificação de permissão falhar
       }
 
       // Solicitar acesso ao microfone

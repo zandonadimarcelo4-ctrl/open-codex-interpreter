@@ -56,6 +56,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
   const [connectionStatus, setConnectionStatus] = useState<string>('Conectando...');
   const [attachedImages, setAttachedImages] = useState<string[]>([]);
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [permissionRequested, setPermissionRequested] = useState(false); // Flag para evitar tentativas repetidas
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -953,12 +954,15 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             {voiceError && (
               <div className="text-xs text-red-500 mt-1 flex items-center gap-2 flex-wrap">
                 <span>⚠️ {voiceError}</span>
-                {voiceError.includes('Permissão') && (
+                {voiceError.includes('Permissão') && !permissionRequested && (
                   <Button
                     variant="ghost"
                     size="sm"
                     className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
                     onClick={async () => {
+                      // Marcar que já tentou solicitar permissão
+                      setPermissionRequested(true);
+                      
                       try {
                         console.log('[STT] Solicitando permissão de microfone...');
                         
@@ -968,6 +972,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                         // Verificar se a API está disponível
                         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                           setVoiceError('API de mídia não suportada neste navegador');
+                          setPermissionRequested(false); // Permitir tentar novamente
                           return;
                         }
                         
@@ -989,8 +994,9 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                           console.log('[STT] Track parado:', track.label);
                         });
                         
-                        // Limpar erro completamente
+                        // Limpar erro completamente e resetar flag
                         setVoiceError(null);
+                        setPermissionRequested(false);
                         
                         // Aguardar um pouco antes de tentar iniciar gravação
                         await new Promise(resolve => setTimeout(resolve, 200));
@@ -999,18 +1005,20 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                         console.log('[STT] Tentando iniciar gravação após permissão concedida...');
                         toggleListening();
                       } catch (err: any) {
-                        console.error('[STT] ❌ Erro ao solicitar permissão:', err);
-                        console.error('[STT] Nome do erro:', err.name);
-                        console.error('[STT] Mensagem do erro:', err.message);
-                        
+                        // Não logar múltiplas vezes o mesmo erro
                         if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                          // Permissão negada - não tentar novamente automaticamente
                           setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços) e recarregue a página.');
+                          // Não resetar permissionRequested - deixar o usuário recarregar a página
                         } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                           setVoiceError('Nenhum microfone encontrado. Verifique se há um microfone conectado.');
+                          setPermissionRequested(false); // Permitir tentar novamente para outros erros
                         } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
                           setVoiceError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
+                          setPermissionRequested(false); // Permitir tentar novamente para outros erros
                         } else {
                           setVoiceError(`Erro ao acessar microfone: ${err.message || err.name || 'Erro desconhecido'}`);
+                          setPermissionRequested(false); // Permitir tentar novamente para outros erros
                         }
                       }
                     }}

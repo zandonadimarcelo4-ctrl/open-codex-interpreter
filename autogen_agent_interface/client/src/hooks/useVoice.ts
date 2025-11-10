@@ -33,8 +33,16 @@ export function useVoice(options: UseVoiceOptions = {}) {
     audioElementRef.current = new Audio();
     audioElementRef.current.onended = () => setIsSpeaking(false);
     audioElementRef.current.onerror = () => {
+      // Só logar erro se for um erro real
+      if (audioElementRef.current?.error) {
+        const errorCode = audioElementRef.current.error.code;
+        // Ignorar erros comuns que não são críticos
+        if (errorCode !== MediaError.MEDIA_ERR_ABORTED) {
+          console.warn('[TTS] Erro no elemento de áudio (código', errorCode, ')');
+          setError('Erro ao reproduzir áudio');
+        }
+      }
       setIsSpeaking(false);
-      setError('Erro ao reproduzir áudio');
     };
 
     return () => {
@@ -187,14 +195,33 @@ export function useVoice(options: UseVoiceOptions = {}) {
           };
           
           newAudioElement.onerror = (error) => {
-            console.error('❌ Erro ao reproduzir áudio:', error);
-            console.error(`[TTS] Erro no elemento de áudio:`, newAudioElement.error);
-            setIsSpeaking(false);
-            hasPlayed = false;
-            const errorMsg = newAudioElement.error 
-              ? `Erro ao reproduzir áudio: ${newAudioElement.error.message || 'Erro desconhecido'}`
-              : 'Erro ao reproduzir áudio. Verifique se o formato de áudio é suportado.';
-            setError(errorMsg);
+            // Só logar erro se for um erro real (não apenas um evento)
+            if (newAudioElement.error) {
+              const errorCode = newAudioElement.error.code;
+              const errorMessage = newAudioElement.error.message;
+              
+              // Ignorar erros comuns que não são críticos
+              if (errorCode === MediaError.MEDIA_ERR_ABORTED) {
+                // Usuário cancelou - não é um erro real
+                console.log('[TTS] Reprodução cancelada pelo usuário');
+                setIsSpeaking(false);
+                hasPlayed = false;
+                URL.revokeObjectURL(audioUrl);
+                return;
+              }
+              
+              // Logar apenas erros reais
+              console.error(`[TTS] Erro no elemento de áudio (código ${errorCode}):`, errorMessage);
+              setIsSpeaking(false);
+              hasPlayed = false;
+              const errorMsg = errorMessage || 'Erro ao reproduzir áudio. Verifique se o formato de áudio é suportado.';
+              setError(errorMsg);
+            } else {
+              // Se não houver erro específico, apenas limpar
+              console.log('[TTS] Evento de erro sem detalhes - ignorando');
+              setIsSpeaking(false);
+              hasPlayed = false;
+            }
             URL.revokeObjectURL(audioUrl);
           };
           

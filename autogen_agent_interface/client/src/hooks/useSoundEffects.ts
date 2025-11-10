@@ -271,18 +271,21 @@ export function useSoundEffects(enabled: boolean = true) {
   }, [useElevenLabsSFX, playElevenLabsSFX, playReceive]);
 
   return {
-    // Usar Web Audio API diretamente (mais adequado para efeitos sonoros)
-    playSuccess,
-    playError,
-    playNotification,
-    playClick,
-    playSend,
-    playReceive,
+    // Usar Web Audio API por padrão (rápido e adequado para feedback de UI)
+    // Opcionalmente pode usar ElevenLabs SFX para efeitos mais complexos
+    playSuccess: useElevenLabsSFX ? playSuccessWithSFX : playSuccess,
+    playError: useElevenLabsSFX ? playErrorWithSFX : playError,
+    playNotification: useElevenLabsSFX ? playNotificationWithSFX : playNotification,
+    playClick: useElevenLabsSFX ? playClickWithSFX : playClick,
+    playSend: useElevenLabsSFX ? playSendWithSFX : playSend,
+    playReceive: useElevenLabsSFX ? playReceiveWithSFX : playReceive,
     playThinking,
     playProcessing,
     playCopy,
     playDelete,
     playHover,
+    // Controle
+    setUseElevenLabsSFX,
   };
 }
 

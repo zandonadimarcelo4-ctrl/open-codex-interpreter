@@ -814,13 +814,17 @@ async function callOllamaWithAutoGenPrompt(
     // Filtrar thinking tokens do DeepSeek R1 (raciocínio interno não deve aparecer na resposta)
     // DeepSeek R1 usa tags como <think>, <reasoning>, <think>, etc.
     const originalLength = responseContent.length;
+    const originalContent = responseContent; // Guardar original para debug
+    
+    // Filtrar thinking tokens de forma mais cuidadosa
     responseContent = responseContent
       .replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove <think>...</think>
       .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '') // Remove <reasoning>...</reasoning>
       .replace(/<think>[\s\S]*?<\/redacted_reasoning>/gi, '') // Remove <think>...</think>
-      .replace(/<think>[\s\S]*$/gi, '') // Remove <think> no final (cortado)
+      .replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove <think>...</think>
       .replace(/<think>[\s\S]*$/gi, '') // Remove <think> no final (cortado)
       .replace(/<reasoning>[\s\S]*$/gi, '') // Remove <reasoning> no final (cortado)
+      .replace(/<think>[\s\S]*$/gi, '') // Remove <think> no final (cortado)
       .trim();
     
     console.log(`[AutoGen] ✅ Thinking tokens removidos (${originalLength} -> ${responseContent.length} chars)`);
@@ -829,18 +833,25 @@ async function callOllamaWithAutoGenPrompt(
     if (!responseContent || responseContent.length === 0) {
       console.warn(`[AutoGen] ⚠️ Resposta vazia após filtrar thinking tokens! Usando fallback...`);
       console.warn(`[AutoGen] ⚠️ Resposta original tinha ${originalLength} chars`);
+      console.warn(`[AutoGen] ⚠️ Primeiros 500 chars da resposta original:`, originalContent.substring(0, 500));
       console.warn(`[AutoGen] ⚠️ Data completa:`, JSON.stringify(data, null, 2));
       
-      // Fallback baseado no tipo de intenção
-      if (intent.type === "conversation") {
-        responseContent = "Oi! Tudo bem sim, obrigado! Como posso te ajudar hoje?";
-      } else if (intent.type === "question") {
-        responseContent = "Desculpe, não consegui processar sua pergunta. Pode reformular?";
+      // Tentar extrair conteúdo antes dos thinking tokens
+      const beforeThinking = originalContent.split(/<think|<reasoning|<redacted_reasoning/i)[0]?.trim();
+      if (beforeThinking && beforeThinking.length > 0) {
+        console.log(`[AutoGen] ✅ Encontrado conteúdo antes dos thinking tokens: "${beforeThinking}"`);
+        responseContent = beforeThinking;
       } else {
-        responseContent = "Desculpe, não consegui processar sua solicitação. Pode tentar novamente?";
+        // Fallback baseado no tipo de intenção
+        if (intent.type === "conversation") {
+          responseContent = "Oi! Tudo bem sim, obrigado! Como posso te ajudar hoje?";
+        } else if (intent.type === "question") {
+          responseContent = "Desculpe, não consegui processar sua pergunta. Pode reformular?";
+        } else {
+          responseContent = "Desculpe, não consegui processar sua solicitação. Pode tentar novamente?";
+        }
+        console.log(`[AutoGen] ✅ Fallback aplicado: "${responseContent}"`);
       }
-      
-      console.log(`[AutoGen] ✅ Fallback aplicado: "${responseContent}"`);
     }
     
     // Se houver function calls, executar automaticamente (estilo Open Interpreter)

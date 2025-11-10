@@ -724,9 +724,9 @@ async function callOllamaWithAutoGenPrompt(
         num_predict: intent.type === "action" ? 512 : 64, // Ultra-reduzido: 128 -> 64 para conversas
         num_ctx: 2048, // Reduzir contexto também
         num_gpu: 1, // Usar apenas 1 GPU
-        num_thread: 4, // Reduzir threads para economizar recursos
-        use_mmap: true, // Usar memory mapping para economizar VRAM
-        use_mlock: false, // Não travar memória na RAM
+        num_thread: 6, // Balanceado: 6 threads para boa performance sem excesso de VRAM
+        use_mmap: true, // Usar memory mapping para economizar VRAM (não afeta qualidade)
+        use_mlock: false, // Não travar memória na RAM (não afeta qualidade)
       },
     };
 

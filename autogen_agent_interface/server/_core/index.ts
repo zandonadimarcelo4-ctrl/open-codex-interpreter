@@ -477,26 +477,45 @@ async function startServer() {
   const allIPs: string[] = [];
   
   // Encontrar todos os IPs IPv4 não loopback
+  // Priorizar interfaces Ethernet e Wi-Fi sobre outras
+  const priorityInterfaces = ['Ethernet', 'Wi-Fi', 'WiFi', 'WLAN', 'Local Area Connection'];
+  const allInterfaces: Array<{ name: string; address: string }> = [];
+  
   for (const interfaceName in networkInterfaces) {
     const addresses = networkInterfaces[interfaceName];
     if (addresses) {
       for (const address of addresses) {
-        if (address.family === 'IPv4' && !address.internal) {
+        // Verificar se é IPv4 e não é loopback ou link-local
+        if (address.family === 'IPv4' && !address.internal && !address.address.startsWith('169.254.')) {
+          allInterfaces.push({ name: interfaceName, address: address.address });
           allIPs.push(address.address);
-          if (localIP === 'localhost') {
-            localIP = address.address;
-          }
         }
       }
     }
   }
   
+  // Priorizar interfaces Ethernet/Wi-Fi
+  for (const priorityName of priorityInterfaces) {
+    const found = allInterfaces.find(i => i.name.includes(priorityName));
+    if (found) {
+      localIP = found.address;
+      break;
+    }
+  }
+  
+  // Se não encontrou interface prioritária, usar a primeira disponível
+  if (localIP === 'localhost' && allInterfaces.length > 0) {
+    localIP = allInterfaces[0].address;
+  }
+  
   // Log todos os IPs encontrados para debug
   if (allIPs.length > 0) {
     console.log(`\n🌐 IPs de rede detectados: ${allIPs.join(', ')}`);
+    console.log(`   Usando IP principal: ${localIP}`);
   } else {
     console.warn(`\n⚠️  Nenhum IP de rede detectado! Usando localhost apenas.`);
-    console.warn(`   Verifique se o PC está conectado à rede.`);
+    console.warn(`   Verifique se o PC está conectado à rede Wi-Fi/Ethernet.`);
+    console.warn(`   O servidor ainda escutará em 0.0.0.0, mas não será acessível por IP de rede.`);
   }
 
   server.listen(port, '0.0.0.0', () => {

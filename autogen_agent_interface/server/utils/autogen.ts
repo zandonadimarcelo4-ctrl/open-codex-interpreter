@@ -813,6 +813,7 @@ async function callOllamaWithAutoGenPrompt(
     
     // Filtrar thinking tokens do DeepSeek R1 (raciocínio interno não deve aparecer na resposta)
     // DeepSeek R1 usa tags como <think>, <reasoning>, <think>, etc.
+    const originalLength = responseContent.length;
     responseContent = responseContent
       .replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove <think>...</think>
       .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '') // Remove <reasoning>...</reasoning>
@@ -822,7 +823,25 @@ async function callOllamaWithAutoGenPrompt(
       .replace(/<reasoning>[\s\S]*$/gi, '') // Remove <reasoning> no final (cortado)
       .trim();
     
-    console.log(`[AutoGen] ✅ Thinking tokens removidos (${responseContent.length} chars restantes)`);
+    console.log(`[AutoGen] ✅ Thinking tokens removidos (${originalLength} -> ${responseContent.length} chars)`);
+    
+    // VALIDAÇÃO CRÍTICA: Se a resposta estiver vazia após filtrar thinking tokens, usar fallback
+    if (!responseContent || responseContent.length === 0) {
+      console.warn(`[AutoGen] ⚠️ Resposta vazia após filtrar thinking tokens! Usando fallback...`);
+      console.warn(`[AutoGen] ⚠️ Resposta original tinha ${originalLength} chars`);
+      console.warn(`[AutoGen] ⚠️ Data completa:`, JSON.stringify(data, null, 2));
+      
+      // Fallback baseado no tipo de intenção
+      if (intent.type === "conversation") {
+        responseContent = "Oi! Tudo bem sim, obrigado! Como posso te ajudar hoje?";
+      } else if (intent.type === "question") {
+        responseContent = "Desculpe, não consegui processar sua pergunta. Pode reformular?";
+      } else {
+        responseContent = "Desculpe, não consegui processar sua solicitação. Pode tentar novamente?";
+      }
+      
+      console.log(`[AutoGen] ✅ Fallback aplicado: "${responseContent}"`);
+    }
     
     // Se houver function calls, executar automaticamente (estilo Open Interpreter)
     if (data.message.tool_calls && Array.isArray(data.message.tool_calls)) {
@@ -854,6 +873,14 @@ async function callOllamaWithAutoGenPrompt(
           }
         }
       }
+    }
+    
+    // VALIDAÇÃO FINAL: Garantir que sempre há uma resposta
+    if (!responseContent || responseContent.trim().length === 0) {
+      console.error(`[AutoGen] ❌ Resposta final está vazia! Aplicando fallback de emergência...`);
+      responseContent = intent.type === "conversation" 
+        ? "Oi! Tudo bem sim, obrigado! Como posso te ajudar hoje?"
+        : "Desculpe, não consegui gerar uma resposta. Pode tentar novamente?";
     }
     
     console.log(`[AutoGen] ✅ Retornando resposta final (${responseContent.length} chars)`);

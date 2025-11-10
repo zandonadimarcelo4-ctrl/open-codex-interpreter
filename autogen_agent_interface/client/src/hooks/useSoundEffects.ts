@@ -2,10 +2,12 @@ import { useCallback, useRef, useState } from 'react';
 
 /**
  * Hook para gerenciar efeitos sonoros
- * Usa ElevenLabs API para sons mais específicos, com fallback para Web Audio API
+ * Usa Web Audio API para sons sintéticos (rápido e adequado para feedback de UI)
+ * Opcionalmente pode usar ElevenLabs SFX API para efeitos sonoros mais complexos
  */
 export function useSoundEffects(enabled: boolean = true) {
   const audioContextRef = useRef<AudioContext | null>(null);
+  const [useElevenLabsSFX, setUseElevenLabsSFX] = useState(false); // Desabilitado por padrão (usa Web Audio API)
 
   // Inicializar AudioContext apenas quando necessário
   const getAudioContext = useCallback(() => {
@@ -175,9 +177,98 @@ export function useSoundEffects(enabled: boolean = true) {
     playTone(800, 0.03, 'sine');
   }, [enabled, playTone]);
 
-  // Remover tentativa de usar ElevenLabs para efeitos sonoros
-  // ElevenLabs é para TTS (texto para fala), não para efeitos sonoros
-  // Vamos usar apenas Web Audio API que é mais adequado para efeitos sonoros
+  /**
+   * Gerar efeito sonoro usando ElevenLabs SFX API (efeitos sonoros reais, não fala)
+   */
+  const playElevenLabsSFX = useCallback(async (description: string, fallbackFn: () => void) => {
+    if (!enabled || !useElevenLabsSFX) {
+      fallbackFn();
+      return;
+    }
+
+    try {
+      // Usar API de efeitos sonoros do backend (ElevenLabs SFX API)
+      const response = await fetch('/api/sfx', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ description }),
+      });
+
+      if (response.ok) {
+        const audioBlob = await response.blob();
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+        };
+        
+        audio.onerror = () => {
+          URL.revokeObjectURL(audioUrl);
+          fallbackFn(); // Fallback para Web Audio API
+        };
+        
+        await audio.play();
+      } else {
+        // Se ElevenLabs falhar, usar fallback
+        fallbackFn();
+      }
+    } catch (error) {
+      console.warn('Erro ao usar ElevenLabs SFX para efeito sonoro, usando fallback:', error);
+      fallbackFn(); // Fallback para Web Audio API
+    }
+  }, [enabled, useElevenLabsSFX]);
+
+  // Wrappers que podem usar ElevenLabs SFX ou Web Audio API
+  const playSuccessWithSFX = useCallback(() => {
+    if (useElevenLabsSFX) {
+      playElevenLabsSFX("Glass shattering on concrete", playSuccess);
+    } else {
+      playSuccess();
+    }
+  }, [useElevenLabsSFX, playElevenLabsSFX, playSuccess]);
+
+  const playErrorWithSFX = useCallback(() => {
+    if (useElevenLabsSFX) {
+      playElevenLabsSFX("Thunder rumbling in the distance", playError);
+    } else {
+      playError();
+    }
+  }, [useElevenLabsSFX, playElevenLabsSFX, playError]);
+
+  const playNotificationWithSFX = useCallback(() => {
+    if (useElevenLabsSFX) {
+      playElevenLabsSFX("Soft bell chime", playNotification);
+    } else {
+      playNotification();
+    }
+  }, [useElevenLabsSFX, playElevenLabsSFX, playNotification]);
+
+  const playClickWithSFX = useCallback(() => {
+    if (useElevenLabsSFX) {
+      playElevenLabsSFX("Button click sound", playClick);
+    } else {
+      playClick();
+    }
+  }, [useElevenLabsSFX, playElevenLabsSFX, playClick]);
+
+  const playSendWithSFX = useCallback(() => {
+    if (useElevenLabsSFX) {
+      playElevenLabsSFX("Whoosh sound effect", playSend);
+    } else {
+      playSend();
+    }
+  }, [useElevenLabsSFX, playElevenLabsSFX, playSend]);
+
+  const playReceiveWithSFX = useCallback(() => {
+    if (useElevenLabsSFX) {
+      playElevenLabsSFX("Notification ding sound", playReceive);
+    } else {
+      playReceive();
+    }
+  }, [useElevenLabsSFX, playElevenLabsSFX, playReceive]);
 
   return {
     // Usar Web Audio API diretamente (mais adequado para efeitos sonoros)

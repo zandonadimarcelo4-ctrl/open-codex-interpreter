@@ -54,21 +54,22 @@ async def generate_sfx():
         # Chamar API de efeitos sonoros da ElevenLabs
         url = "${ELEVENLABS_SFX_API_URL}"
         headers = {
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": api_key
+            "xi-api-key": api_key,
+            "Content-Type": "application/json"
         }
         
+        # Body da requisição conforme documentação
         data = {
             "text": description,
-            "duration_seconds": 2.0,  # Duração curta para efeitos sonoros
-            "prompt_influence": 0.3  # Influência do prompt (0.0 a 1.0)
+            "duration_seconds": 1.0,  # Duração curta para efeitos sonoros (0.1 a 30 segundos)
+            "prompt_influence": 0.7  # Influência do prompt (0.0 a 1.0) - mais alto = mais literal
         }
         
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=data, headers=headers) as response:
                 if response.status == 200:
                     print("[SFX] Python: ✅ ElevenLabs SFX API retornou 200", file=sys.stderr)
+                    # A resposta é application/octet-stream (binário)
                     audio_data = await response.read()
                     print(f"[SFX] Python: Áudio recebido, tamanho: {len(audio_data)} bytes", file=sys.stderr)
                     

@@ -122,6 +122,9 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     }
   }, [isConnected, isConnecting]);
   
+  // Ref para armazenar handleSendMessage (definido antes de useVoice)
+  const handleSendMessageRef = useRef<((text?: string) => Promise<void>) | null>(null);
+  
   // Voz Jarvis (TTS) e Speech-to-Text (STT)
   const {
     speak,
@@ -137,11 +140,10 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     sttEnabled: true,
     onTextReceived: (text) => {
       setInputValue(text);
-      // Não chamar handleSendMessage diretamente aqui - será chamado depois quando o componente estiver pronto
-      // handleSendMessage será chamado após um pequeno delay para garantir que o estado está atualizado
+      // Usar ref para chamar handleSendMessage depois que estiver definido
       setTimeout(() => {
-        if (text.trim() && !isLoading) {
-          handleSendMessage(text);
+        if (text.trim() && handleSendMessageRef.current && !isLoading) {
+          handleSendMessageRef.current(text);
         }
       }, 100);
     },

@@ -19,47 +19,47 @@ export function TaskExecutionPanel() {
   const [steps, setSteps] = useState<ExecutionStep[]>(() => {
     const baseTime = Date.now();
     return [
-      {
+    {
         id: `step-${baseTime}-1`,
-        title: 'Análise de Requisitos',
-        description: 'Analisando a tarefa solicitada',
-        status: 'completed',
+      title: 'Análise de Requisitos',
+      description: 'Analisando a tarefa solicitada',
+      status: 'completed',
         timestamp: new Date(baseTime - 5000),
-        duration: 2000,
+      duration: 2000,
         progress: 100,
-      },
-      {
+    },
+    {
         id: `step-${baseTime}-2`,
-        title: 'Planejamento',
-        description: 'Criando plano de execução',
-        status: 'completed',
+      title: 'Planejamento',
+      description: 'Criando plano de execução',
+      status: 'completed',
         timestamp: new Date(baseTime - 3000),
-        duration: 1500,
+      duration: 1500,
         progress: 100,
-      },
-      {
+    },
+    {
         id: `step-${baseTime}-3`,
-        title: 'Execução',
-        description: 'Executando tarefas em paralelo',
-        status: 'running',
+      title: 'Execução',
+      description: 'Executando tarefas em paralelo',
+      status: 'running',
         timestamp: new Date(baseTime),
         progress: 65,
         estimatedTimeRemaining: 1200,
-      },
-      {
+    },
+    {
         id: `step-${baseTime}-4`,
-        title: 'Validação',
-        description: 'Validando resultados',
-        status: 'pending',
+      title: 'Validação',
+      description: 'Validando resultados',
+      status: 'pending',
         progress: 0,
-      },
-      {
+    },
+    {
         id: `step-${baseTime}-5`,
-        title: 'Entrega',
-        description: 'Preparando resultados finais',
-        status: 'pending',
+      title: 'Entrega',
+      description: 'Preparando resultados finais',
+      status: 'pending',
         progress: 0,
-      },
+    },
     ];
   });
 
@@ -182,9 +182,9 @@ export function TaskExecutionPanel() {
         <div className="flex justify-between items-center">
           <h3 className="text-sm font-semibold text-foreground">Progresso Geral</h3>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {completedCount} de {totalCount} concluído
-            </span>
+          <span className="text-xs text-muted-foreground">
+            {completedCount} de {totalCount} concluído
+          </span>
             <span className="text-xs font-medium text-accent">
               {progressPercent.toFixed(1)}%
             </span>
@@ -229,13 +229,13 @@ export function TaskExecutionPanel() {
                 isActive ? 'ring-2 ring-accent/50 bg-accent/5' : ''
               } ${isCompleted ? 'opacity-90' : ''}`}
             >
-              <div className="flex items-start gap-3">
+            <div className="flex items-start gap-3">
                 <div className="mt-0.5 flex-shrink-0">
                   {getStatusIcon(step.status)}
                 </div>
-                <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2 mb-1">
-                    <p className="text-sm font-medium text-foreground">{step.title}</p>
+                <p className="text-sm font-medium text-foreground">{step.title}</p>
                     <div className="flex items-center gap-2">
                       {step.duration && (
                         <span className="text-xs text-muted-foreground whitespace-nowrap">
@@ -249,7 +249,7 @@ export function TaskExecutionPanel() {
                       )}
                     </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{step.description}</p>
+                <p className="text-xs text-muted-foreground">{step.description}</p>
                 </div>
               </div>
 
@@ -269,12 +269,12 @@ export function TaskExecutionPanel() {
               )}
 
               {/* Conector entre etapas */}
-              {index < steps.length - 1 && (
+            {index < steps.length - 1 && (
                 <div className={`ml-2 h-4 border-l-2 transition-colors duration-300 ${
                   isCompleted ? 'border-green-500/30' : 'border-border'
                 }`} />
-              )}
-            </Card>
+            )}
+          </Card>
           );
         })}
       </div>

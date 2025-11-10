@@ -164,18 +164,50 @@ async function startServer() {
         try {
           console.log(`[STT] 🎙️ Processando áudio: ${req.file.size} bytes, tipo: ${req.file.mimetype}`);
           
-          // Por enquanto, retornar mensagem informativa
-          // Em produção, integrar com serviço de STT (Whisper, etc.)
-          console.log("[STT] ⚠️ STT ainda não implementado completamente - retornando mensagem informativa");
+          // Importar utilitário STT
+          const { transcribeAudio } = await import("../utils/stt_backend");
           
-          // Simular processamento (remover em produção)
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Transcrever áudio usando Faster-Whisper
+          console.log("[STT] 🎤 Transcrevendo áudio com Faster-Whisper...");
           
-          res.status(200).json({
-            text: "[STT] Transcrição de áudio ainda não implementada. Use texto por enquanto.",
-            language: "pt-BR",
-            segments: []
-          });
+          try {
+            const transcribedText = await transcribeAudio(req.file.buffer, "pt");
+            
+            if (transcribedText && transcribedText.trim()) {
+              console.log(`[STT] ✅ Transcrição concluída: "${transcribedText.substring(0, 50)}${transcribedText.length > 50 ? "..." : ""}"`);
+              
+              res.status(200).json({
+                text: transcribedText,
+                language: "pt-BR",
+                segments: []
+              });
+            } else {
+              console.warn("[STT] ⚠️ Transcrição retornou texto vazio");
+              res.status(200).json({
+                text: "",
+                language: "pt-BR",
+                segments: [],
+                warning: "Não foi possível transcrever o áudio. Pode estar muito curto ou sem fala."
+              });
+            }
+          } catch (sttError) {
+            console.error("[STT] ❌ Erro ao transcrever áudio:", sttError);
+            const errorMessage = sttError instanceof Error ? sttError.message : String(sttError);
+            
+            // Verificar se é erro de dependência
+            if (errorMessage.includes("faster-whisper") || errorMessage.includes("não está instalado")) {
+              res.status(500).json({
+                error: "STT não disponível",
+                details: errorMessage,
+                suggestion: "Execute: pip install faster-whisper pydub"
+              });
+            } else {
+              res.status(500).json({
+                error: "Erro ao processar áudio",
+                details: errorMessage
+              });
+            }
+          }
         } catch (sttError) {
           console.error("[STT] ❌ Erro ao processar áudio:", sttError);
           const errorMessage = sttError instanceof Error ? sttError.message : String(sttError);

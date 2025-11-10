@@ -145,13 +145,62 @@ export async function checkTailscaleFunnel(port: number): Promise<{ active: bool
 }
 
 /**
+ * Verifica se o Tailscale está rodando (não apenas instalado)
+ */
+export async function checkTailscaleRunning(): Promise<{ running: boolean; error?: string }> {
+  return new Promise((resolve) => {
+    const process = spawn('tailscale', ['status'], { 
+      shell: true,
+      stdio: 'pipe',
+      windowsHide: true
+    });
+    
+    let output = '';
+    let errorOutput = '';
+    
+    process.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    process.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
+    process.on('close', (code) => {
+      const fullOutput = (output + errorOutput).toLowerCase();
+      
+      if (code === 0) {
+        // Se retornou 0, o Tailscale está rodando
+        resolve({ running: true });
+      } else if (fullOutput.includes('stopped') || fullOutput.includes('not running')) {
+        resolve({ running: false, error: 'Tailscale está parado. Execute: tailscale up' });
+      } else {
+        resolve({ running: false, error: errorOutput || 'Tailscale não está rodando' });
+      }
+    });
+    
+    process.on('error', (error) => {
+      resolve({ running: false, error: error.message || 'Erro ao verificar Tailscale' });
+    });
+    
+    setTimeout(() => {
+      if (!process.killed) {
+        process.kill();
+        resolve({ running: false, error: 'Timeout ao verificar Tailscale' });
+      }
+    }, 3000);
+  });
+}
+
+/**
  * Inicia o Tailscale Funnel para uma porta específica
  */
 export async function startTailscaleFunnel(port: number): Promise<{ success: boolean; url?: string; error?: string }> {
   return new Promise((resolve) => {
     const process = spawn('tailscale', ['funnel', '--bg', port.toString()], { 
       shell: true,
-      stdio: 'pipe'
+      stdio: 'pipe',
+      windowsHide: true
     });
     
     let output = '';
@@ -166,6 +215,17 @@ export async function startTailscaleFunnel(port: number): Promise<{ success: boo
     });
     
     process.on('close', async (code) => {
+      const fullOutput = (output + errorOutput).toLowerCase();
+      
+      // Verificar se o erro é porque o Tailscale está parado
+      if (fullOutput.includes('stopped') || fullOutput.includes('not running')) {
+        resolve({ 
+          success: false, 
+          error: 'Tailscale está parado. Execute: tailscale up' 
+        });
+        return;
+      }
+      
       if (code === 0) {
         // Tentar extrair URL do output
         const fullOutput = output + errorOutput;

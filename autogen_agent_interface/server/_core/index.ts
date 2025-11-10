@@ -566,28 +566,53 @@ async function startServer() {
       // Funnel não está ativo - tentar iniciar se USE_TAILSCALE_FUNNEL=true
       if (process.env.USE_TAILSCALE_FUNNEL === 'true') {
         console.log(`\n🔄 Iniciando Tailscale Funnel automaticamente (USE_TAILSCALE_FUNNEL=true)...`);
-        const result = await startTailscaleFunnel(port);
-        if (result.success) {
-          console.log(`   ✅ Tailscale Funnel iniciado com sucesso!`);
-          if (result.url) {
-            console.log(`      🌐 URL: ${result.url}`);
-            console.log(`      📡 WebSocket: ${result.url.replace('https://', 'wss://')}/ws`);
-          } else {
-            console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
-            // Tentar obter a URL após um delay
-            setTimeout(async () => {
-              const retryStatus = await checkTailscaleFunnel(port);
-              if (retryStatus.url) {
-                console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
-                console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
-              }
-            }, 2000);
-          }
+        
+        // Verificar se o Tailscale está rodando primeiro
+        const { checkTailscaleRunning } = await import('../utils/tailscale');
+        const tailscaleStatus = await checkTailscaleRunning();
+        
+        if (!tailscaleStatus.running) {
+          console.log(`   ⚠️  Tailscale não está rodando!`);
+          console.log(`      ${tailscaleStatus.error || 'Tailscale está parado'}`);
+          console.log(`\n   📋 Para iniciar o Tailscale:`);
+          console.log(`      1. Execute: tailscale up`);
+          console.log(`      2. Ou inicie o Tailscale pelo menu do sistema`);
+          console.log(`      3. Depois reinicie o servidor`);
+          console.log(`\n   💡 Alternativa: Execute manualmente:`);
+          console.log(`      tailscale up && tailscale funnel --bg ${port}`);
         } else {
-          console.log(`   ⚠️  Não foi possível iniciar Tailscale Funnel automaticamente:`);
-          console.log(`      ${result.error || 'Erro desconhecido'}`);
-          console.log(`   💡 Para iniciar manualmente, execute:`);
-          console.log(`      tailscale funnel --bg ${port}`);
+          const result = await startTailscaleFunnel(port);
+          if (result.success) {
+            console.log(`   ✅ Tailscale Funnel iniciado com sucesso!`);
+            if (result.url) {
+              console.log(`      🌐 URL: ${result.url}`);
+              console.log(`      📡 WebSocket: ${result.url.replace('https://', 'wss://')}/ws`);
+            } else {
+              console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
+              // Tentar obter a URL após um delay
+              setTimeout(async () => {
+                const retryStatus = await checkTailscaleFunnel(port);
+                if (retryStatus.url) {
+                  console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
+                  console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
+                }
+              }, 2000);
+            }
+          } else {
+            console.log(`   ⚠️  Não foi possível iniciar Tailscale Funnel automaticamente:`);
+            console.log(`      ${result.error || 'Erro desconhecido'}`);
+            
+            // Verificar se o erro é porque o Tailscale está parado
+            if (result.error?.includes('stopped') || result.error?.includes('not running')) {
+              console.log(`\n   📋 Para iniciar o Tailscale:`);
+              console.log(`      1. Execute: tailscale up`);
+              console.log(`      2. Ou inicie o Tailscale pelo menu do sistema`);
+              console.log(`      3. Depois reinicie o servidor`);
+            } else {
+              console.log(`   💡 Para iniciar manualmente, execute:`);
+              console.log(`      tailscale funnel --bg ${port}`);
+            }
+          }
         }
       } else {
         // Verificar se Tailscale está instalado para mostrar mensagem apropriada

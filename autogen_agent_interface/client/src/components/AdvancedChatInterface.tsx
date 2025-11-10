@@ -933,7 +933,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             )}
           </div>
         )}
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

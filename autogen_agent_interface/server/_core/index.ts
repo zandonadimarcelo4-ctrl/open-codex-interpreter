@@ -16,7 +16,7 @@ const __dirname = dirname(__filename);
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
+import { serveStatic, setupParcel } from "./parcel";
 import { ChatWebSocketServer } from "../utils/websocket";
 import { backgroundWorker } from "./services/backgroundWorker";
 import { resourceManager } from "./services/resourceManager";
@@ -472,9 +472,9 @@ async function startServer() {
   const preferredPort = parseInt(process.env.PORT || "3000");
   const port = await findAvailablePort(preferredPort);
   
-  // development mode uses Vite, production mode uses static files
+  // development mode uses Parcel, production mode uses static files
   if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server, port);
+    await setupParcel(app, server, port);
   } else {
     serveStatic(app);
   }
@@ -570,8 +570,10 @@ async function startServer() {
       // Funnel está ativo - mostrar URL mesmo se não detectamos o Tailscale
       if (funnelStatus.url) {
         console.log(`\n🌐 Tailscale Funnel ATIVO:`);
-        console.log(`   🌐 URL: ${funnelStatus.url}`);
-        console.log(`   📡 WebSocket: ${funnelStatus.url.replace('https://', 'wss://')}/ws`);
+        // IMPORTANTE: URL do Tailscale Funnel SEMPRE sem porta (usa porta padrão 443)
+        const funnelUrl = funnelStatus.url?.replace(/:\d+(\/|$)/, '$1') || funnelStatus.url;
+        console.log(`   🌐 URL: ${funnelUrl}`);
+        console.log(`   📡 WebSocket: ${funnelUrl?.replace('https://', 'wss://')}/ws`);
         console.log(`\n   ⚠️  Se estiver dando timeout, verifique:`);
         console.log(`      1. O servidor está escutando em 0.0.0.0:${port} (não apenas localhost)`);
         console.log(`      2. O Funnel está realmente ativo: tailscale funnel status`);
@@ -584,13 +586,15 @@ async function startServer() {
         console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
         // Tentar obter a URL novamente após um delay
         setTimeout(async () => {
-          const retryStatus = await checkTailscaleFunnel(port);
-          if (retryStatus.url) {
-            console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
-            console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
-          } else if (retryStatus.error) {
-            console.log(`   ⚠️  ${retryStatus.error}`);
-          }
+            const retryStatus = await checkTailscaleFunnel(port);
+            if (retryStatus.url) {
+              // IMPORTANTE: URL do Tailscale Funnel SEMPRE sem porta
+              const retryUrl = retryStatus.url.replace(/:\d+(\/|$)/, '$1');
+              console.log(`   🌐 URL do Funnel: ${retryUrl}`);
+              console.log(`   📡 WebSocket: ${retryUrl.replace('https://', 'wss://')}/ws`);
+            } else if (retryStatus.error) {
+              console.log(`   ⚠️  ${retryStatus.error}`);
+            }
         }, 2000);
       }
     } else {

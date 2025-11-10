@@ -352,6 +352,7 @@ export function AdvancedChatInterface() {
     // Se houver código e for ação/comando, executar código primeiro
     if (codeBlocks.length > 0 && (intent.type === 'action' || intent.type === 'command')) {
       try {
+        sounds.playProcessing(); // Som de processando código
         // Executar código automaticamente
         const executionResults = await Promise.all(
           codeBlocks.map(block => executeCode(block.code, block.language))
@@ -371,8 +372,10 @@ export function AdvancedChatInterface() {
 
         // Adicionar resultado ao input para enviar junto
         setInputValue(prev => prev + codeOutput);
+        sounds.playSuccess(); // Som de sucesso ao executar código
       } catch (error) {
         console.warn('Erro ao executar código:', error);
+        sounds.playError(); // Som de erro
       }
     }
 
@@ -720,7 +723,10 @@ export function AdvancedChatInterface() {
               size="icon"
               className="text-muted-foreground hover:text-foreground"
               title="Anexar imagem (OCR + Análise)"
-              onClick={() => imageInputRef.current?.click()}
+              onClick={() => {
+                sounds.playClick(); // Som de clique
+                imageInputRef.current?.click();
+              }}
               disabled={isProcessingImage || isProcessingOCR || isProcessingImageAnalysis}
             >
               {isProcessingImage || isProcessingOCR || isProcessingImageAnalysis ? (
@@ -734,7 +740,10 @@ export function AdvancedChatInterface() {
               size="icon"
               className={`${isRecording ? 'bg-red-500 hover:bg-red-600' : 'text-muted-foreground hover:text-foreground'}`}
               title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
-              onClick={toggleListening}
+              onClick={() => {
+                sounds.playClick(); // Som de clique
+                toggleListening();
+              }}
               disabled={isLoading}
             >
               {isRecording ? (

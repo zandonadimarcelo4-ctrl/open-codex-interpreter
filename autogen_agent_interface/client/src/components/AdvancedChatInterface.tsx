@@ -12,6 +12,7 @@ import { useOCR } from '@/hooks/useOCR';
 import { useImageAnalysis } from '@/hooks/useImageAnalysis';
 import { useCodeExecution } from '@/hooks/useCodeExecution';
 import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useIsMobile } from '@/hooks/useMobile';
 
 interface Message {
   id: string;
@@ -26,7 +27,13 @@ interface Message {
   codeBlocks?: Array<{ language: string; code: string; result?: string }>; // Blocos de código executados
 }
 
-export function AdvancedChatInterface() {
+interface AdvancedChatInterfaceProps {
+  onNewChat?: () => void;
+}
+
+export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps = {}) {
+  const isMobile = useIsMobile(); // Detecção automática de mobile
+  
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -471,45 +478,77 @@ export function AdvancedChatInterface() {
     }
   };
 
+  // Função para criar novo chat
+  const handleNewChat = () => {
+    setMessages([
+      {
+        id: '1',
+        role: 'assistant',
+        content: '# Bem-vindo ao AutoGen Super Agent!\n\nSou seu assistente de IA colaborativo com **detecção de intenção inteligente** e **voz estilo Jarvis**.\n\n**Funcionalidades:**\n- 💬 **Chat em Tempo Real** - WebSocket para respostas instantâneas\n- 🎤 **Voz Jarvis (TTS)** - Respostas com voz realista e futurista\n- 🎙️ **Speech-to-Text (STT)** - Entrada de voz\n- 🤖 **AutoGen Framework** - Orquestra todos os agentes\n- 🔧 **Detecção de Intenção** - Sabe quando conversar vs agir\n- 💾 **ChromaDB** - Memória persistente\n\n**Como usar:**\n- Para conversar: "O que é Python?" ou "Como funciona?"\n- Para ação: "Crie um arquivo..." ou "Execute o código..."\n- Para comando: "Faça isso..." ou "Rode o script..."\n- Use o botão 🎤 para falar ao invés de digitar\n\nComo posso ajudá-lo?',
+        timestamp: new Date(),
+        agentName: 'Super Agent',
+      },
+    ]);
+    setInputValue('');
+    setConversationId(undefined);
+    setStreamingContent('');
+    setActiveAgents([]);
+    setAttachedImages([]);
+    setIsLoading(false);
+    setIsThinking(false);
+    setThinkingStartTime(null);
+    setThinkingDuration(null);
+    
+    // Chamar callback se fornecido
+    if (onNewChat) {
+      onNewChat();
+    }
+    
+    // Efeito sonoro
+    sounds.playClick();
+  };
+
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className={`flex flex-col h-full bg-background ${isMobile ? 'mobile-layout' : ''}`}>
       {/* Status Bar - Mostrar agentes AutoGen trabalhando */}
       {activeAgents.length > 0 && (
-        <div className="border-b border-border bg-card/50 backdrop-blur-sm p-2">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>AutoGen orquestrando:</span>
-            <div className="flex gap-1 flex-wrap">
-              {activeAgents.map((agent) => (
-                <span key={agent} className="px-2 py-0.5 bg-primary/20 rounded text-primary text-xs">
-                  {agent}
-                </span>
-              ))}
-            </div>
+        <div className={`border-b border-border bg-card/50 backdrop-blur-sm ${isMobile ? 'p-1.5' : 'p-2'}`}>
+          <div className={`flex items-center gap-2 ${isMobile ? 'text-[10px]' : 'text-xs'} text-muted-foreground flex-wrap`}>
+            <Loader2 className={`${isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3'} animate-spin`} />
+            <span>{isMobile ? 'Processando...' : 'AutoGen orquestrando:'}</span>
+            {!isMobile && (
+              <div className="flex gap-1 flex-wrap">
+                {activeAgents.map((agent) => (
+                  <span key={agent} className="px-2 py-0.5 bg-primary/20 rounded text-primary text-xs">
+                    {agent}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
 
-      {/* Messages Container - Responsivo */}
-      <div className="flex-1 overflow-y-auto p-2 sm:p-4 space-y-3 sm:space-y-4">
+      {/* Messages Container - Responsivo Mobile */}
+      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-2 space-y-2' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'}`}>
         {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`w-full max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl group ${
+              className={`w-full ${isMobile ? 'max-w-[85%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
                 message.role === 'user'
                   ? 'bg-primary text-primary-foreground rounded-lg rounded-tr-none'
                   : message.role === 'system'
                   ? 'bg-muted/50 border border-border rounded-lg'
                   : 'bg-card border border-border rounded-lg rounded-tl-none'
-              } p-3 sm:p-4 space-y-2`}
+              } ${isMobile ? 'p-2 space-y-1' : 'p-3 sm:p-4 space-y-2'}`}
             >
               {message.agentName && message.role === 'assistant' && (
-                <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+                <div className={`flex items-center gap-2 ${isMobile ? 'text-[10px]' : 'text-xs'} font-semibold text-accent`}>
                   <span>{message.agentName}</span>
-                  {message.agents && message.agents.length > 0 && (
+                  {!isMobile && message.agents && message.agents.length > 0 && (
                     <span className="text-muted-foreground">
                       ({message.agents.join(', ')})
                     </span>
@@ -542,7 +581,7 @@ export function AdvancedChatInterface() {
                 </div>
               )}
               
-              <div className="text-sm prose prose-invert max-w-none">
+              <div className={`${isMobile ? 'text-xs' : 'text-sm'} prose prose-invert max-w-none`}>
                 {message.role === 'assistant' ? (
                   <Streamdown>{message.content}</Streamdown>
                 ) : (
@@ -680,10 +719,10 @@ export function AdvancedChatInterface() {
         </div>
       )}
 
-      {/* Input Area */}
-      <div className="border-t border-border p-2 sm:p-4 bg-card">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <div className="flex gap-2">
+      {/* Input Area - Mobile App Style */}
+      <div className={`border-t border-border ${isMobile ? 'p-2 pb-safe' : 'p-2 sm:p-4'} bg-card`}>
+        <div className={`flex ${isMobile ? 'flex-col gap-1.5' : 'flex-col sm:flex-row gap-2'}`}>
+          <div className={`flex ${isMobile ? 'gap-1' : 'gap-2'}`}>
             <input
               ref={fileInputRef}
               type="file"
@@ -700,24 +739,28 @@ export function AdvancedChatInterface() {
               className="hidden"
               onChange={handleImageUpload}
             />
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              title="Adicionar arquivo"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              title="Anexar arquivo"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
-            </Button>
+            {!isMobile && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                  title="Adicionar arquivo"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                  title="Anexar arquivo"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
+                </Button>
+              </>
+            )}
             <Button
               variant="ghost"
               size="icon"

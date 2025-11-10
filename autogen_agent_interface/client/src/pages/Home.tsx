@@ -7,11 +7,13 @@ import { Sidebar } from '@/components/Sidebar';
 import { AdvancedChatInterface } from '@/components/AdvancedChatInterface';
 import { RightPanel } from '@/components/RightPanel';
 import { AgentTeamVisualization } from '@/components/AgentTeamVisualization';
+import { useIsMobile } from '@/hooks/useMobile';
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const isMobile = useIsMobile(); // Detecção automática de mobile
 
   // Permitir acesso sem autenticação (modo demo)
   // Se loading demorar muito, permitir acesso
@@ -118,7 +120,11 @@ export default function Home() {
         <div className="flex-1 flex overflow-hidden gap-4 p-4">
           <div className="flex-1 flex flex-col min-w-0">
             <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden flex flex-col">
-              <AdvancedChatInterface />
+              <AdvancedChatInterface 
+                onNewChat={() => {
+                  setSidebarOpen(false);
+                }}
+              />
             </div>
           </div>
 

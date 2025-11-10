@@ -481,158 +481,158 @@ export function useVoice(options: UseVoiceOptions = {}) {
         }
       }
 
-      // Verificar se MediaRecorder está disponível
-      if (!MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        // Fallback para outros formatos
-        const mimeTypes = [
-          'audio/webm;codecs=opus',
-          'audio/webm',
-          'audio/ogg;codecs=opus',
-          'audio/mp4',
-        ];
-        
-        let supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
-        if (!supportedMimeType) {
-          setError('Formato de áudio não suportado neste navegador');
-          stream.getTracks().forEach(track => track.stop());
-          return;
-        }
-
-        const mediaRecorder = new MediaRecorder(stream, {
-          mimeType: supportedMimeType,
-        });
-
-        audioChunksRef.current = [];
-
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
-          }
-        };
-
-        mediaRecorder.onstop = async () => {
-          try {
-            const audioBlob = new Blob(audioChunksRef.current, { type: supportedMimeType || 'audio/webm' });
-            
-            // Enviar para API de STT
-            const formData = new FormData();
-            formData.append('audio', audioBlob, `recording.${supportedMimeType?.split('/')[1]?.split(';')[0] || 'webm'}`);
-
-            const response = await fetch('/api/stt', {
-              method: 'POST',
-              body: formData,
-            });
-
-            if (!response.ok) {
-              throw new Error('Erro ao processar áudio');
-            }
-
-            const data = await response.json();
-            if (data.text) {
-              onTextReceived?.(data.text);
-            } else {
-              setError('Não foi possível transcrever o áudio. Tente novamente.');
-            }
-          } catch (err) {
-            console.error('Erro ao processar áudio:', err);
-            setError(err instanceof Error ? err.message : 'Erro ao processar áudio');
-          } finally {
-            // Parar todas as tracks
-            stream.getTracks().forEach(track => track.stop());
-            setIsRecording(false);
-            setIsListening(false);
-          }
-        };
-
-        mediaRecorder.start();
-        mediaRecorderRef.current = mediaRecorder;
-        setIsRecording(true);
-        setIsListening(true);
+      // Verificar formato de áudio suportado
+      const mimeTypes = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/mp4',
+        'audio/mpeg',
+      ];
+      
+      let supportedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type));
+      if (!supportedMimeType) {
+        // Se nenhum formato específico for suportado, tentar criar sem especificar (navegador escolhe)
+        console.warn('[STT] Nenhum formato específico suportado, usando formato padrão do navegador');
+        supportedMimeType = undefined; // Deixar navegador escolher
       } else {
-        const mediaRecorder = new MediaRecorder(stream, {
-          mimeType: 'audio/webm;codecs=opus',
-        });
+        console.log(`[STT] Usando formato: ${supportedMimeType}`);
+      }
 
-        audioChunksRef.current = [];
+      // Criar MediaRecorder com formato suportado (ou formato padrão)
+      const mediaRecorder = new MediaRecorder(stream, supportedMimeType ? {
+        mimeType: supportedMimeType,
+      } : undefined);
 
-        mediaRecorder.ondataavailable = (event) => {
-          if (event.data.size > 0) {
-            audioChunksRef.current.push(event.data);
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+          console.log(`[STT] Dados de áudio recebidos: ${event.data.size} bytes`);
+        }
+      };
+
+      mediaRecorder.onerror = (event) => {
+        console.error('[STT] Erro no MediaRecorder:', event);
+        setError('Erro ao gravar áudio. Tente novamente.');
+        stream.getTracks().forEach(track => track.stop());
+        setIsRecording(false);
+        setIsListening(false);
+        isStartingRef.current = false;
+      };
+
+      mediaRecorder.onstop = async () => {
+        try {
+          console.log(`[STT] Gravação parada. Total de chunks: ${audioChunksRef.current.length}`);
+          
+          // Determinar tipo MIME do blob
+          const blobType = supportedMimeType || 'audio/webm';
+          const audioBlob = new Blob(audioChunksRef.current, { type: blobType });
+          
+          console.log(`[STT] Blob criado: ${audioBlob.size} bytes, tipo: ${blobType}`);
+          
+          if (audioBlob.size === 0) {
+            throw new Error('Áudio vazio. Tente falar mais alto ou verifique o microfone.');
           }
-        };
+          
+          // Enviar para API de STT
+          const formData = new FormData();
+          const fileExtension = blobType.includes('webm') ? 'webm' : 
+                                blobType.includes('ogg') ? 'ogg' : 
+                                blobType.includes('mp4') || blobType.includes('mpeg') ? 'mp4' : 'webm';
+          formData.append('audio', audioBlob, `recording.${fileExtension}`);
 
-        mediaRecorder.onstop = async () => {
-          try {
-            const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-            
-            // Enviar para API de STT
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'recording.webm');
+          console.log(`[STT] Enviando áudio para API: ${audioBlob.size} bytes`);
+          const response = await fetch('/api/stt', {
+            method: 'POST',
+            body: formData,
+          });
 
-            console.log(`[STT] Enviando áudio: ${audioBlob.size} bytes`);
-            const response = await fetch('/api/stt', {
-              method: 'POST',
-              body: formData,
-            });
+          console.log(`[STT] Resposta recebida: status=${response.status}, ok=${response.ok}`);
 
-            console.log(`[STT] Resposta recebida: status=${response.status}, ok=${response.ok}`);
-
-            if (!response.ok) {
-              let errorMessage = 'Erro ao processar áudio';
+          if (!response.ok) {
+            let errorMessage = 'Erro ao processar áudio';
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || errorData.details || errorMessage;
+              console.error(`[STT] ❌ Erro da API:`, errorData);
+            } catch {
               try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorData.details || errorMessage;
-                console.error(`[STT] ❌ Erro da API:`, errorData);
-              } catch {
                 const errorText = await response.text();
                 errorMessage = errorText || errorMessage;
                 console.error(`[STT] ❌ Erro da API (texto):`, errorText);
+              } catch {
+                console.error(`[STT] ❌ Erro desconhecido da API`);
               }
-              throw new Error(errorMessage);
             }
-
-            const data = await response.json();
-            console.log(`[STT] Dados recebidos:`, data);
-            
-            if (data.text && data.text.trim()) {
-              // Verificar se não é mensagem de "não implementado"
-              if (data.text.includes('ainda não implementada') || data.text.includes('ainda não implementado')) {
-                setError('STT ainda não está completamente implementado. Use texto por enquanto.');
-                console.warn('[STT] ⚠️ STT não implementado, mas resposta recebida');
-              } else {
-                onTextReceived?.(data.text);
-              }
-            } else {
-              setError('Não foi possível transcrever o áudio. Tente novamente.');
-            }
-          } catch (err) {
-            console.error('❌ Erro ao processar áudio:', err);
-            const errorMessage = err instanceof Error ? err.message : 'Erro ao processar áudio';
-            setError(errorMessage);
-          } finally {
-            // Parar todas as tracks
-            stream.getTracks().forEach(track => track.stop());
-            setIsRecording(false);
-            setIsListening(false);
+            throw new Error(errorMessage);
           }
-        };
 
-        mediaRecorder.start();
-        mediaRecorderRef.current = mediaRecorder;
-        setIsRecording(true);
-        setIsListening(true);
-      }
+          const data = await response.json();
+          console.log(`[STT] ✅ Dados recebidos:`, data);
+          
+          if (data.text && data.text.trim()) {
+            // Verificar se não é mensagem de "não implementado"
+            if (data.text.includes('ainda não implementada') || data.text.includes('ainda não implementado')) {
+              setError('STT ainda não está completamente implementado. Use texto por enquanto.');
+              console.warn('[STT] ⚠️ STT não implementado, mas resposta recebida');
+            } else {
+              console.log(`[STT] ✅ Texto transcrito: "${data.text}"`);
+              onTextReceived?.(data.text);
+              setError(null); // Limpar erro se sucesso
+            }
+          } else {
+            setError('Não foi possível transcrever o áudio. Tente novamente.');
+            console.warn('[STT] ⚠️ Resposta vazia ou sem texto');
+          }
+        } catch (err) {
+          console.error('❌ Erro ao processar áudio:', err);
+          const errorMessage = err instanceof Error ? err.message : 'Erro ao processar áudio';
+          setError(errorMessage);
+        } finally {
+          // Parar todas as tracks
+          stream.getTracks().forEach(track => {
+            track.stop();
+            console.log('[STT] Track parado:', track.label);
+          });
+          setIsRecording(false);
+          setIsListening(false);
+          isStartingRef.current = false; // Resetar flag
+        }
+      };
+
+      // Iniciar gravação
+      console.log('[STT] Iniciando gravação...');
+      mediaRecorder.start(1000); // Coletar dados a cada 1 segundo
+      mediaRecorderRef.current = mediaRecorder;
+      setIsRecording(true);
+      setIsListening(true);
+      isStartingRef.current = false; // Marcar que iniciou com sucesso
+      setError(null); // Limpar erros anteriores
     } catch (err) {
-      console.error('Erro ao iniciar gravação:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Erro ao acessar microfone';
+      console.error('❌ Erro ao iniciar gravação:', err);
+      isStartingRef.current = false; // Resetar flag em caso de erro
       
-      // Mensagens mais específicas
-      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
+      const errorMessage = err instanceof Error ? err.message : 'Erro ao acessar microfone';
+      const errorName = err instanceof Error ? (err as any).name : '';
+      
+      // Mensagens mais específicas baseadas no tipo de erro
+      if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError' || errorMessage.includes('Permission denied')) {
         setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
-      } else if (errorMessage.includes('NotFoundError')) {
-        setError('Nenhum microfone encontrado. Verifique se o microfone está conectado.');
+      } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError' || errorMessage.includes('No microphone')) {
+        setError('Nenhum microfone encontrado. Verifique se o microfone está conectado e funcionando.');
+      } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError' || errorMessage.includes('not readable')) {
+        setError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
+      } else if (errorName === 'OverconstrainedError' || errorMessage.includes('constraint')) {
+        setError('Configurações de áudio não suportadas. Tentando com configurações padrão...');
+        // Tentar novamente com configurações mais simples
+        setTimeout(() => {
+          startListening();
+        }, 500);
+        return;
       } else {
-        setError(errorMessage);
+        setError(`Erro ao acessar microfone: ${errorMessage}`);
       }
       
       setIsRecording(false);

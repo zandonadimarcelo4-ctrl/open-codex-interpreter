@@ -38,18 +38,27 @@ export async function setupVite(app: Express, server: Server) {
 
   // Criar configuração do servidor que PERMITE TODOS OS HOSTS
   // Usar 'true' em vez de 'all' para compatibilidade com TypeScript
+  // IMPORTANTE: host precisa ser '0.0.0.0' para aceitar conexões externas,
+  // mas HMR precisa usar 'localhost' ou hostname real para o navegador conseguir conectar
   const serverConfigFinal: any = {
     ...serverOptions,
     ...cleanServerConfig,
     // Permitir TODOS os hosts usando true (equivalente a 'all')
     allowedHosts: true,
     // Desabilitar completamente a verificação de host
-    host: '0.0.0.0',
+    host: '0.0.0.0', // Servidor escuta em todas as interfaces
     strictPort: false,
     // Desabilitar HTML proxy explicitamente
     proxy: undefined,
     // Permitir qualquer origem
     cors: true,
+    // Configurar HMR para usar localhost (navegador não consegue conectar a 0.0.0.0)
+    hmr: {
+      ...(serverOptions.hmr || {}),
+      host: 'localhost', // HMR deve usar localhost para o navegador conseguir conectar
+      protocol: serverOptions.hmr?.protocol || (process.env.USE_HTTPS === 'true' ? 'wss' : 'ws'),
+      clientPort: undefined, // Usar mesma porta do servidor
+    },
   };
   
   console.log('[Vite] Configuração do servidor:', {

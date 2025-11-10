@@ -1056,7 +1056,11 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                         setPermissionRequested(false);
                         
                         // Aguardar um pouco antes de tentar iniciar gravação
-                        await new Promise(resolve => setTimeout(resolve, 200));
+                        await new Promise(resolve => setTimeout(resolve, 300));
+                        
+                        // Tentar iniciar gravação automaticamente após permissão concedida
+                        console.log('[STT] Tentando iniciar gravação após permissão concedida...');
+                        toggleListening();
                         
                         // Tentar iniciar gravação novamente
                         console.log('[STT] Tentando iniciar gravação após permissão concedida...');

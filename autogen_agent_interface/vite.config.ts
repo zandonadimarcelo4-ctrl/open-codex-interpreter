@@ -36,7 +36,7 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
-    host: true,
+    host: '0.0.0.0', // Escutar em todas as interfaces de rede
     allowedHosts: [
       ".manuspre.computer",
       ".manus.computer",
@@ -45,6 +45,10 @@ export default defineConfig({
       ".manusvm.computer",
       "localhost",
       "127.0.0.1",
+      // Permitir IPs da rede local (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+      /^192\.168\./,
+      /^10\./,
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
     ],
     fs: {
       strict: true,
@@ -52,6 +56,7 @@ export default defineConfig({
     },
     hmr: {
       overlay: false,
+      host: '0.0.0.0', // Permitir HMR de qualquer IP da rede
     },
     // Desabilitar HTML proxy para evitar erros com Vite 7
     proxy: undefined,

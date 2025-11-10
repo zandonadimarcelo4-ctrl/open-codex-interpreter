@@ -518,7 +518,7 @@ async function startServer() {
     console.warn(`   O servidor ainda escutará em 0.0.0.0, mas não será acessível por IP de rede.`);
   }
 
-  server.listen(port, '0.0.0.0', () => {
+  server.listen(port, '0.0.0.0', async () => {
     console.log(`\n🚀 Server running on:`);
     console.log(`   Local:   http://localhost:${port}/`);
     console.log(`   Network: http://${localIP}:${port}/`);
@@ -529,16 +529,54 @@ async function startServer() {
     console.log(`   Background Worker: ${backgroundWorker.isWorkerRunning() ? '✅ Running' : '❌ Stopped'}`);
     console.log(`   Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
     console.log(`   VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
+    
+    // Verificar Tailscale Funnel
+    const { checkTailscaleInstalled, checkTailscaleFunnel, startTailscaleFunnel } = await import('../utils/tailscale');
+    const tailscaleInstalled = await checkTailscaleInstalled();
+    
+    if (tailscaleInstalled) {
+      console.log(`\n🌐 Tailscale detectado!`);
+      const funnelStatus = await checkTailscaleFunnel(port);
+      
+      if (funnelStatus.active && funnelStatus.url) {
+        console.log(`   ✅ Tailscale Funnel ATIVO:`);
+        console.log(`      URL: ${funnelStatus.url}`);
+        console.log(`      WebSocket: ${funnelStatus.url.replace('https://', 'wss://')}/ws`);
+      } else {
+        // Tentar iniciar o Funnel automaticamente se USE_TAILSCALE_FUNNEL=true
+        if (process.env.USE_TAILSCALE_FUNNEL === 'true') {
+          console.log(`   🔄 Iniciando Tailscale Funnel automaticamente...`);
+          const result = await startTailscaleFunnel(port);
+          if (result.success) {
+            console.log(`   ✅ Tailscale Funnel iniciado com sucesso!`);
+            if (result.url) {
+              console.log(`      URL: ${result.url}`);
+              console.log(`      WebSocket: ${result.url.replace('https://', 'wss://')}/ws`);
+            }
+          } else {
+            console.log(`   ⚠️  Não foi possível iniciar Tailscale Funnel automaticamente:`);
+            console.log(`      ${result.error || 'Erro desconhecido'}`);
+            console.log(`   💡 Para iniciar manualmente, execute:`);
+            console.log(`      tailscale funnel --bg ${port}`);
+          }
+        } else {
+          console.log(`   💡 Para usar Tailscale Funnel (acesso de qualquer lugar):`);
+          console.log(`      1. Configure USE_TAILSCALE_FUNNEL=true no .env`);
+          console.log(`      2. Ou execute manualmente: tailscale funnel --bg ${port}`);
+        }
+      }
+    } else {
+      console.log(`\n💡 Para acesso de qualquer lugar (sem configurar firewall):`);
+      console.log(`   Use Tailscale Funnel:`);
+      console.log(`   1. Instale o Tailscale: https://tailscale.com/download`);
+      console.log(`   2. Configure USE_TAILSCALE_FUNNEL=true no .env`);
+      console.log(`   3. Ou execute: tailscale funnel --bg ${port}`);
+    }
+    
     console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${port}/`);
     console.log(`\n⚠️  IMPORTANTE: Se não conseguir conectar de outro PC (timeout):`);
-    console.log(`   1. O Firewall do Windows está bloqueando a porta ${port}`);
-    console.log(`   2. Execute o script de configuração do firewall:`);
-    console.log(`      PowerShell (Admin): .\\scripts\\configure_firewall.ps1`);
-    console.log(`      OU CMD (Admin): .\\scripts\\configure_firewall.bat`);
-    console.log(`   3. Ou execute manualmente no PowerShell (como Administrador):`);
-    console.log(`      netsh advfirewall firewall add rule name="AutoGen Agent Interface" dir=in action=allow protocol=TCP localport=${port}`);
-    console.log(`   4. Certifique-se de que ambos os PCs estão na mesma rede`);
-    console.log(`   5. Teste a conectividade: Test-NetConnection -ComputerName ${localIP} -Port ${port}\n`);
+    console.log(`   → Use Tailscale Funnel (recomendado) ou configure o firewall`);
+    console.log(`   → Veja instruções acima para Tailscale Funnel\n`);
   });
 }
 

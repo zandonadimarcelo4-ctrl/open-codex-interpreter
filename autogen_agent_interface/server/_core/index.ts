@@ -41,7 +41,7 @@ async function startServer() {
   // Configurar multer para upload de arquivos (STT)
   let multer: any;
   try {
-    multer = require('multer');
+    multer = (await import('multer')).default;
   } catch (e) {
     console.warn('[STT] ⚠️ Multer não instalado. STT pode não funcionar. Execute: npm install multer');
   }
@@ -314,7 +314,7 @@ async function startServer() {
   });
 
   // Obter IP da rede local
-  const os = require('os');
+  const os = await import('os');
   const networkInterfaces = os.networkInterfaces();
   let localIP = 'localhost';
   

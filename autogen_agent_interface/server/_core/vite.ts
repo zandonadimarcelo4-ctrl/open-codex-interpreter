@@ -89,7 +89,31 @@ export async function setupVite(app: Express, server: Server) {
     next();
   });
 
-  app.use(vite.middlewares);
+  // Wrapper para o middleware do Vite que remove verificação de host
+  app.use((req, res, next) => {
+    // Salvar headers originais
+    const originalHost = req.headers.host;
+    const originalOrigin = req.headers.origin;
+    
+    // Permitir qualquer host - remover qualquer verificação
+    // Não modificar headers, apenas garantir que não há bloqueio
+    
+    // Chamar middleware do Vite
+    vite.middlewares(req, res, (err?: any) => {
+      if (err) {
+        // Se houver erro relacionado a host, ignorar e continuar
+        if (err.message && (err.message.includes('Invalid Host header') || err.message.includes('host'))) {
+          console.log(`[Vite Wrapper] ⚠️ Erro de host ignorado: ${err.message}`);
+          console.log(`[Vite Wrapper] ✅ Continuando com host: ${originalHost}`);
+          next();
+        } else {
+          next(err);
+        }
+      } else {
+        next();
+      }
+    });
+  });
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;
 

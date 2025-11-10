@@ -222,6 +222,11 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         setMessages(prev => [...prev, assistantMessage]);
         setStreamingContent('');
         
+        // Resetar estados de loading após receber resposta completa
+        setIsLoading(false);
+        setIsThinking(false);
+        setThinkingStartTime(null);
+        
         // Efeitos sonoros
         sounds.playReceive(); // Som de receber mensagem
         sounds.playSuccess(); // Som de sucesso
@@ -229,6 +234,25 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         // Reproduzir voz Jarvis
         speak(content);
       }
+    } else if (message.type === 'error') {
+      // Tratar erros do WebSocket
+      console.error('[WebSocket] Erro recebido:', message.message || message.content);
+      sounds.playError();
+      
+      // Resetar estados em caso de erro
+      setIsLoading(false);
+      setIsThinking(false);
+      setThinkingStartTime(null);
+      setStreamingContent('');
+      
+      // Adicionar mensagem de erro
+      const errorMessage: Message = {
+        id: Date.now().toString(),
+        role: 'system',
+        content: `❌ **Erro**: ${message.message || message.content || 'Erro desconhecido'}`,
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorMessage]);
     } else if (message.type === 'agent_update') {
       // Atualização de agentes AutoGen trabalhando
       if (message.data?.agents) {
@@ -406,9 +430,14 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
           message: currentInput,
         });
         // WebSocket vai processar e enviar resposta via handleWebSocketMessage
+        // Os estados serão resetados em handleWebSocketMessage quando a resposta chegar
         return;
       } catch (error) {
         console.warn('Erro ao enviar via WebSocket, usando tRPC:', error);
+        // Resetar estados em caso de erro no WebSocket
+        setIsLoading(false);
+        setIsThinking(false);
+        setThinkingStartTime(null);
       }
     }
 

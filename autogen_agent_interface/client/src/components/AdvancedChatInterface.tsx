@@ -72,9 +72,18 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
   const getWebSocketUrl = () => {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
-      const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${wsProtocol}//${hostname}:${port}/ws`;
+      const protocol = window.location.protocol;
+      const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+      
+      // Se a porta estiver vazia, significa que é porta padrão (80 para HTTP, 443 para HTTPS)
+      const port = window.location.port;
+      
+      // Se a porta estiver vazia ou for padrão, não incluir na URL
+      if (!port || port === '80' || port === '443') {
+        return `${wsProtocol}//${hostname}/ws`;
+      } else {
+        return `${wsProtocol}//${hostname}:${port}/ws`;
+      }
     }
     return `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`;
   };

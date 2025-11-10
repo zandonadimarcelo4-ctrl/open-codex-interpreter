@@ -108,87 +108,53 @@ export async function setupVite(app: Express, server: Server) {
     next();
   });
 
-  // SOLUÇÃO DEFINITIVA: Modificar header Host antes de passar para o Vite
-  // Se o host não for localhost, mudar temporariamente para localhost
-  // Isso faz o Vite aceitar a requisição, e depois processamos normalmente
+  // Middleware do Vite - deve processar TODAS as requisições de assets (JS, CSS, TS, TSX, etc)
+  // IMPORTANTE: Este middleware deve vir ANTES de qualquer outro middleware que possa interferir
   app.use((req, res, next) => {
-    const originalHost = req.headers.host;
+    const url = req.url || req.originalUrl || '';
     
-    // Se for um host externo (Tailscale Funnel, etc), modificar temporariamente
-    if (originalHost && !originalHost.includes('localhost') && !originalHost.includes('127.0.0.1')) {
-      console.log(`[Vite Wrapper] 🔄 Host externo detectado: ${originalHost} - modificando para localhost temporariamente`);
-      
-      // Salvar host original
-      (req as any)._originalHost = originalHost;
-      
-      // Modificar header Host para localhost (com porta se houver)
-      const portMatch = originalHost.match(/:(\d+)$/);
-      const port = portMatch ? portMatch[1] : '3000';
-      req.headers.host = `localhost:${port}`;
-      
-      console.log(`[Vite Wrapper] ✅ Host modificado de "${originalHost}" para "${req.headers.host}"`);
+    // Se for requisição de API ou WebSocket, pular Vite
+    if (url.startsWith('/api/') || url.startsWith('/ws')) {
+      next();
+      return;
     }
     
-    // Interceptar resposta para restaurar host original se necessário
-    const originalWriteHead = res.writeHead.bind(res);
-    res.writeHead = function(statusCode: number, statusMessage?: any, headers?: any): typeof res {
-      // Se for erro 403/400, pode ser que ainda esteja bloqueando
-      if ((statusCode === 403 || statusCode === 400) && (req as any)._originalHost) {
-        const chunkStr = (res as any)._responseBody || '';
-        if (chunkStr.includes('not allowed') || chunkStr.includes('host')) {
-          console.log(`[Vite Wrapper] ⚠️ Ainda bloqueando mesmo com host modificado - tentando interceptar resposta`);
-          (res as any)._shouldIntercept = true;
-        }
-      }
-      // Chamar writeHead original
-      if (headers) {
-        return originalWriteHead(statusCode, headers);
-      } else if (statusMessage && typeof statusMessage !== 'string') {
-        return originalWriteHead(statusCode, statusMessage);
-      } else {
-        return originalWriteHead(statusCode, statusMessage as any);
-      }
-    };
-    
-    // Interceptar write para capturar corpo da resposta
-    const originalWrite = res.write.bind(res);
-    res.write = function(chunk: any, encoding?: any) {
-      if (chunk) {
-        (res as any)._responseBody = ((res as any)._responseBody || '') + chunk.toString();
-        
-        // Se for mensagem de erro de host, bloquear
-        if ((res as any)._responseBody.includes('not allowed') && (res as any)._responseBody.includes('host')) {
-          console.log(`[Vite Wrapper] ⚠️ Erro de host detectado mesmo com host modificado - bloqueando resposta`);
-          (res as any)._shouldIntercept = true;
-          // Não escrever esta resposta
-          return true;
-        }
-      }
-      return originalWrite(chunk, encoding);
-    };
-    
-    // Chamar middleware do Vite
-    vite.middlewares(req, res, (err?: any) => {
-      // Restaurar host original após processamento do Vite
-      if ((req as any)._originalHost) {
-        req.headers.host = (req as any)._originalHost;
-      }
-      
-      if (err) {
-        const errorMessage = err.message || String(err);
-        if (errorMessage.includes('not allowed') || 
-            errorMessage.includes('Invalid Host header') || 
-            errorMessage.includes('host')) {
-          console.log(`[Vite Wrapper] ⚠️ Erro de host mesmo com modificação: ${errorMessage}`);
-          console.log(`[Vite Wrapper] ✅ Continuando mesmo assim com host: ${(req as any)._originalHost || originalHost}`);
-          next();
-        } else {
+    // Se for requisição de arquivo estático (JS, CSS, TS, TSX, etc), deixar Vite processar
+    // Vite precisa processar essas requisições para fazer transformações e HMR
+    if (url.includes('/src/') || 
+        url.includes('/node_modules/') ||
+        url.includes('/@vite/') ||
+        url.includes('/@react-refresh') ||
+        url.endsWith('.ts') ||
+        url.endsWith('.tsx') ||
+        url.endsWith('.js') ||
+        url.endsWith('.jsx') ||
+        url.endsWith('.css') ||
+        url.endsWith('.json') ||
+        url.endsWith('.png') ||
+        url.endsWith('.jpg') ||
+        url.endsWith('.svg') ||
+        url.endsWith('.ico') ||
+        url.endsWith('.webp')) {
+      // Chamar middleware do Vite diretamente para arquivos estáticos
+      vite.middlewares(req, res, (err?: any) => {
+        if (err) {
+          console.error(`[Vite] Erro ao processar ${url}:`, err.message);
           next(err);
+        } else {
+          // Se Vite não processou (404), continuar para próximo middleware
+          if (res.statusCode === 404) {
+            next();
+          } else {
+            // Vite processou com sucesso, não chamar next()
+          }
         }
-      } else {
-        next();
-      }
-    });
+      });
+      return;
+    }
+    
+    // Para outras requisições (HTML, etc), continuar para próximo middleware
+    next();
   });
   app.use("*", async (req, res, next) => {
     const url = req.originalUrl;

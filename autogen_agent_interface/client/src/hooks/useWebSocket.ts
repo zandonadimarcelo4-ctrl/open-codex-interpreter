@@ -28,9 +28,22 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   const getWebSocketUrl = () => {
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
-      const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${wsProtocol}//${hostname}:${port}/ws`;
+      const protocol = window.location.protocol;
+      const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+      
+      // Se a porta estiver vazia, significa que é porta padrão (80 para HTTP, 443 para HTTPS)
+      // Neste caso, não incluir a porta na URL do WebSocket
+      const port = window.location.port;
+      
+      // Se a porta estiver vazia ou for padrão, não incluir na URL
+      if (!port || port === '80' || port === '443') {
+        // Para HTTP padrão (80), usar ws://host/ws
+        // Para HTTPS padrão (443), usar wss://host/ws
+        return `${wsProtocol}//${hostname}/ws`;
+      } else {
+        // Para outras portas, incluir na URL
+        return `${wsProtocol}//${hostname}:${port}/ws`;
+      }
     }
     return `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`;
   };

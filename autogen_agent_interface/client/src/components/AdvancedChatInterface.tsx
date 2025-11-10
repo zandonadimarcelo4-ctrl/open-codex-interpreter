@@ -118,6 +118,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     isRecording,
     isListening,
     error: voiceError,
+    setError: setVoiceError, // Expor setError para poder limpar erros manualmente
   } = useVoice({
     ttsEnabled: true,
     sttEnabled: true,
@@ -949,30 +950,49 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             Powered by AutoGen Framework
           </div>
         </div>
-        {voiceError && (
-          <div className="text-xs text-red-500 mt-1 flex items-center gap-2">
-            <span>⚠️ {voiceError}</span>
-            {voiceError.includes('Permissão') && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 px-2 text-xs"
-                onClick={() => {
-                  // Tentar solicitar permissão novamente
-                  navigator.mediaDevices.getUserMedia({ audio: true })
-                    .then(() => {
-                      // Permissão concedida
-                    })
-                    .catch(() => {
-                      // Permissão ainda negada
-                    });
-                }}
-              >
-                Solicitar Permissão
-              </Button>
+            {voiceError && (
+              <div className="text-xs text-red-500 mt-1 flex items-center gap-2 flex-wrap">
+                <span>⚠️ {voiceError}</span>
+                {voiceError.includes('Permissão') && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                    onClick={async () => {
+                      try {
+                        // Tentar solicitar permissão novamente
+                        const stream = await navigator.mediaDevices.getUserMedia({ 
+                          audio: { 
+                            echoCancellation: true, 
+                            noiseSuppression: true, 
+                            autoGainControl: true 
+                          } 
+                        });
+                        // Permissão concedida - parar stream de teste
+                        stream.getTracks().forEach(track => track.stop());
+                        // Limpar erro e tentar iniciar gravação
+                        setVoiceError(null);
+                        // Tentar iniciar gravação novamente
+                        setTimeout(() => {
+                          toggleListening();
+                        }, 100);
+                      } catch (err: any) {
+                        console.error('[STT] Erro ao solicitar permissão:', err);
+                        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                          setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços).');
+                        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                          setVoiceError('Nenhum microfone encontrado. Verifique se há um microfone conectado.');
+                        } else {
+                          setVoiceError(`Erro ao acessar microfone: ${err.message || 'Erro desconhecido'}`);
+                        }
+                      }
+                    }}
+                  >
+                    Solicitar Permissão
+                  </Button>
+                )}
+              </div>
             )}
-          </div>
-        )}
       </motion.div>
     </motion.div>
   );

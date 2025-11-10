@@ -348,18 +348,52 @@ export function useVoice(options: UseVoiceOptions = {}) {
         return false;
       }
 
-      // Verificar permissão
-      const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-      
-      if (permissionStatus.state === 'denied') {
-        setError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador.');
-        return false;
+      // Tentar verificar permissão via API (pode não estar disponível em todos os navegadores)
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        
+        if (permissionStatus.state === 'denied') {
+          setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
+          return false;
+        }
+        
+        // Se a permissão já foi concedida, retornar true
+        if (permissionStatus.state === 'granted') {
+          return true;
+        }
+      } catch (permErr) {
+        // Se não conseguir verificar permissão (navegador não suporta), tentar acessar diretamente
+        console.log('[STT] Não foi possível verificar permissão via API, tentando acessar diretamente...');
       }
 
-      return true;
+      // Tentar acessar o microfone diretamente para verificar permissão
+      // Isso vai solicitar permissão se ainda não foi concedida
+      try {
+        const testStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            echoCancellation: true, 
+            noiseSuppression: true, 
+            autoGainControl: true 
+          } 
+        });
+        // Se chegou aqui, a permissão foi concedida
+        testStream.getTracks().forEach(track => track.stop()); // Parar stream de teste
+        return true;
+      } catch (err: any) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
+          return false;
+        }
+        throw err; // Re-lançar outros erros
+      }
     } catch (err) {
-      // Se a API de permissões não estiver disponível, tentar acessar diretamente
-      console.warn('Não foi possível verificar permissão:', err);
+      console.warn('[STT] Erro ao verificar permissão:', err);
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      if (errorMessage.includes('Permission denied') || errorMessage.includes('NotAllowedError')) {
+        setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
+        return false;
+      }
+      // Se não for erro de permissão, tentar mesmo assim
       return true;
     }
   }, []);
@@ -600,6 +634,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
     
     // Estado
     error,
+    setError, // Expor setError para poder limpar erros manualmente
   };
 }
 

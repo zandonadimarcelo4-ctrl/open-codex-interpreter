@@ -24,18 +24,19 @@ export interface UseWebSocketOptions {
 }
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
-  // Detectar porta correta do servidor
-  const getServerPort = () => {
-    // Tentar usar a porta do servidor atual
+  // Detectar host e porta corretos do servidor
+  const getWebSocketUrl = () => {
     if (typeof window !== 'undefined') {
-      const currentPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
-      return currentPort !== '' ? currentPort : (import.meta.env.VITE_PORT || '3000');
+      const hostname = window.location.hostname;
+      const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${wsProtocol}//${hostname}:${port}/ws`;
     }
-    return import.meta.env.VITE_PORT || '3000';
+    return `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`;
   };
 
   const {
-    url = `ws://localhost:${getServerPort()}/ws`,
+    url = getWebSocketUrl(),
     enabled = true,
     onMessage,
     onError,

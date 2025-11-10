@@ -67,8 +67,19 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
   const sounds = useSoundEffects(true);
   
   // WebSocket para chat em tempo real
+  // Detectar host automaticamente (localhost ou IP da rede)
+  const getWebSocketUrl = () => {
+    if (typeof window !== 'undefined') {
+      const hostname = window.location.hostname;
+      const port = window.location.port || (window.location.protocol === 'https:' ? '443' : '80');
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${wsProtocol}//${hostname}:${port}/ws`;
+    }
+    return `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`;
+  };
+  
   const { isConnected, isConnecting, send: sendWebSocket } = useWebSocket({
-    url: `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`,
+    url: getWebSocketUrl(),
     enabled: true,
     onMessage: (message: WebSocketMessage) => {
       handleWebSocketMessage(message);

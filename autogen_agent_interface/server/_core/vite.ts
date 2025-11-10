@@ -54,10 +54,11 @@ export async function setupVite(app: Express, server: Server) {
     cors: true,
     // Configurar HMR para usar localhost (navegador não consegue conectar a 0.0.0.0)
     hmr: {
-      ...(serverOptions.hmr || {}),
+      ...serverOptions.hmr,
       host: 'localhost', // HMR deve usar localhost para o navegador conseguir conectar
-      protocol: serverOptions.hmr?.protocol || (process.env.USE_HTTPS === 'true' ? 'wss' : 'ws'),
-      clientPort: undefined, // Usar mesma porta do servidor
+      port: serverPort,
+      clientPort: serverPort,
+      protocol: process.env.USE_HTTPS === 'true' ? 'wss' : 'ws',
     },
   };
   

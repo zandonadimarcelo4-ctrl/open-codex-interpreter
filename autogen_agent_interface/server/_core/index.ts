@@ -6,7 +6,13 @@ import net from "net";
 import os from "os";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
+
+// Obter __dirname equivalente para ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -101,6 +107,7 @@ async function startServer() {
   
   if (useHttps) {
     // Tentar carregar certificado SSL
+    // __dirname aponta para server/_core, então ../../../ vai para a raiz do projeto
     const certPath = process.env.SSL_CERT_PATH || path.join(__dirname, '../../../certs/cert.pem');
     const keyPath = process.env.SSL_KEY_PATH || path.join(__dirname, '../../../certs/key.pem');
     

@@ -37,6 +37,9 @@ export function AdvancedChatInterface() {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isThinking, setIsThinking] = useState(false); // Estado para indicar que o modelo está "pensando"
+  const [thinkingStartTime, setThinkingStartTime] = useState<number | null>(null); // Timestamp do início do "pensamento"
+  const [thinkingDuration, setThinkingDuration] = useState<number | null>(null); // Duração do "pensamento" em segundos
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<number | undefined>();
   const [streamingContent, setStreamingContent] = useState<string>('');
@@ -162,12 +165,28 @@ export function AdvancedChatInterface() {
       if (message.type === 'stream') {
         // Streaming de resposta
         setStreamingContent(prev => prev + content);
+        // Quando começar a streamar, parar o "pensamento"
+        if (isThinking && thinkingStartTime) {
+          const duration = Math.round((Date.now() - thinkingStartTime) / 1000);
+          setThinkingDuration(duration);
+          setIsThinking(false);
+        }
       } else {
         // Resposta completa
+        // Calcular tempo de "pensamento"
+        let thinkingTimeText = '';
+        if (thinkingStartTime) {
+          const duration = Math.round((Date.now() - thinkingStartTime) / 1000);
+          thinkingTimeText = `\n\n*💭 Pensou na vida por ${duration} segundo${duration !== 1 ? 's' : ''}*`;
+          setThinkingDuration(duration);
+          setIsThinking(false);
+          setThinkingStartTime(null);
+        }
+        
         const assistantMessage: Message = {
           id: Date.now().toString(),
           role: 'assistant',
-          content: content,
+          content: content + thinkingTimeText,
           timestamp: new Date(),
           agentName: message.agent || 'Super Agent',
           agents: activeAgents,
@@ -305,6 +324,9 @@ export function AdvancedChatInterface() {
       setInputValue('');
     }
     setIsLoading(true);
+    setIsThinking(true); // Modelo está "pensando" (gerando thinking tokens)
+    setThinkingStartTime(Date.now()); // Iniciar timer do "pensamento"
+    setThinkingDuration(null); // Resetar duração anterior
     setStreamingContent('');
     setActiveAgents([]);
 
@@ -588,7 +610,9 @@ export function AdvancedChatInterface() {
             <div className="bg-card border border-border rounded-lg rounded-tl-none p-4">
               <div className="flex items-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin text-accent" />
-                <span className="text-sm text-muted-foreground">Processando...</span>
+                <span className="text-sm text-muted-foreground">
+                  {isThinking ? 'Pensando...' : 'Processando...'}
+                </span>
               </div>
             </div>
           </div>

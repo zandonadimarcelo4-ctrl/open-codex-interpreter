@@ -12,7 +12,7 @@ import { useIsMobile } from '@/hooks/useMobile';
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(false); // Fechado por padrão no mobile
   const isMobile = useIsMobile(); // Detecção automática de mobile
 
   // Permitir acesso sem autenticação (modo demo)
@@ -87,10 +87,13 @@ export default function Home() {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className={`lg:hidden ${isMobile ? 'h-10 w-10 rounded-full hover:bg-primary/10 transition-all duration-200' : ''}`}
+              onClick={() => {
+                setSidebarOpen(!sidebarOpen);
+                if (!sidebarOpen) setRightPanelOpen(false); // Fechar right panel ao abrir sidebar
+              }}
+              className={`lg:hidden ${isMobile ? 'h-12 w-12 rounded-full hover:bg-primary/10 active:scale-95 transition-all duration-200 min-w-[48px]' : ''}`}
             >
-              <Menu className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
+              <Menu className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
             </Button>
             <div>
               <h2 className={`${isMobile ? 'text-base font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent' : 'text-lg font-semibold'} text-foreground`}>AutoGen Super Agent</h2>
@@ -119,24 +122,28 @@ export default function Home() {
           </div>
         </header>
 
-        <div className={`flex-1 flex overflow-hidden ${isMobile ? 'gap-0 p-0' : 'gap-4 p-4'}`}>
-          <div className="flex-1 flex flex-col min-w-0">
+        <div className={`flex-1 flex overflow-hidden ${isMobile ? 'gap-0 p-0' : 'gap-4 p-4'} relative`}>
+          {/* Chat - Sempre visível e foco principal */}
+          <div className={`flex-1 flex flex-col min-w-0 ${isMobile && (sidebarOpen || rightPanelOpen) ? 'hidden' : ''}`}>
             <div className={`flex-1 ${isMobile ? 'bg-background shadow-inner' : 'bg-card rounded-lg border border-border'} overflow-hidden flex flex-col`}>
               <AdvancedChatInterface 
                 onNewChat={() => {
                   setSidebarOpen(false);
+                  setRightPanelOpen(false);
                 }}
               />
             </div>
           </div>
 
-          <div className="hidden xl:flex w-80 flex-col">
+          {/* Agent Team Visualization - Retrátil no mobile */}
+          <div className={`${isMobile ? (rightPanelOpen ? 'block' : 'hidden') : 'hidden xl:flex'} w-80 flex-col`}>
             <div className="flex-1 bg-card rounded-lg border border-border overflow-hidden p-4">
               <AgentTeamVisualization />
             </div>
           </div>
 
-          <div className="hidden lg:flex w-80 flex-col">
+          {/* Right Panel - Retrátil no mobile */}
+          <div className={`${isMobile ? 'fixed inset-0 z-50' : 'hidden lg:flex'} w-80 flex-col`}>
             <RightPanel
               isOpen={rightPanelOpen}
               onToggle={() => setRightPanelOpen(!rightPanelOpen)}

@@ -87,15 +87,18 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     },
     onOpen: () => {
       setConnectionStatus('Conectado');
-      sounds.playSuccess(); // Som de conexão estabelecida
+      // Não tocar som automaticamente - só após interação do usuário
+      // sounds.playSuccess(); // Som de conexão estabelecida
     },
     onError: () => {
       setConnectionStatus('Erro na conexão');
-      sounds.playError(); // Som de erro
+      // Não tocar som automaticamente - só após interação do usuário
+      // sounds.playError(); // Som de erro
     },
     onClose: () => {
       setConnectionStatus('Desconectado');
-      sounds.playNotification(); // Som de notificação
+      // Não tocar som automaticamente - só após interação do usuário
+      // sounds.playNotification(); // Som de notificação
     },
   });
   

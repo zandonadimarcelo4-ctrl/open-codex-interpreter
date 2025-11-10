@@ -11,6 +11,7 @@ import { useVoice } from '@/hooks/useVoice';
 import { useOCR } from '@/hooks/useOCR';
 import { useImageAnalysis } from '@/hooks/useImageAnalysis';
 import { useCodeExecution } from '@/hooks/useCodeExecution';
+import { useSoundEffects } from '@/hooks/useSoundEffects';
 
 interface Message {
   id: string;
@@ -54,6 +55,9 @@ export function AdvancedChatInterface() {
   // tRPC mutations
   const chatProcess = trpc.chat.process.useMutation();
   
+  // Efeitos sonoros
+  const sounds = useSoundEffects(true);
+  
   // WebSocket para chat em tempo real
   const { isConnected, isConnecting, send: sendWebSocket } = useWebSocket({
     url: `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`,
@@ -63,12 +67,15 @@ export function AdvancedChatInterface() {
     },
     onOpen: () => {
       setConnectionStatus('Conectado');
+      sounds.playSuccess(); // Som de conexão estabelecida
     },
     onError: () => {
       setConnectionStatus('Erro na conexão');
+      sounds.playError(); // Som de erro
     },
     onClose: () => {
       setConnectionStatus('Desconectado');
+      sounds.playNotification(); // Som de notificação
     },
   });
   
@@ -170,6 +177,7 @@ export function AdvancedChatInterface() {
           const duration = Math.round((Date.now() - thinkingStartTime) / 1000);
           setThinkingDuration(duration);
           setIsThinking(false);
+          sounds.playReceive(); // Som de receber mensagem
         }
       } else {
         // Resposta completa
@@ -194,6 +202,10 @@ export function AdvancedChatInterface() {
         
         setMessages(prev => [...prev, assistantMessage]);
         setStreamingContent('');
+        
+        // Efeitos sonoros
+        sounds.playReceive(); // Som de receber mensagem
+        sounds.playSuccess(); // Som de sucesso
         
         // Reproduzir voz Jarvis
         speak(content);
@@ -256,8 +268,10 @@ export function AdvancedChatInterface() {
 
         if (extractedInfo) {
           setInputValue(prev => prev ? `${prev}\n\n${extractedInfo}` : extractedInfo);
+          sounds.playSuccess(); // Som de sucesso ao processar imagem
         }
       } catch (error) {
+        sounds.playError(); // Som de erro
         console.error('Erro ao processar imagem:', error);
       }
     }
@@ -279,6 +293,7 @@ export function AdvancedChatInterface() {
   };
 
   const copyToClipboard = (text: string, id: string) => {
+    sounds.playCopy(); // Som de copiar
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
@@ -329,6 +344,10 @@ export function AdvancedChatInterface() {
     setThinkingDuration(null); // Resetar duração anterior
     setStreamingContent('');
     setActiveAgents([]);
+    
+    // Efeitos sonoros
+    sounds.playSend(); // Som de enviar mensagem
+    sounds.playThinking(); // Som de pensando
 
     // Se houver código e for ação/comando, executar código primeiro
     if (codeBlocks.length > 0 && (intent.type === 'action' || intent.type === 'command')) {
@@ -400,6 +419,9 @@ export function AdvancedChatInterface() {
       speak(result.content);
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
+      
+      // Efeito sonoro de erro
+      sounds.playError();
       
       // Fallback: usar detecção de intenção local
       let fallbackResponse: string;
@@ -564,7 +586,10 @@ export function AdvancedChatInterface() {
                         variant="ghost"
                         size="sm"
                         className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                        onClick={() => speak(message.content)}
+                        onClick={() => {
+                          sounds.playClick(); // Som de clique
+                          speak(message.content);
+                        }}
                         title="Reproduzir voz Jarvis"
                       >
                         <Volume2 className="w-3 h-3" />
@@ -573,7 +598,10 @@ export function AdvancedChatInterface() {
                         variant="ghost"
                         size="sm"
                         className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                        onClick={() => copyToClipboard(message.content, message.id)}
+                        onClick={() => {
+                          sounds.playClick(); // Som de clique
+                          copyToClipboard(message.content, message.id);
+                        }}
                         title="Copiar mensagem"
                       >
                         {copiedId === message.id ? (

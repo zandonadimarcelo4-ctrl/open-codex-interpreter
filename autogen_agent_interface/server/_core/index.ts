@@ -139,6 +139,19 @@ async function startServer() {
     healthCheck(req, res);
   });
   
+  // Endpoint de teste simples para verificar conectividade de rede
+  app.get("/api/test", (req, res) => {
+    const clientIP = req.ip || req.socket.remoteAddress || 'unknown';
+    console.log(`[TEST] Requisição de teste recebida de ${clientIP}`);
+    res.json({ 
+      success: true, 
+      message: "Servidor acessível!",
+      clientIP,
+      serverIP: req.headers.host,
+      timestamp: new Date().toISOString()
+    });
+  });
+  
   // Sound Effects API endpoint (ElevenLabs SFX)
   app.post("/api/sfx", async (req, res) => {
     try {

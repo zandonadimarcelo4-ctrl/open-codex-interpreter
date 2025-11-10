@@ -9,8 +9,12 @@ import viteConfig from "../../vite.config";
 export async function setupVite(app: Express, server: Server) {
   const serverOptions = {
     middlewareMode: true,
-    hmr: { server },
-    allowedHosts: true as const,
+    hmr: { 
+      server,
+      host: '0.0.0.0', // Permitir HMR de qualquer IP da rede
+      port: undefined, // Usar a mesma porta do servidor
+    },
+    allowedHosts: true as const, // Permitir qualquer host (útil para rede local)
   };
 
   // Criar configuração do Vite sem plugins problemáticos

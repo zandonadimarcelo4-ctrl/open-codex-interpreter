@@ -27,15 +27,27 @@ export class ChatWebSocketServer {
     this.wss = new WebSocketServer({ 
       server,
       path: "/ws",
+      perMessageDeflate: false, // Desabilitar compressão para melhor compatibilidade
+      clientTracking: true, // Rastrear clientes conectados
     });
 
     this.wss.on("connection", (ws: WebSocket, req: IncomingMessage) => {
+      // Log informações da conexão para debug
+      const clientIP = req.socket.remoteAddress || 'unknown';
+      const clientPort = req.socket.remotePort || 'unknown';
+      console.log(`[WebSocket] Nova conexão recebida de ${clientIP}:${clientPort}`);
+      console.log(`[WebSocket] Headers:`, {
+        host: req.headers.host,
+        origin: req.headers.origin,
+        'user-agent': req.headers['user-agent'],
+      });
+      
       // Extrair clientId da URL
       const url = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
-      const clientId = url.pathname.split("/").pop() || `client_${Date.now()}`;
+      const clientId = url.pathname.split("/").pop() || `client_${Date.now()}_${Date.now()}`;
 
       this.connections.set(clientId, ws);
-      console.log(`[WebSocket] Cliente ${clientId} conectado`);
+      console.log(`[WebSocket] ✅ Cliente ${clientId} conectado de ${clientIP}:${clientPort}`);
 
       // Enviar mensagem de boas-vindas
       this.send(ws, {

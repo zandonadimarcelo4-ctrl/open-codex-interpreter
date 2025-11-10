@@ -461,19 +461,29 @@ async function startServer() {
   // Obter IP da rede local
   const networkInterfaces = os.networkInterfaces();
   let localIP = 'localhost';
+  const allIPs: string[] = [];
   
-  // Encontrar primeiro IP IPv4 não loopback
+  // Encontrar todos os IPs IPv4 não loopback
   for (const interfaceName in networkInterfaces) {
     const addresses = networkInterfaces[interfaceName];
     if (addresses) {
       for (const address of addresses) {
         if (address.family === 'IPv4' && !address.internal) {
-          localIP = address.address;
-          break;
+          allIPs.push(address.address);
+          if (localIP === 'localhost') {
+            localIP = address.address;
+          }
         }
       }
-      if (localIP !== 'localhost') break;
     }
+  }
+  
+  // Log todos os IPs encontrados para debug
+  if (allIPs.length > 0) {
+    console.log(`\n🌐 IPs de rede detectados: ${allIPs.join(', ')}`);
+  } else {
+    console.warn(`\n⚠️  Nenhum IP de rede detectado! Usando localhost apenas.`);
+    console.warn(`   Verifique se o PC está conectado à rede.`);
   }
 
   server.listen(port, '0.0.0.0', () => {

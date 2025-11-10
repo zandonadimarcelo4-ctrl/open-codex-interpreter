@@ -563,8 +563,16 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
       setMessages(prev => [...prev, fallbackMessage]);
     } finally {
       setIsLoading(false);
+      setIsThinking(false);
+      setThinkingStartTime(null);
+      setStreamingContent('');
     }
-  };
+  }, [inputValue, isLoading, isRecording, isConnected, sendWebSocket, conversationId, attachedImages, sounds, executeCode, speak, chatProcess]);
+  
+  // Atualizar ref quando handleSendMessage mudar
+  useEffect(() => {
+    handleSendMessageRef.current = handleSendMessage;
+  }, [handleSendMessage]);
 
   // Função para criar novo chat
   const handleNewChat = () => {

@@ -79,37 +79,8 @@ export async function setupVite(app: Express, server: Server) {
     },
   });
 
-  // Interceptar requisições problemáticas antes que cheguem ao Vite
-  app.use((req, res, next) => {
-    // Permitir TODOS os hosts - necessário para Tailscale Funnel
-    const host = req.headers.host;
-    if (host) {
-      // Log para debug
-      console.log(`[Vite] Requisição recebida de host: ${host}`);
-    }
-    
-    // Ignorar requisições de API - deixar o Express lidar com elas
-    if (req.url && req.url.startsWith('/api/')) {
-      next();
-      return;
-    }
-    
-    // Ignorar requisições de WebSocket do Vite HMR
-    if (req.url && (req.url.includes('/@vite/client') || req.url.includes('/@react-refresh'))) {
-      next();
-      return;
-    }
-    
-    // Se a URL contém html-proxy, retornar 404 imediatamente
-    if (req.url && req.url.includes('html-proxy')) {
-      res.status(404).end();
-      return;
-    }
-    next();
-  });
-
   // Middleware do Vite - deve processar TODAS as requisições de assets (JS, CSS, TS, TSX, etc)
-  // IMPORTANTE: Este middleware deve vir ANTES de qualquer outro middleware que possa interferir
+  // IMPORTANTE: Este middleware deve processar arquivos antes do catch-all para HTML
   app.use((req, res, next) => {
     const url = req.url || req.originalUrl || '';
     
@@ -119,70 +90,70 @@ export async function setupVite(app: Express, server: Server) {
       return;
     }
     
-    // Se for requisição de arquivo estático (JS, CSS, TS, TSX, etc), deixar Vite processar
+    // Se for requisição de arquivo estático ou módulo Vite, deixar Vite processar
     // Vite precisa processar essas requisições para fazer transformações e HMR
-    if (url.includes('/src/') || 
-        url.includes('/node_modules/') ||
-        url.includes('/@vite/') ||
-        url.includes('/@react-refresh') ||
-        url.endsWith('.ts') ||
-        url.endsWith('.tsx') ||
-        url.endsWith('.js') ||
-        url.endsWith('.jsx') ||
-        url.endsWith('.css') ||
-        url.endsWith('.json') ||
-        url.endsWith('.png') ||
-        url.endsWith('.jpg') ||
-        url.endsWith('.svg') ||
-        url.endsWith('.ico') ||
-        url.endsWith('.webp')) {
+    const isStaticAsset = url.includes('/src/') || 
+                         url.includes('/node_modules/') ||
+                         url.includes('/@vite/') ||
+                         url.includes('/@react-refresh') ||
+                         url.includes('/@fs/') ||
+                         url.endsWith('.ts') ||
+                         url.endsWith('.tsx') ||
+                         url.endsWith('.js') ||
+                         url.endsWith('.jsx') ||
+                         url.endsWith('.mjs') ||
+                         url.endsWith('.css') ||
+                         url.endsWith('.json') ||
+                         url.endsWith('.png') ||
+                         url.endsWith('.jpg') ||
+                         url.endsWith('.jpeg') ||
+                         url.endsWith('.svg') ||
+                         url.endsWith('.ico') ||
+                         url.endsWith('.webp') ||
+                         url.endsWith('.woff') ||
+                         url.endsWith('.woff2') ||
+                         url.endsWith('.ttf');
+    
+    if (isStaticAsset) {
       // Chamar middleware do Vite diretamente para arquivos estáticos
       vite.middlewares(req, res, (err?: any) => {
         if (err) {
           console.error(`[Vite] Erro ao processar ${url}:`, err.message);
-          next(err);
-        } else {
-          // Se Vite não processou (404), continuar para próximo middleware
-          if (res.statusCode === 404) {
+          // Se for erro de host, continuar mesmo assim
+          if (err.message && err.message.includes('host')) {
             next();
           } else {
-            // Vite processou com sucesso, não chamar next()
+            next(err);
           }
         }
+        // Vite processou (com sucesso ou não), não chamar next() aqui
+        // Se Vite não conseguir processar, ele já respondeu com 404
       });
       return;
     }
     
-    // Para outras requisições (HTML, etc), continuar para próximo middleware
+    // Para outras requisições (HTML, rotas SPA, etc), continuar para próximo middleware
     next();
   });
+  
+  // Catch-all para servir index.html (SPA routing)
   app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
+    const url = req.originalUrl || req.url || '/';
 
     // Ignorar requisições de API - deixar o Express lidar com elas
-    if (url && url.startsWith('/api/')) {
+    if (url.startsWith('/api/')) {
       next();
       return;
     }
 
-    // Ignorar requisições de WebSocket do Vite HMR
-    if (url && (url.includes('/@vite/client') || url.includes('/@react-refresh'))) {
+    // Ignorar requisições de WebSocket
+    if (url.startsWith('/ws')) {
       next();
       return;
     }
 
-    // Ignorar requisições de HTML proxy
-    if (url && url.includes('html-proxy')) {
-      res.status(404).end();
-      return;
-    }
-
-    // Ignorar requisições de arquivos estáticos (js, css, etc) - deixar o Vite lidar
-    if (url && (url.endsWith('.js') || url.endsWith('.ts') || url.endsWith('.tsx') || 
-                url.endsWith('.css') || url.endsWith('.json') || url.endsWith('.png') || 
-                url.endsWith('.jpg') || url.endsWith('.svg') || url.endsWith('.ico') ||
-                url.startsWith('/src/') || url.startsWith('/node_modules/'))) {
-      next();
+    // Se já foi respondido, não fazer nada
+    if (res.headersSent) {
       return;
     }
 
@@ -196,22 +167,30 @@ export async function setupVite(app: Express, server: Server) {
 
       // Verificar se o arquivo existe
       if (!fs.existsSync(clientTemplate)) {
-        console.error(`[Vite] Template não encontrado: ${clientTemplate}`);
+        console.error(`[Vite] ❌ Template não encontrado: ${clientTemplate}`);
         res.status(404).send('Template não encontrado');
         return;
       }
 
-      // always reload the index.html file from disk incase it changes
+      // Ler index.html e transformar com Vite
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`
-      );
+      
+      // Adicionar cache buster apenas em desenvolvimento
+      if (process.env.NODE_ENV === 'development') {
+        template = template.replace(
+          `src="/src/main.tsx"`,
+          `src="/src/main.tsx?v=${Date.now()}"`
+        );
+      }
+      
+      // Transformar HTML com Vite (injeta scripts do HMR, etc)
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {
-      console.error('[Vite] Erro ao processar template:', e);
-      vite.ssrFixStacktrace(e as Error);
+      console.error('[Vite] ❌ Erro ao processar template:', e);
+      if (vite.ssrFixStacktrace) {
+        vite.ssrFixStacktrace(e as Error);
+      }
       next(e);
     }
   });

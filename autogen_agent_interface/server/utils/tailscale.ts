@@ -215,10 +215,10 @@ export async function startTailscaleFunnel(port: number): Promise<{ success: boo
     });
     
     process.on('close', async (code) => {
-      const fullOutput = (output + errorOutput).toLowerCase();
+      const fullOutputLower = (output + errorOutput).toLowerCase();
       
       // Verificar se o erro é porque o Tailscale está parado
-      if (fullOutput.includes('stopped') || fullOutput.includes('not running')) {
+      if (fullOutputLower.includes('stopped') || fullOutputLower.includes('not running')) {
         resolve({ 
           success: false, 
           error: 'Tailscale está parado. Execute: tailscale up' 

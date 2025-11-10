@@ -3,37 +3,54 @@ import type { Plugin } from 'vite';
 /**
  * Plugin do Vite para permitir TODOS os hosts
  * Isso é necessário para permitir acesso via Tailscale Funnel e outros hosts externos
+ * 
+ * Este plugin funciona tanto em modo servidor normal quanto em middlewareMode
  */
 export function viteAllowAllHosts(): Plugin {
   return {
     name: 'vite-allow-all-hosts',
+    enforce: 'pre', // Executar antes de outros plugins
     configureServer(server) {
-      // Sobrescrever a função de verificação de host para permitir tudo
-      const originalCheckHost = server.config.server?.host;
+      // Interceptar middleware do Vite para permitir todos os hosts
+      const originalUse = server.middlewares.use.bind(server.middlewares);
       
-      // Desabilitar verificação de host completamente
+      // Adicionar middleware no início para permitir todos os hosts
       server.middlewares.use((req, res, next) => {
-        // Permitir qualquer host - não verificar nada
+        // Remover qualquer verificação de host - permitir tudo
         const host = req.headers.host;
         
-        // Log para debug
+        // Log para debug (apenas para hosts externos)
         if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-          console.log(`[Vite Plugin] Permitindo host: ${host}`);
+          console.log(`[Vite Plugin] ✅ Permitindo host: ${host}`);
         }
         
         // Não fazer nenhuma verificação - permitir tudo
+        // Remover header de host se necessário para evitar verificação
         next();
       });
+      
+      console.log('[Vite Plugin] ✅ Plugin vite-allow-all-hosts ativado - todos os hosts permitidos');
     },
     configurePreviewServer(server) {
       // Mesma coisa para preview server
       server.middlewares.use((req, res, next) => {
         const host = req.headers.host;
         if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-          console.log(`[Vite Plugin Preview] Permitindo host: ${host}`);
+          console.log(`[Vite Plugin Preview] ✅ Permitindo host: ${host}`);
         }
         next();
       });
+    },
+    // Hook para modificar a configuração do Vite
+    config(config) {
+      // Garantir que allowedHosts está definido como 'all'
+      if (!config.server) {
+        config.server = {};
+      }
+      config.server.allowedHosts = 'all';
+      config.server.host = '0.0.0.0';
+      
+      return config;
     },
   };
 }

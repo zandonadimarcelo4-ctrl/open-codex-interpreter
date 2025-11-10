@@ -1,8 +1,11 @@
 import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
+import { createServer as createHttpsServer } from "https";
 import net from "net";
 import os from "os";
+import fs from "fs";
+import path from "path";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
@@ -34,20 +37,90 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   const app = express();
-  const server = createServer(app);
   
   // Configurar CORS para permitir acesso da rede local
-  const cors = (await import('cors')).default;
-  app.use(cors({
-    origin: true, // Permitir qualquer origem (útil para desenvolvimento e rede local)
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  }));
+  let cors: any;
+  try {
+    cors = (await import('cors')).default;
+    app.use(cors({
+      origin: true, // Permitir qualquer origem (útil para desenvolvimento e rede local)
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    }));
+  } catch (e) {
+    console.warn('[CORS] ⚠️ CORS não instalado. Execute: pnpm install cors');
+  }
+  
+  // Headers de segurança para detectar site como seguro
+  app.use((req, res, next) => {
+    // Content Security Policy (CSP) - Permissivo para desenvolvimento local
+    res.setHeader('Content-Security-Policy', 
+      "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ws: wss: http: https:; " +
+      "img-src 'self' data: blob: http: https:; " +
+      "font-src 'self' data: http: https:; " +
+      "connect-src 'self' ws: wss: http: https:; " +
+      "media-src 'self' blob: data: http: https:; " +
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' http: https:; " +
+      "style-src 'self' 'unsafe-inline' http: https:;"
+    );
+    
+    // X-Frame-Options - Permitir iframe para desenvolvimento
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    
+    // X-Content-Type-Options
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    
+    // X-XSS-Protection
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    
+    // Referrer-Policy
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    
+    // Permissions-Policy (Feature-Policy)
+    res.setHeader('Permissions-Policy', 
+      'camera=(), microphone=(self), geolocation=(), interest-cohort=()'
+    );
+    
+    // Strict-Transport-Security (HSTS) - Apenas se HTTPS
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    
+    next();
+  });
   
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  // Criar servidor HTTP ou HTTPS
+  let server;
+  const useHttps = process.env.USE_HTTPS === 'true';
+  
+  if (useHttps) {
+    // Tentar carregar certificado SSL
+    const certPath = process.env.SSL_CERT_PATH || path.join(__dirname, '../../../certs/cert.pem');
+    const keyPath = process.env.SSL_KEY_PATH || path.join(__dirname, '../../../certs/key.pem');
+    
+    if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+      try {
+        const cert = fs.readFileSync(certPath);
+        const key = fs.readFileSync(keyPath);
+        server = createHttpsServer({ cert, key }, app);
+        console.log('[HTTPS] ✅ Servidor HTTPS configurado com certificado SSL');
+      } catch (error) {
+        console.warn('[HTTPS] ⚠️ Erro ao carregar certificado SSL, usando HTTP:', error);
+        server = createServer(app);
+      }
+    } else {
+      console.warn('[HTTPS] ⚠️ Certificados SSL não encontrados, usando HTTP');
+      console.warn(`[HTTPS] 💡 Para usar HTTPS, coloque os certificados em: ${certPath} e ${keyPath}`);
+      server = createServer(app);
+    }
+  } else {
+    server = createServer(app);
+  }
   
   // Configurar multer para upload de arquivos (STT)
   let multer: any;

@@ -762,13 +762,17 @@ async function callOllamaWithAutoGenPrompt(
       requestBody.tool_choice = undefined;
     }
 
-    // Timeout de 10 segundos para evitar espera infinita
-    console.log(`[AutoGen] Preparando fetch com timeout de 10s...`);
+    // Timeout dinâmico baseado no tipo de intent
+    // Conversas podem precisar de mais tempo para processar
+    const timeoutMs = intent.type === "conversation" || intent.type === "question" 
+      ? 30000  // 30 segundos para conversas/perguntas
+      : 15000; // 15 segundos para ações/comandos
+    console.log(`[AutoGen] Preparando fetch com timeout de ${timeoutMs/1000}s...`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      console.log(`[AutoGen] ⚠️ Timeout após 10 segundos - abortando...`);
+      console.log(`[AutoGen] ⚠️ Timeout após ${timeoutMs/1000} segundos - abortando...`);
       controller.abort();
-    }, 10000);
+    }, timeoutMs);
     
     let response: Response;
     try {
@@ -789,8 +793,9 @@ async function callOllamaWithAutoGenPrompt(
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        console.error(`[AutoGen] ❌ Timeout: Ollama demorou mais de 10 segundos`);
-        throw new Error("Timeout: Ollama demorou mais de 10 segundos para responder");
+        const timeoutSeconds = intent.type === "conversation" || intent.type === "question" ? 30 : 15;
+        console.error(`[AutoGen] ❌ Timeout: Ollama demorou mais de ${timeoutSeconds} segundos`);
+        throw new Error(`Timeout: Ollama demorou mais de ${timeoutSeconds} segundos para responder`);
       }
       console.error(`[AutoGen] ❌ Erro no fetch:`, error);
       if (error instanceof Error) {

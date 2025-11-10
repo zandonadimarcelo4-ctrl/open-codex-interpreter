@@ -14,8 +14,11 @@ export async function setupVite(app: Express, server: Server) {
       host: '0.0.0.0', // Permitir HMR de qualquer IP da rede
       port: undefined, // Usar a mesma porta do servidor
       clientPort: undefined, // Usar a mesma porta do servidor
+      protocol: undefined, // Usar o mesmo protocolo do servidor
     },
     allowedHosts: 'all', // Permitir TODOS os hosts (incluindo Tailscale Funnel .ts.net)
+    // Desabilitar completamente a verificação de host
+    strictPort: false,
   };
 
   // Criar configuração do Vite sem plugins problemáticos
@@ -38,8 +41,13 @@ export async function setupVite(app: Express, server: Server) {
       ...cleanServerConfig,
       // Garantir que allowedHosts está definido como 'all'
       allowedHosts: 'all',
+      // Desabilitar completamente a verificação de host
+      host: '0.0.0.0',
+      strictPort: false,
       // Desabilitar HTML proxy explicitamente
       proxy: undefined,
+      // Permitir qualquer origem
+      cors: true,
     },
     appType: "custom",
     optimizeDeps: {

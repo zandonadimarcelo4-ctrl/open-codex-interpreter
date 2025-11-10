@@ -461,24 +461,17 @@ export async function setupVite(app: Express, _server: Server, port?: number) {
         console.log(`[Vite] 🔄 Corrigindo URLs para Tailscale: ${tailscaleBaseUrl}`);
         
         // Lista de substituições SIMPLIFICADA
-        const replacements = [
-          // Substituir localhost por hostname do Tailscale (com ou sem porta)
-          [/\bhttps?:\/\/localhost(?::\d+)?/gi, tailscaleBaseUrl],
-          [/\bwss?:\/\/localhost(?::\d+)?/gi, wsBaseUrl],
-          // Remover porta de URLs do Tailscale (se existir)
-          [/(\.ts\.net):\d+/g, '$1'],
-          // URLs em strings JavaScript (com aspas)
-          [/'https?:\/\/localhost:\d+/g, `'${tailscaleBaseUrl}`],
-          [/'wss?:\/\/localhost:\d+/g, `'${wsBaseUrl}`],
-          // URLs em atributos HTML
-          [/(src|href)=["']https?:\/\/localhost(?::\d+)?/gi, `$1="${tailscaleBaseUrl}`],
-          [/(src|href)=["']wss?:\/\/localhost(?::\d+)?/gi, `$1="${wsBaseUrl}`],
-        ];
-        
-        // Aplicar todas as substituições
-        for (const [pattern, replacement] of replacements) {
-          page = page.replace(pattern, replacement);
-        }
+        // Substituir localhost por hostname do Tailscale (com ou sem porta)
+        page = page.replace(/\bhttps?:\/\/localhost(?::\d+)?/gi, tailscaleBaseUrl);
+        page = page.replace(/\bwss?:\/\/localhost(?::\d+)?/gi, wsBaseUrl);
+        // Remover porta de URLs do Tailscale (se existir)
+        page = page.replace(/(\.ts\.net):\d+/g, '$1');
+        // URLs em strings JavaScript (com aspas)
+        page = page.replace(/'https?:\/\/localhost:\d+/g, `'${tailscaleBaseUrl}`);
+        page = page.replace(/'wss?:\/\/localhost:\d+/g, `'${wsBaseUrl}`);
+        // URLs em atributos HTML
+        page = page.replace(/(src|href)=["']https?:\/\/localhost(?::\d+)?/gi, (_match, attr) => `${attr}="${tailscaleBaseUrl}`);
+        page = page.replace(/(src|href)=["']wss?:\/\/localhost(?::\d+)?/gi, (_match, attr) => `${attr}="${wsBaseUrl}`);
         
         // ======================================================================
         // SCRIPT SIMPLIFICADO PARA CORRIGIR URLs DO TAILSCALE
@@ -620,12 +613,15 @@ export async function setupVite(app: Express, _server: Server, port?: number) {
 export function serveStatic(app: Express) {
   const distPath =
     process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
-      : path.resolve(import.meta.dirname, "public");
+      ? path.resolve(import.meta.dirname, "../..", ".parcel-dist")
+      : path.resolve(import.meta.dirname, "../..", "dist", "public");
       
   if (!fs.existsSync(distPath)) {
     console.error(
       `[Vite] ❌ Diretório não encontrado: ${distPath}`
+    );
+    console.error(
+      `[Vite] 💡 Execute 'npm run dev:vite:build' para criar os arquivos de desenvolvimento`
     );
     console.error(
       `[Vite] 💡 Execute 'npm run build' para criar os arquivos de produção`
@@ -633,8 +629,14 @@ export function serveStatic(app: Express) {
     return;
   }
 
+  console.log(`[Vite] ✅ Servindo arquivos estáticos de: ${distPath}`);
+
   // Servir arquivos estáticos
-  app.use(express.static(distPath));
+  app.use(express.static(distPath, {
+    maxAge: 0, // Sem cache em desenvolvimento
+    etag: false,
+    lastModified: false,
+  }));
 
   // Fallback para index.html (SPA routing)
   app.use("*", (_req, res) => {

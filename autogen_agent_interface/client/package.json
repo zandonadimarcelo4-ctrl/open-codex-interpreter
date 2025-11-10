@@ -6,7 +6,10 @@
   "targets": {
     "default": {
       "publicUrl": "/",
-      "distDir": "../.parcel-dist"
+      "distDir": "../.parcel-dist",
+      "sourceMap": false,
+      "context": "browser",
+      "includeNodeModules": true
     }
   }
 }

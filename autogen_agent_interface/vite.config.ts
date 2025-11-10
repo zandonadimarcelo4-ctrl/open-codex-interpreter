@@ -1,7 +1,6 @@
 // import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc"; // Desabilitado devido a problemas com Vite 7
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import fs from "node:fs";
 import path from "path";
 import { defineConfig } from "vite";
 // import { vitePluginManusRuntime } from "vite-plugin-manus-runtime"; // Desabilitado temporariamente devido a problemas com Vite 7
@@ -32,12 +31,23 @@ export default defineConfig({
   root: path.resolve(import.meta.dirname, "client"),
   publicDir: path.resolve(import.meta.dirname, "client", "public"),
   build: {
-    outDir: path.resolve(import.meta.dirname, "dist/public"),
+    outDir: path.resolve(import.meta.dirname, ".parcel-dist"),
     emptyOutDir: true,
+    // Garantir que todas as dependências sejam bundleadas
+    rollupOptions: {
+      output: {
+        // Não marcar nada como externo - bundlear tudo
+        manualChunks: undefined,
+      },
+    },
+    // Garantir que CommonJS seja convertido para ESM
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
   },
   server: {
     host: '0.0.0.0', // Escutar em todas as interfaces de rede
-    allowedHosts: 'all', // Permitir todos os hosts (incluindo Tailscale Funnel .ts.net)
+    allowedHosts: true, // Permitir todos os hosts (incluindo Tailscale Funnel .ts.net)
     fs: {
       strict: true,
       deny: ["**/.*"],

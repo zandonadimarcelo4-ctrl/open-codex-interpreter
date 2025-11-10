@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import { createServer } from "http";
 import { createServer as createHttpsServer } from "https";
-import net from "net";
 import os from "os";
 import fs from "fs";
 import path from "path";
@@ -17,62 +16,11 @@ const importMetaDirname = __dirname;
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupParcel } from "./parcel";
+import { serveStatic } from "./vite";
 import { ChatWebSocketServer } from "../utils/websocket";
 import { backgroundWorker } from "./services/backgroundWorker";
 import { resourceManager } from "./services/resourceManager";
 import { modelLoader } from "./services/modelLoader";
-
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const testServer = net.createServer();
-    const timeout = setTimeout(() => {
-      testServer.close();
-      resolve(false);
-    }, 1000);
-    
-    testServer.once('error', (err: any) => {
-      clearTimeout(timeout);
-      if (err.code === 'EADDRINUSE') {
-        resolve(false);
-      } else {
-        resolve(false);
-      }
-    });
-    
-    testServer.once('listening', () => {
-      clearTimeout(timeout);
-      testServer.close(() => {
-        // Pequeno delay após fechar para garantir que a porta está realmente livre
-        setTimeout(() => resolve(true), 50);
-      });
-    });
-    
-    testServer.listen(port, '0.0.0.0');
-  });
-}
-
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
-  console.log(`[Server] 🔍 Verificando portas disponíveis a partir de ${startPort}...`);
-  for (let port = startPort; port < startPort + 20; port++) {
-    const available = await isPortAvailable(port);
-    if (available) {
-      console.log(`[Server] ✅ Porta ${port} está disponível`);
-      // Verificar novamente para ter certeza (double-check)
-      await new Promise(resolve => setTimeout(resolve, 200));
-      const stillAvailable = await isPortAvailable(port);
-      if (stillAvailable) {
-        console.log(`[Server] ✅ Porta ${port} confirmada como disponível`);
-        return port;
-      } else {
-        console.log(`[Server] ⚠️ Porta ${port} foi ocupada entre verificações, tentando próxima...`);
-      }
-    } else {
-      console.log(`[Server] ❌ Porta ${port} está em uso`);
-    }
-  }
-  throw new Error(`No available port found starting from ${startPort} (tried ${startPort} to ${startPort + 19})`);
-}
 
 async function startServer() {
   const app = express();
@@ -81,9 +29,10 @@ async function startServer() {
   app.use((req, _res, next) => {
     // Permitir qualquer host - necessário para Tailscale Funnel
     const host = req.headers.host;
-    if (host) {
-      // Log para debug
-      console.log(`[Server] Requisição recebida de host: ${host}`);
+    const url = req.url || req.originalUrl || '';
+    // Log apenas para requisições importantes (não logar todas para evitar spam)
+    if (url === '/' || url.startsWith('/app') || url.startsWith('/src')) {
+      console.log(`[Server] Requisição recebida: ${req.method} ${url} (host: ${host})`);
     }
     next();
   });
@@ -154,7 +103,16 @@ async function startServer() {
     app.use('/favicon.png', express.static(path.join(publicPath, 'favicon.png')));
     app.use('/icon-192.png', express.static(path.join(publicPath, 'icon-192.png')));
     app.use('/icon-512.png', express.static(path.join(publicPath, 'icon-512.png')));
-    app.use('/manifest.json', express.static(path.join(publicPath, 'manifest.json')));
+    // Servir manifest.json com Content-Type correto
+    app.get('/manifest.json', (_req, res) => {
+      const manifestPath = path.join(publicPath, 'manifest.json');
+      if (fs.existsSync(manifestPath)) {
+        res.setHeader('Content-Type', 'application/manifest+json');
+        res.sendFile(manifestPath);
+      } else {
+        res.status(404).json({ error: 'Manifest not found' });
+      }
+    });
     app.use('/sw.js', express.static(path.join(publicPath, 'sw.js')));
     console.log('[Server] ✅ Arquivos públicos configurados:', publicPath);
   }
@@ -507,42 +465,41 @@ async function startServer() {
     }
   });
   
-  // tRPC API
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
+  // tRPC API - DEVE estar configurado ANTES do Parcel para não interferir
+  // IMPORTANTE: O tRPC só processa rotas que começam com /api/trpc
+  // Usar um middleware wrapper para garantir que apenas rotas tRPC sejam processadas
+  app.use("/api/trpc", (req, res, next) => {
+    const path = req.path || req.url?.split('?')[0] || '';
+    const method = req.method;
+    
+    // CRÍTICO: Verificar explicitamente se é uma rota tRPC ANTES de processar
+    if (!path.startsWith('/api/trpc')) {
+      // NÃO é uma rota tRPC, passar para o próximo middleware
+      console.log(`[tRPC] ⏭️  Ignorando rota não-tRPC: ${method} ${path}`);
+      next();
+      return;
+    }
+    
+    // É uma rota tRPC válida, processar
+    console.log(`[tRPC] ✅ Processando rota tRPC: ${method} ${path}`);
+    const trpcHandler = createExpressMiddleware({
       router: appRouter,
       createContext,
-    })
-  );
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  let port = await findAvailablePort(preferredPort);
+      onError: ({ error, path: errorPath }) => {
+        // Só logar erros reais do tRPC
+        if (errorPath) {
+          console.error(`[tRPC] ❌ Erro em ${errorPath}:`, error.message);
+        }
+      },
+    });
+    
+    trpcHandler(req, res, next);
+  });
   
-  if (port !== preferredPort) {
-    console.log(`[Server] ⚠️ Porta ${preferredPort} está em uso, usando porta ${port} instead`);
-  } else {
-    console.log(`[Server] ✅ Porta ${port} disponível`);
-  }
-  
-  // Aguardar um pouco e verificar novamente antes de fazer bind
-  // (pode haver um delay após processos serem encerrados)
-  await new Promise(resolve => setTimeout(resolve, 500));
-  const finalCheck = await isPortAvailable(port);
-  if (!finalCheck) {
-    console.log(`[Server] ⚠️ Porta ${port} foi ocupada após verificação, tentando encontrar outra...`);
-    port = await findAvailablePort(port + 1);
-    console.log(`[Server] ✅ Usando porta ${port} ao invés`);
-  }
-  
-  // development mode uses Parcel, production mode uses static files
-  if (process.env.NODE_ENV === "development") {
-    await setupParcel(app, server, port);
-  } else {
+  // production mode uses static files
+  if (process.env.NODE_ENV !== "development") {
     serveStatic(app);
   }
-
-  // Inicializar WebSocket Server
-  new ChatWebSocketServer(server);
 
   // Inicializar Background Worker 24/7
   backgroundWorker.start();
@@ -605,164 +562,94 @@ async function startServer() {
     console.warn(`   O servidor ainda escutará em 0.0.0.0, mas não será acessível por IP de rede.`);
   }
 
-  // Tentar fazer bind na porta, se falhar, tentar outra porta
-  const tryListen = async (attemptPort: number, maxAttempts: number = 5): Promise<void> => {
-    const currentServer = server;
+  // Configurar Vite para servir arquivos estáticos (em desenvolvimento)
+  // IMPORTANTE: Os arquivos estáticos devem ser servidos ANTES de qualquer requisição chegar
+  const preferredPort = parseInt(process.env.PORT || "3000");
+  if (process.env.NODE_ENV === "development") {
+    serveStatic(app);
+  }
+  
+  // Tentar fazer bind na porta - usar fallback automático se falhar
+  const tryListen = async (attemptPort: number, maxAttempts: number = 10): Promise<number> => {
     return new Promise((resolve, reject) => {
       const listenHandler = async () => {
+        const actualPort = attemptPort;
         console.log(`\n🚀 Server running on:`);
-        console.log(`   Local:   http://localhost:${attemptPort}/`);
-        console.log(`   Network: http://${localIP}:${attemptPort}/`);
+        console.log(`   Local:   http://localhost:${actualPort}/`);
+        console.log(`   Network: http://${localIP}:${actualPort}/`);
         console.log(`\n📡 WebSocket server running on:`);
-        console.log(`   Local:   ws://localhost:${attemptPort}/ws`);
-        console.log(`   Network: ws://${localIP}:${attemptPort}/ws`);
+        console.log(`   Local:   ws://localhost:${actualPort}/ws`);
+        console.log(`   Network: ws://${localIP}:${actualPort}/ws`);
         console.log(`\n📊 Status:`);
         console.log(`   Background Worker: ${backgroundWorker.isWorkerRunning() ? '✅ Running' : '❌ Stopped'}`);
         console.log(`   Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
         console.log(`   VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
         
-        // Verificar Tailscale Funnel
-        // Verificar primeiro se há um Funnel ativo (mesmo sem detectar Tailscale instalado)
-        const { checkTailscaleInstalled, checkTailscaleFunnel, startTailscaleFunnel } = await import('../utils/tailscale');
+        // Inicializar WebSocket Server DEPOIS que o servidor iniciar
+        new ChatWebSocketServer(server);
         
-        // Verificar Funnel primeiro (pode estar ativo mesmo se não detectarmos o Tailscale)
-        const funnelStatus = await checkTailscaleFunnel(attemptPort);
+        // Verificar Tailscale Funnel
+        const { checkTailscaleFunnel, startTailscaleFunnel } = await import('../utils/tailscale');
+        const funnelStatus = await checkTailscaleFunnel(actualPort);
         
         if (funnelStatus.active) {
-          // Funnel está ativo - mostrar URL mesmo se não detectamos o Tailscale
           if (funnelStatus.url) {
             console.log(`\n🌐 Tailscale Funnel ATIVO:`);
-            // IMPORTANTE: URL do Tailscale Funnel SEMPRE sem porta (usa porta padrão 443)
             const funnelUrl = funnelStatus.url?.replace(/:\d+(\/|$)/, '$1') || funnelStatus.url;
             console.log(`   🌐 URL: ${funnelUrl}`);
             console.log(`   📡 WebSocket: ${funnelUrl?.replace('https://', 'wss://')}/ws`);
-            console.log(`\n   ⚠️  Se estiver dando timeout, verifique:`);
-            console.log(`      1. O servidor está escutando em 0.0.0.0:${attemptPort} (não apenas localhost)`);
-            console.log(`      2. O Funnel está realmente ativo: tailscale funnel status`);
-            console.log(`      3. O servidor está respondendo localmente: http://localhost:${attemptPort}/api/test`);
           } else {
-            console.log(`\n🌐 Tailscale Funnel ATIVO (porta ${attemptPort})`);
-            if (funnelStatus.error) {
-              console.log(`   ⚠️  ${funnelStatus.error}`);
-            }
+            console.log(`\n🌐 Tailscale Funnel ATIVO (porta ${actualPort})`);
             console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
-            // Tentar obter a URL novamente após um delay
-            setTimeout(async () => {
-                const retryStatus = await checkTailscaleFunnel(attemptPort);
-                if (retryStatus.url) {
-                  // IMPORTANTE: URL do Tailscale Funnel SEMPRE sem porta
-                  const retryUrl = retryStatus.url.replace(/:\d+(\/|$)/, '$1');
-                  console.log(`   🌐 URL do Funnel: ${retryUrl}`);
-                  console.log(`   📡 WebSocket: ${retryUrl.replace('https://', 'wss://')}/ws`);
-                } else if (retryStatus.error) {
-                  console.log(`   ⚠️  ${retryStatus.error}`);
-                }
-            }, 2000);
           }
-        } else {
-          // Funnel não está ativo - tentar iniciar se USE_TAILSCALE_FUNNEL=true
-          if (process.env.USE_TAILSCALE_FUNNEL === 'true') {
-            console.log(`\n🔄 Iniciando Tailscale Funnel automaticamente (USE_TAILSCALE_FUNNEL=true)...`);
-            
-            // Verificar se o Tailscale está rodando primeiro
-            const { checkTailscaleRunning } = await import('../utils/tailscale');
-            const tailscaleStatus = await checkTailscaleRunning();
-            
-            if (!tailscaleStatus.running) {
-              console.log(`   ⚠️  Tailscale não está rodando!`);
-              console.log(`      ${tailscaleStatus.error || 'Tailscale está parado'}`);
-              console.log(`\n   📋 Para iniciar o Tailscale:`);
-              console.log(`      1. Execute: tailscale up`);
-              console.log(`      2. Ou inicie o Tailscale pelo menu do sistema`);
-              console.log(`      3. Depois reinicie o servidor`);
-              console.log(`\n   💡 Alternativa: Execute manualmente:`);
-              console.log(`      tailscale up && tailscale funnel --bg ${attemptPort}`);
-            } else {
-              const result = await startTailscaleFunnel(attemptPort);
-              if (result.success) {
-                console.log(`   ✅ Tailscale Funnel iniciado com sucesso!`);
-                if (result.url) {
-                  console.log(`      🌐 URL: ${result.url}`);
-                  console.log(`      📡 WebSocket: ${result.url.replace('https://', 'wss://')}/ws`);
-                } else {
-                  console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
-                  // Tentar obter a URL após um delay
-                  setTimeout(async () => {
-                    const retryStatus = await checkTailscaleFunnel(attemptPort);
-                    if (retryStatus.url) {
-                      console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
-                      console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
-                    }
-                  }, 2000);
-                }
-              } else {
-                console.log(`   ⚠️  Não foi possível iniciar Tailscale Funnel automaticamente:`);
-                console.log(`      ${result.error || 'Erro desconhecido'}`);
-                
-                // Verificar se o erro é porque o Tailscale está parado
-                if (result.error?.includes('stopped') || result.error?.includes('not running')) {
-                  console.log(`\n   📋 Para iniciar o Tailscale:`);
-                  console.log(`      1. Execute: tailscale up`);
-                  console.log(`      2. Ou inicie o Tailscale pelo menu do sistema`);
-                  console.log(`      3. Depois reinicie o servidor`);
-                } else {
-                  console.log(`   💡 Para iniciar manualmente, execute:`);
-                  console.log(`      tailscale funnel --bg ${attemptPort}`);
-                }
-              }
+        } else if (process.env.USE_TAILSCALE_FUNNEL === 'true') {
+          console.log(`\n🔄 Iniciando Tailscale Funnel automaticamente...`);
+          const { checkTailscaleRunning } = await import('../utils/tailscale');
+          const tailscaleStatus = await checkTailscaleRunning();
+          
+          if (tailscaleStatus.running) {
+            const result = await startTailscaleFunnel(actualPort);
+            if (result.success && result.url) {
+              console.log(`   ✅ Tailscale Funnel iniciado: ${result.url}`);
             }
           } else {
-            // Verificar se Tailscale está instalado para mostrar mensagem apropriada
-            const tailscaleInstalled = await checkTailscaleInstalled();
-            
-            if (tailscaleInstalled) {
-              console.log(`\n🌐 Tailscale detectado!`);
-              console.log(`   💡 Para usar Tailscale Funnel (acesso de qualquer lugar):`);
-              console.log(`      1. Configure USE_TAILSCALE_FUNNEL=true no .env`);
-              console.log(`      2. Ou execute manualmente: tailscale funnel --bg ${attemptPort}`);
-            } else {
-              console.log(`\n💡 Para acesso de qualquer lugar (sem configurar firewall):`);
-              console.log(`   Use Tailscale Funnel:`);
-              console.log(`   1. Instale o Tailscale: https://tailscale.com/download`);
-              console.log(`   2. Configure USE_TAILSCALE_FUNNEL=true no .env`);
-              console.log(`   3. Ou execute: tailscale funnel --bg ${attemptPort}`);
-            }
+            console.log(`   ⚠️  Tailscale não está rodando`);
           }
         }
         
-        console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${attemptPort}/`);
-        console.log(`\n⚠️  IMPORTANTE: Se não conseguir conectar de outro PC (timeout):`);
-        console.log(`   → Use Tailscale Funnel (recomendado) ou configure o firewall`);
-        console.log(`   → Veja instruções acima para Tailscale Funnel\n`);
-        
-        resolve();
+        console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${actualPort}/`);
+        resolve(actualPort);
       };
 
-      const errorHandler = async (err: any) => {
+      const errorHandler = (err: any) => {
         if (err.code === 'EADDRINUSE') {
           console.error(`[Server] ❌ Porta ${attemptPort} está em uso!`);
           if (maxAttempts > 0) {
             const nextPort = attemptPort + 1;
             console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
-            currentServer.removeAllListeners('listening');
-            currentServer.removeAllListeners('error');
-            await tryListen(nextPort, maxAttempts - 1);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
           } else {
-            reject(new Error(`Não foi possível encontrar uma porta disponível após ${maxAttempts} tentativas`));
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
           }
         } else {
           reject(err);
         }
       };
 
-      currentServer.once('listening', listenHandler);
-      currentServer.once('error', errorHandler);
-      currentServer.listen(attemptPort, '0.0.0.0');
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
     });
   };
 
   try {
-    await tryListen(port);
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
   } catch (error) {
     console.error('[Server] ❌ Erro ao iniciar servidor:', error);
     process.exit(1);

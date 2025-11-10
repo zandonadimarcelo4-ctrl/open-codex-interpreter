@@ -311,16 +311,26 @@ async function startServer() {
             const errorMessage = sttError instanceof Error ? sttError.message : String(sttError);
             
             // Verificar se é erro de dependência
-            if (errorMessage.includes("faster-whisper") || errorMessage.includes("não está instalado")) {
-              res.status(500).json({
+            if (errorMessage.includes("faster-whisper") || 
+                errorMessage.includes("não está instalado") || 
+                errorMessage.includes("No module named") ||
+                errorMessage.includes("ModuleNotFoundError")) {
+              res.status(503).json({
                 error: "STT não disponível",
-                details: errorMessage,
-                suggestion: "Execute: pip install faster-whisper pydub"
+                details: "Dependências do STT não estão instaladas",
+                message: errorMessage,
+                solution: {
+                  windows: "Execute: .\\scripts\\install_stt_dependencies.ps1",
+                  linux: "Execute: chmod +x scripts/install_stt_dependencies.sh && ./scripts/install_stt_dependencies.sh",
+                  manual: "Execute: pip install faster-whisper pydub"
+                },
+                suggestion: "Instale as dependências do STT para usar Speech-to-Text. Veja scripts/install_stt_dependencies.ps1 (Windows) ou install_stt_dependencies.sh (Linux/Mac)"
               });
             } else {
               res.status(500).json({
                 error: "Erro ao processar áudio",
-                details: errorMessage
+                details: errorMessage,
+                suggestion: "Verifique os logs do servidor para mais detalhes"
               });
             }
           }

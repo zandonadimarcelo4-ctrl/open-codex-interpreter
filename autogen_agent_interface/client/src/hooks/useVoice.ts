@@ -573,15 +573,25 @@ export function useVoice(options: UseVoiceOptions = {}) {
           console.log(`[STT] ✅ Dados recebidos:`, data);
           
           if (data.text && data.text.trim()) {
-            // Verificar se não é mensagem de "não implementado"
-            if (data.text.includes('ainda não implementada') || data.text.includes('ainda não implementado')) {
-              setError('STT ainda não está completamente implementado. Use texto por enquanto.');
-              console.warn('[STT] ⚠️ STT não implementado, mas resposta recebida');
+            // Verificar se não é mensagem de "não implementado" ou erro de dependência
+            if (data.text.includes('ainda não implementada') || 
+                data.text.includes('ainda não implementado') ||
+                data.error === 'STT não disponível') {
+              const errorMsg = data.solution 
+                ? `STT não disponível. ${data.suggestion || 'Instale as dependências do STT.'}`
+                : 'STT ainda não está completamente implementado. Use texto por enquanto.';
+              setError(errorMsg);
+              console.warn('[STT] ⚠️ STT não disponível:', data);
             } else {
               console.log(`[STT] ✅ Texto transcrito: "${data.text}"`);
               onTextReceived?.(data.text);
               setError(null); // Limpar erro se sucesso
             }
+          } else if (data.error) {
+            // Se houver erro na resposta, mostrar mensagem amigável
+            const errorMsg = data.suggestion || data.details || data.error || 'Erro ao processar áudio';
+            setError(errorMsg);
+            console.error('[STT] ❌ Erro na resposta:', data);
           } else {
             setError('Não foi possível transcrever o áudio. Tente novamente.');
             console.warn('[STT] ⚠️ Resposta vazia ou sem texto');

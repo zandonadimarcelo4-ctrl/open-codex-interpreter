@@ -94,9 +94,12 @@ export async function transcribeAudio(
           console.error(`[STT] stderr:`, stderr);
           
           // Verificar se é erro de dependência
-          if (stderr.includes("faster-whisper") || stderr.includes("No module named")) {
+          if (stderr.includes("faster-whisper") || 
+              stderr.includes("No module named") || 
+              stderr.includes("ModuleNotFoundError") ||
+              stderr.includes("ImportError")) {
             reject(new Error(
-              "Faster-Whisper não está instalado. Execute: pip install faster-whisper"
+              "Faster-Whisper não está instalado. Execute: pip install faster-whisper pydub ou use scripts/install_stt_dependencies.ps1 (Windows) / install_stt_dependencies.sh (Linux/Mac)"
             ));
           } else {
             reject(new Error(`STT error: ${stderr || stdout || "Unknown error"}`));

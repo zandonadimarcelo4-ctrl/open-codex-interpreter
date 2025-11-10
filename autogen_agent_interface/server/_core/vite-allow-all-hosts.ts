@@ -1,75 +1,97 @@
 import type { Plugin } from 'vite';
 
 /**
- * Plugin do Vite para permitir TODOS os hosts
- * Isso é necessário para permitir acesso via Tailscale Funnel e outros hosts externos
+ * ============================================================================
+ * PLUGIN VITE: PERMITIR TODOS OS HOSTS
+ * ============================================================================
  * 
- * Este plugin funciona tanto em modo servidor normal quanto em middlewareMode
+ * O QUE ESTE PLUGIN FAZ?
+ * - Permite que QUALQUER host acesse o servidor Vite
+ * - Necessário para Tailscale Funnel funcionar
+ * 
+ * POR QUE É NECESSÁRIO?
+ * - Por padrão, o Vite só aceita requisições de "localhost"
+ * - Tailscale usa um hostname diferente (ex: revision-pc.tailb3613b.ts.net)
+ * - Sem este plugin, o Vite rejeitaria requisições do Tailscale (erro 403)
+ * 
+ * COMO FUNCIONA?
+ * - Força `allowedHosts: true` na configuração do Vite
+ * - Adiciona headers de proxy para requisições Tailscale
+ * 
+ * ============================================================================
+ */
+
+/**
+ * Plugin do Vite que permite TODOS os hosts
+ * 
+ * @returns Plugin do Vite configurado
  */
 export function viteAllowAllHosts(): Plugin {
   return {
     name: 'vite-allow-all-hosts',
-    enforce: 'pre', // Executar antes de outros plugins
+    enforce: 'pre', // Executar ANTES de outros plugins
+    
+    // Hook: Configurar servidor
     configureServer(server) {
-      // Interceptar middleware do Vite para permitir todos os hosts
-      const originalUse = server.middlewares.use.bind(server.middlewares);
-      
-      // Adicionar middleware no início para permitir todos os hosts
-      server.middlewares.use((req, res, next) => {
-        // Remover qualquer verificação de host - permitir tudo
-        const host = req.headers.host;
+      // Forçar allowedHosts: true
+      if (server.config && server.config.server) {
+        (server.config.server as any).allowedHosts = true;
         
-        // Log para debug (apenas para hosts externos)
-        if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-          console.log(`[Vite Plugin] ✅ Permitindo host: ${host}`);
+        // Garantir que host seja 0.0.0.0
+        if (!server.config.server.host) {
+          server.config.server.host = '0.0.0.0';
+        }
+      }
+      
+      // Adicionar middleware para processar requisições Tailscale
+      server.middlewares.use((req, res, next) => {
+        const host = req.headers.host || '';
+        
+        // Se for Tailscale, adicionar headers de proxy
+        if (host.endsWith('.ts.net')) {
+          req.headers['x-forwarded-host'] = host;
+          req.headers['x-forwarded-proto'] = 'https';
+          console.log(`[Vite Plugin] ✅ Tailscale: ${host}`);
         }
         
-        // Não fazer nenhuma verificação - permitir tudo
-        // Remover header de host se necessário para evitar verificação
         next();
       });
       
-      console.log('[Vite Plugin] ✅ Plugin vite-allow-all-hosts ativado - todos os hosts permitidos');
+      console.log('[Vite Plugin] ✅ Plugin ativado - todos os hosts permitidos');
     },
+    
+    // Hook: Configurar servidor de preview
     configurePreviewServer(server) {
       // Mesma coisa para preview server
       server.middlewares.use((req, res, next) => {
         const host = req.headers.host;
         if (host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-          console.log(`[Vite Plugin Preview] ✅ Permitindo host: ${host}`);
+          console.log(`[Vite Plugin] ✅ Preview: ${host}`);
         }
         next();
       });
     },
-    // Hook para modificar a configuração do Vite
+    
+    // Hook: Modificar configuração
     config(config) {
-      // Garantir que allowedHosts está definido como 'all'
+      // Garantir que allowedHosts está definido
       if (!config.server) {
         config.server = {};
       }
-      // Tentar múltiplas formas de permitir todos os hosts
+      
       config.server.allowedHosts = 'all';
       config.server.host = '0.0.0.0';
       
-      // Se 'all' não funcionar, tentar lista vazia ou true
-      // Algumas versões do Vite podem não suportar 'all'
-      try {
-        // Verificar se há uma propriedade interna que podemos modificar
-        (config.server as any).strictPort = false;
-      } catch (e) {
-        // Ignorar erros
-      }
-      
       return config;
     },
-    // Hook de configuração resolvida (executa após todas as configurações serem resolvidas)
+    
+    // Hook: Configuração resolvida
     configResolved(config) {
       // Garantir que allowedHosts está definido mesmo após resolução
       if (config.server && config.server.allowedHosts !== 'all') {
-        console.warn('[Vite Plugin] ⚠️ allowedHosts não está definido como "all", forçando...');
+        console.warn('[Vite Plugin] ⚠️  Forçando allowedHosts: all');
         config.server.allowedHosts = 'all';
       }
     },
   };
 }
-

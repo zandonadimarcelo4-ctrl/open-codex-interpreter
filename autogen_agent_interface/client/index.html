@@ -8,10 +8,7 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1" />
     <meta name="theme-color" content="#000000" />
     <meta name="description" content="Super agente de IA com múltiplos modelos colaborativos" />
-    <link rel="icon" type="image/png" href="%VITE_APP_LOGO%" />
-    <link rel="apple-touch-icon" href="%VITE_APP_LOGO%" />
-    <link rel="manifest" href="/manifest.json" />
-    <title>%VITE_APP_TITLE%</title>
+    <title>AutoGen Super Agent</title>
     <!-- Add Google Fonts here, example:
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,26 +18,40 @@
 
   <body>
     <div id="root"></div>
+    <!-- Adicionar favicon e manifest dinamicamente (evita erro do Parcel durante build) -->
+    <script>
+      (function() {
+        // Adicionar favicon e manifest dinamicamente via JavaScript
+        // Isso evita que o Parcel tente resolver esses arquivos durante o build
+        const head = document.head;
+        
+        // Favicon
+        const favicon = document.createElement('link');
+        favicon.rel = 'icon';
+        favicon.type = 'image/png';
+        favicon.href = '/favicon.png';
+        head.appendChild(favicon);
+        
+        // Apple touch icon
+        const appleIcon = document.createElement('link');
+        appleIcon.rel = 'apple-touch-icon';
+        appleIcon.href = '/icon-192.png';
+        head.appendChild(appleIcon);
+        
+        // Manifest
+        const manifest = document.createElement('link');
+        manifest.rel = 'manifest';
+        manifest.href = '/manifest.json';
+        head.appendChild(manifest);
+      })();
+    </script>
     <script type="module" src="./src/main.tsx"></script>
     <!-- Analytics (opcional - só carrega se configurado) -->
     <script>
       (function() {
-        const analyticsEndpoint = '%VITE_ANALYTICS_ENDPOINT%';
-        const websiteId = '%VITE_ANALYTICS_WEBSITE_ID%';
-        
-        // Só carregar se as variáveis estiverem definidas e não forem placeholders
-        if (analyticsEndpoint && 
-            websiteId && 
-            analyticsEndpoint !== '%VITE_ANALYTICS_ENDPOINT%' && 
-            websiteId !== '%VITE_ANALYTICS_WEBSITE_ID%' &&
-            !analyticsEndpoint.includes('undefined') &&
-            !websiteId.includes('undefined')) {
-          const script = document.createElement('script');
-          script.defer = true;
-          script.src = analyticsEndpoint + '/umami';
-          script.setAttribute('data-website-id', websiteId);
-          document.body.appendChild(script);
-        }
+        // Analytics - Desabilitado por padrão
+        // Para habilitar, configure as variáveis de ambiente no servidor
+        // ou modifique este script para carregar o analytics desejado
       })();
     </script>
     <script>

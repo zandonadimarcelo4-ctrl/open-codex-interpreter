@@ -1,0 +1,72 @@
+<!DOCTYPE html><html lang="en"><head><link rel="stylesheet" href="/client.2d98f12b.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+    <meta name="theme-color" content="#000000">
+    <meta name="description" content="Super agente de IA com múltiplos modelos colaborativos">
+    <title>AutoGen Super Agent</title>
+    <!-- Add Google Fonts here, example:
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    -->
+  </head>
+
+  <body>
+    <div id="root"></div>
+    <!-- Adicionar favicon e manifest dinamicamente (evita erro do Parcel durante build) -->
+    <script>(function() {
+    // Adicionar favicon e manifest dinamicamente via JavaScript
+    // Isso evita que o Parcel tente resolver esses arquivos durante o build
+    const head = document.head;
+    // Favicon
+    const favicon = document.createElement('link');
+    favicon.rel = 'icon';
+    favicon.type = 'image/png';
+    favicon.href = '/favicon.png';
+    head.appendChild(favicon);
+    // Apple touch icon
+    const appleIcon = document.createElement('link');
+    appleIcon.rel = 'apple-touch-icon';
+    appleIcon.href = '/icon-192.png';
+    head.appendChild(appleIcon);
+    // Manifest
+    const manifest = document.createElement('link');
+    manifest.rel = 'manifest';
+    manifest.href = '/manifest.json';
+    head.appendChild(manifest);
+})();
+
+</script>
+    <script type="module" src="/client.8b2f680b.js"></script>
+    <!-- Analytics (opcional - só carrega se configurado) -->
+    <script>
+</script>
+    <script>// Registrar Service Worker para PWA (apenas em produção)
+// NÃO registrar para localhost, 127.0.0.1 ou Tailscale (.ts.net)
+// Tailscale precisa de conexões diretas sem cache do Service Worker
+(function() {
+    const hostname = window.location.hostname;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || /^\d+\.\d+\.\d+\.\d+$/.test(hostname);
+    const isTailscale = hostname && hostname.endsWith('.ts.net');
+    if ('serviceWorker' in navigator) {
+        if (isLocalhost || isTailscale) // Em desenvolvimento ou Tailscale, desregistrar qualquer Service Worker existente
+        navigator.serviceWorker.getRegistrations().then((registrations)=>{
+            for (const registration of registrations)registration.unregister().then(()=>{
+                console.log('[SW] Service Worker desregistrado para', isTailscale ? 'Tailscale' : 'desenvolvimento');
+            });
+        });
+        else // Em produção (não localhost, não Tailscale), registrar Service Worker
+        window.addEventListener('load', ()=>{
+            navigator.serviceWorker.register('/sw.js').then((registration)=>{
+                console.log('[SW] Service Worker registrado:', registration.scope);
+            }).catch((error)=>{
+                console.log('[SW] Erro ao registrar Service Worker:', error);
+            });
+        });
+    }
+})();
+
+</script>
+  
+
+</body></html>

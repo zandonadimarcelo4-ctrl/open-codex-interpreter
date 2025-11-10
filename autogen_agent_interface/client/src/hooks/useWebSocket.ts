@@ -192,28 +192,19 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
           console.log('[WebSocket] Conexão fechada intencionalmente');
           return;
         }
-
-        // Tentar reconectar apenas se não excedeu o limite E não há outra conexão ativa
-        if (reconnectAttemptsRef.current < maxReconnectAttempts && enabled && !globalWSInstance) {
-          reconnectAttemptsRef.current++;
-          // Backoff exponencial com limite máximo de 10 segundos (reduzido)
-          const delay = Math.min(reconnectDelayRef.current * Math.pow(2, reconnectAttemptsRef.current - 1), 10000);
-          reconnectDelayRef.current = delay;
-          
-          // Log apenas na primeira tentativa para evitar spam
-          if (reconnectAttemptsRef.current === 1) {
-            console.log(`[WebSocket] Tentando reconectar (${reconnectAttemptsRef.current}/${maxReconnectAttempts}) em ${delay}ms...`);
-          }
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            // Verificar novamente antes de reconectar
-            if (!globalWSInstance && enabled) {
-              connect();
-            }
-          }, delay);
-        } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-          console.warn(`[WebSocket] ❌ Limite de tentativas de reconexão atingido (${maxReconnectAttempts}). Parando tentativas.`);
+        
+        // NÃO reconectar automaticamente se a conexão foi fechada
+        // Deixa o React gerenciar a reconexão através do useEffect
+        // Isso previne loops infinitos de reconexão
+        console.log('[WebSocket] Conexão fechada. Aguardando reconexão manual...');
+        
+        // Limpar referência global
+        if (globalWSInstance === ws) {
+          globalWSInstance = null;
         }
+        
+        // NÃO tentar reconectar automaticamente aqui
+        // O useEffect vai detectar que a conexão foi fechada e reconectar se necessário
       };
     } catch (err) {
       console.error('[WebSocket] ❌ Erro ao criar WebSocket:', err);
@@ -286,21 +277,31 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
   }, [onMessage, enabled]);
 
   useEffect(() => {
-    if (enabled) {
-      // Delay maior para evitar múltiplas tentativas simultâneas
+    if (!enabled) {
+      disconnect();
+      return;
+    }
+    
+    // Conectar apenas uma vez quando o componente monta
+    // Não reconectar automaticamente se já estiver conectado
+    if (!globalWSInstance || globalWSInstance.readyState === WebSocket.CLOSED) {
       const timeoutId = setTimeout(() => {
         connect();
       }, 500);
       
       return () => {
         clearTimeout(timeoutId);
-        disconnect();
+        // NÃO desconectar automaticamente - deixa a conexão aberta
+        // disconnect();
       };
-    } else {
-      disconnect();
     }
+    
+    // Se já está conectado, não fazer nada
+    return () => {
+      // Não desconectar - manter conexão aberta
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled]); // Apenas 'enabled' nas dependências para evitar loops
+  }, [enabled, url]); // Apenas 'enabled' e 'url' nas dependências
 
   return {
     isConnected,

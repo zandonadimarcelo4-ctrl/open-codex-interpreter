@@ -31,7 +31,11 @@ export const getLoginUrl = () => {
     isPlaceholder(oauthPortalUrl) ||
     isPlaceholder(appId)
   ) {
-    console.log("OAuth não configurado ou usando valores de placeholder. Usando rota local.");
+    // Não logar repetidamente - só em desenvolvimento e uma vez
+    if (import.meta.env.DEV && !(window as any).__oauth_logged) {
+      console.log("OAuth não configurado. Usando rota local.");
+      (window as any).__oauth_logged = true;
+    }
     return "/";
   }
 

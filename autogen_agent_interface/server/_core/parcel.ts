@@ -94,6 +94,9 @@ export async function setupParcel(app: Express, _server: Server, port?: number) 
     },
   });
 
+  // NOTA: Arquivos públicos já são servidos pelo Express em index.ts (ANTES do setupParcel)
+  // Não precisamos configurá-los aqui novamente para evitar duplicação
+
   // Middleware para fazer proxy das requisições para o Parcel
   app.use((req, res, next) => {
     const url = req.url || req.originalUrl || '';

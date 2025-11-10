@@ -44,7 +44,8 @@ export default defineConfig({
     },
     hmr: {
       overlay: false,
-      host: '0.0.0.0', // Permitir HMR de qualquer IP da rede
+      // HMR será configurado dinamicamente pelo setupVite baseado em USE_HTTPS
+      // Não configurar aqui para evitar conflitos
     },
     // Desabilitar HTML proxy para evitar erros com Vite 7
     proxy: undefined,

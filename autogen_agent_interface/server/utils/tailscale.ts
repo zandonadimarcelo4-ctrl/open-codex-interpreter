@@ -127,37 +127,17 @@ export async function checkTailscaleFunnel(port: number): Promise<{ active: bool
           // Limpar a URL (remover caracteres inválidos no final)
           let url = urlMatch[0].replace(/[^\w\-\.:/\s]+$/, '').trim();
           
-          // Verificar se a porta está na URL ou no output
-          const portInUrl = url.match(/:(\d+)/);
-          const portInOutput = fullOutput.includes(`:${port}`) || fullOutput.includes(` ${port} `) || fullOutput.includes(`port ${port}`);
+          // ====================================================================
+          // IMPORTANTE: Tailscale Funnel SEMPRE usa porta padrão (443 para HTTPS)
+          // NUNCA adicionar porta à URL do Funnel!
+          // ====================================================================
           
-          // Se a porta não está na URL, adicionar
-          if (!portInUrl && !url.includes(`:${port}`)) {
-            // Se a porta está mencionada no output, usar ela
-            if (portInOutput) {
-              url = `${url}:${port}`;
-            } else {
-              // Tentar extrair porta do output
-              const portMatch = fullOutput.match(/port[:\s]+(\d+)/i) || fullOutput.match(/:(\d+)/);
-              if (portMatch && portMatch[1]) {
-                url = `${url}:${portMatch[1]}`;
-              } else {
-                // Usar a porta padrão se não encontrar
-                url = `${url}:${port}`;
-              }
-            }
-          }
+          // Remover porta da URL se existir (Funnel não precisa de porta)
+          // Exemplo: https://hostname.ts.net:3000 → https://hostname.ts.net
+          url = url.replace(/:\d+(\/|$)/, '$1');
           
-          // Verificar se a porta no output corresponde à porta especificada
-          const isCorrectPort = portInOutput || (portInUrl && portInUrl[1] === port.toString());
-          
-          if (isCorrectPort || !portInOutput) {
-            // Funnel ativo - retornar URL (pode ser na porta especificada ou outra)
-            resolve({ active: true, url });
-          } else {
-            // Funnel ativo mas em outra porta
-            resolve({ active: false, error: `Funnel ativo em outra porta (${portInUrl?.[1] || 'desconhecida'}). Verifique: tailscale funnel status` });
-          }
+          // Funnel ativo - retornar URL sem porta
+          resolve({ active: true, url });
         } else {
           // Funnel ativo mas não conseguiu extrair URL
           resolve({ active: true, error: 'Funnel ativo mas URL não encontrada. Execute: tailscale funnel status' });
@@ -280,9 +260,15 @@ export async function startTailscaleFunnel(port: number): Promise<{ success: boo
         if (urlMatch) {
           // Limpar a URL
           let url = urlMatch[0].replace(/[^\w\-\.:/\s]+$/, '');
-          if (!url.includes(`:${port}`) && !url.endsWith('/')) {
-            url = `${url}:${port}`;
-          }
+          
+          // ====================================================================
+          // IMPORTANTE: Tailscale Funnel SEMPRE usa porta padrão (443 para HTTPS)
+          // NUNCA adicionar porta à URL do Funnel!
+          // ====================================================================
+          
+          // Remover porta da URL se existir
+          url = url.replace(/:\d+(\/|$)/, '$1');
+          
           resolve({ success: true, url });
         } else {
           // Se não conseguiu extrair do output, verificar status após um delay

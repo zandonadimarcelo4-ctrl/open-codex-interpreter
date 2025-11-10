@@ -2,6 +2,12 @@
   "name": "client",
   "version": "1.0.0",
   "private": true,
-  "source": "index.html"
+  "source": "index.html",
+  "targets": {
+    "default": {
+      "publicUrl": "/",
+      "distDir": "../.parcel-dist"
+    }
+  }
 }
 

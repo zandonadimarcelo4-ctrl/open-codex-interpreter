@@ -644,41 +644,30 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         </div>
       )}
 
-      {/* Messages Container - Premium Mobile Style com Animações React */}
+      {/* Messages Container - Premium Style */}
       <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4 space-y-4' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'} ${isMobile ? 'scroll-smooth' : ''}`}>
-        <AnimatePresence mode="popLayout">
-          {messages.map((message, index) => (
-            <motion.div
-              key={message.id}
-              initial={isMobile ? { opacity: 0, y: 20, scale: 0.95 } : {}}
-              animate={isMobile ? { opacity: 1, y: 0, scale: 1 } : {}}
-              exit={isMobile ? { opacity: 0, y: -10, scale: 0.95 } : {}}
-              transition={{ 
-                duration: 0.3, 
-                delay: isMobile ? index * 0.05 : 0,
-                ease: [0.22, 1, 0.36, 1] // iOS-like easing
-              }}
-              className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+          >
+            <div
+              className={`w-full ${isMobile ? 'max-w-[88%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
+                message.role === 'user'
+                  ? isMobile 
+                    ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-3xl rounded-tr-sm shadow-xl shadow-primary/30 p-4'
+                    : 'bg-primary text-primary-foreground rounded-lg rounded-tr-none p-3 sm:p-4'
+                  : message.role === 'system'
+                  ? isMobile
+                    ? 'bg-muted/70 backdrop-blur-xl border border-border/50 rounded-3xl shadow-lg p-4'
+                    : 'bg-muted/50 border border-border rounded-lg p-3 sm:p-4'
+                  : isMobile
+                    ? 'bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl rounded-tl-sm shadow-xl p-4'
+                    : 'bg-card border border-border rounded-lg rounded-tl-none p-3 sm:p-4'
+              } transition-all`}
             >
-              <motion.div
-                whileHover={isMobile ? { scale: 1.02 } : {}}
-                whileTap={isMobile ? { scale: 0.98 } : {}}
-                className={`w-full ${isMobile ? 'max-w-[88%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
-                  message.role === 'user'
-                    ? isMobile 
-                      ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-3xl rounded-tr-sm shadow-xl shadow-primary/30'
-                      : 'bg-primary text-primary-foreground rounded-lg rounded-tr-none'
-                    : message.role === 'system'
-                    ? isMobile
-                      ? 'bg-muted/70 backdrop-blur-xl border border-border/50 rounded-3xl shadow-lg'
-                      : 'bg-muted/50 border border-border rounded-lg'
-                    : isMobile
-                      ? 'bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl rounded-tl-sm shadow-xl'
-                      : 'bg-card border border-border rounded-lg rounded-tl-none'
-                } ${isMobile ? 'p-4 space-y-2' : 'p-3 sm:p-4 space-y-2'}`}
-              >
               {message.agentName && message.role === 'assistant' && (
-                <div className={`flex items-center gap-2 ${isMobile ? 'text-sm font-bold' : 'text-xs font-semibold'} text-accent ${isMobile ? 'mb-2' : ''}`}>
+                <div className={`flex items-center gap-2 ${isMobile ? 'text-sm font-bold mb-2' : 'text-xs font-semibold'} text-accent`}>
                   <span className={isMobile ? 'bg-accent/20 px-3 py-1 rounded-full' : ''}>{message.agentName}</span>
                   {!isMobile && message.agents && message.agents.length > 0 && (
                     <span className="text-muted-foreground">
@@ -687,8 +676,8 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                   )}
                 </div>
               )}
-              {message.intent && message.role === 'user' && (
-                <div className="text-xs text-muted-foreground/70">
+              {message.intent && message.role === 'user' && !isMobile && (
+                <div className="text-xs text-muted-foreground/70 mb-1">
                   {message.intent.type === 'action' && '🔧 Ação'} 
                   {message.intent.type === 'question' && '💬 Pergunta'}
                   {message.intent.type === 'conversation' && '💭 Conversa'}
@@ -713,7 +702,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                 </div>
               )}
               
-              <div className={`${isMobile ? 'text-base leading-relaxed' : 'text-sm'} prose prose-invert max-w-none ${isMobile ? 'prose-base' : ''}`}>
+              <div className={`${isMobile ? 'text-base leading-relaxed space-y-2' : 'text-sm'} prose prose-invert max-w-none ${isMobile ? 'prose-base' : ''}`}>
                 {message.role === 'assistant' ? (
                   <Streamdown>{message.content}</Streamdown>
                 ) : (
@@ -746,52 +735,53 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                   ))}
                 </div>
               )}
-              <div className="flex items-center justify-between pt-2">
-                <span className="text-xs text-muted-foreground">
+              <div className={`flex items-center justify-between ${isMobile ? 'pt-2 mt-2 border-t border-border/30' : 'pt-2'}`}>
+                <span className={`text-xs text-muted-foreground ${isMobile ? 'text-muted-foreground/80' : ''}`}>
                   {message.timestamp.toLocaleTimeString('pt-BR', {
                     hour: '2-digit',
                     minute: '2-digit',
                   })}
                 </span>
-                <div className="flex items-center gap-1">
-                  {message.role === 'assistant' && (
-                    <>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                        onClick={() => {
-                          sounds.playClick(); // Som de clique
-                          speak(message.content);
-                        }}
-                        title="Reproduzir voz Jarvis"
-                      >
-                        <Volume2 className="w-3 h-3" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
-                        onClick={() => {
-                          sounds.playClick(); // Som de clique
-                          copyToClipboard(message.content, message.id);
-                        }}
-                        title="Copiar mensagem"
-                      >
-                        {copiedId === message.id ? (
-                          <Check className="w-3 h-3 text-secondary" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                      </Button>
-                    </>
-                  )}
-                </div>
+                {!isMobile && (
+                  <div className="flex items-center gap-1">
+                    {message.role === 'assistant' && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                          onClick={() => {
+                            sounds.playClick();
+                            speak(message.content);
+                          }}
+                          title="Reproduzir voz Jarvis"
+                        >
+                          <Volume2 className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                          onClick={() => {
+                            sounds.playClick();
+                            copyToClipboard(message.content, message.id);
+                          }}
+                          title="Copiar mensagem"
+                        >
+                          {copiedId === message.id ? (
+                            <Check className="w-3 h-3 text-secondary" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-              </motion.div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
+            </div>
+          </div>
+        ))}
         
         {/* Streaming content */}
         {streamingContent && (
@@ -852,14 +842,27 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         </div>
       )}
 
-      {/* Input Area - Premium Mobile Style com Animações e Haptic Feedback */}
-      <motion.div 
+      {/* Input Area - Premium Style com Funcionalidade */}
+      <div 
         className={`border-t border-border/50 ${isMobile ? 'p-4 pb-safe bg-gradient-to-t from-card/95 via-card/98 to-card backdrop-blur-2xl shadow-[0_-8px_32px_rgba(0,0,0,0.12)]' : 'p-2 sm:p-4 bg-card'}`}
-        initial={isMobile ? { y: 100, opacity: 0 } : {}}
-        animate={isMobile ? { y: 0, opacity: 1 } : {}}
-        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        style={{
+          position: 'relative',
+          zIndex: 50,
+        }}
       >
-        <div className={`flex ${isMobile ? 'flex-row gap-3 items-end' : 'flex-col sm:flex-row gap-2'}`}>
+        <div
+          className={`flex ${isMobile ? 'flex-row gap-3 items-end' : 'flex-col sm:flex-row gap-2'}`}
+          style={{
+            touchAction: 'manipulation',
+            position: 'relative',
+            zIndex: 50,
+            pointerEvents: 'auto',
+          }}
+          onTouchStart={(e) => {
+            // Permitir que eventos de toque passem para os filhos
+            e.stopPropagation();
+          }}
+        >
           <div className={`flex ${isMobile ? 'gap-3' : 'gap-2'}`}>
             <input
               ref={fileInputRef}
@@ -885,6 +888,7 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                   className="text-muted-foreground hover:text-foreground"
                   title="Adicionar arquivo"
                   onClick={() => fileInputRef.current?.click()}
+                  type="button"
                 >
                   <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
@@ -894,72 +898,118 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                   className="text-muted-foreground hover:text-foreground"
                   title="Anexar arquivo"
                   onClick={() => fileInputRef.current?.click()}
+                  type="button"
                 >
                   <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
                 </Button>
               </>
             )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-              title="Anexar imagem (OCR + Análise)"
-              onClick={() => {
-                sounds.playClick(); // Som de clique
-                imageInputRef.current?.click();
-              }}
-              disabled={isProcessingImage || isProcessingOCR || isProcessingImageAnalysis}
-            >
-              {isProcessingImage || isProcessingOCR || isProcessingImageAnalysis ? (
-                <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
-              ) : (
-                <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
-              )}
-            </Button>
-            <motion.div
-              whileHover={isMobile ? { scale: 1.1 } : {}}
-              whileTap={isMobile ? { scale: 0.9 } : {}}
-            >
+            {!isMobile && (
               <Button
-                variant={isRecording ? "default" : "ghost"}
+                variant="ghost"
                 size="icon"
-                className={`${isMobile ? 'h-14 w-14 rounded-full min-w-[56px]' : 'h-11 w-11'} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-lg shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
-                title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
+                className="text-muted-foreground hover:text-foreground"
+                title="Anexar imagem (OCR + Análise)"
                 onClick={() => {
-                  triggerHaptic('medium');
                   sounds.playClick();
-                  toggleListening();
+                  imageInputRef.current?.click();
                 }}
-                disabled={isLoading}
+                disabled={isProcessingImage || isProcessingOCR || isProcessingImageAnalysis}
+                type="button"
               >
-                {isRecording ? (
-                  <Loader2 className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} animate-spin`} />
+                {isProcessingImage || isProcessingOCR || isProcessingImageAnalysis ? (
+                  <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
                 ) : (
-                  <Mic className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
+                  <ImageIcon className="w-4 h-4 sm:w-5 sm:h-5" />
                 )}
               </Button>
-            </motion.div>
-          </div>
-          <motion.div
-            whileFocus={isMobile ? { scale: 1.02 } : {}}
-            className="flex-1"
-          >
-            <Input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
+            )}
+            <Button
+              variant={isRecording ? "default" : "ghost"}
+              size="icon"
+              className={`${isMobile ? 'h-14 w-14 rounded-full min-w-[56px] flex-shrink-0 shadow-lg transition-all active:scale-95' : 'h-11 w-11'} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-xl shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
+              title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
+              onClick={(e) => {
                 e.preventDefault();
-                if (!isLoading && !isRecording && inputValue.trim()) {
-                  handleSendMessage();
+                e.stopPropagation();
+                if (isLoading) return;
+                console.log('[Mic] onClick triggered');
+                triggerHaptic('medium');
+                sounds.playClick();
+                toggleListening();
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('[Mic] onTouchStart triggered');
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (isLoading) return;
+                console.log('[Mic] onTouchEnd triggered');
+                triggerHaptic('medium');
+                sounds.playClick();
+                toggleListening();
+              }}
+              disabled={isLoading}
+              type="button"
+              style={{
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
+                cursor: 'pointer',
+                position: 'relative',
+                zIndex: 10,
+                pointerEvents: 'auto',
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+              }}
+            >
+              {isRecording ? (
+                <Loader2 className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} animate-spin`} />
+              ) : (
+                <Mic className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
+              )}
+            </Button>
+          </div>
+          <div className="flex-1" style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto' }}>
+            <Input
+              value={inputValue}
+              onChange={(e) => {
+                e.stopPropagation();
+                setInputValue(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (!isLoading && !isRecording && inputValue.trim()) {
+                    handleSendMessage();
+                  }
                 }
-              }
-            }}
-            placeholder={isMobile ? (isRecording ? "Gravando..." : "Digite sua mensagem...") : (isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)")}
-              className={`flex-1 ${isMobile ? 'h-14 text-lg rounded-3xl bg-background/90 backdrop-blur-xl border-2 border-border/50 focus:border-primary focus:ring-4 focus:ring-primary/20 shadow-lg px-4 py-3' : 'bg-background border-border text-sm sm:text-base'} transition-all duration-300`}
+              }}
+              onTouchStart={(e) => {
+                e.stopPropagation();
+                console.log('[Input] onTouchStart triggered');
+              }}
+              onTouchEnd={(e) => {
+                e.stopPropagation();
+                console.log('[Input] onTouchEnd triggered');
+              }}
+              placeholder={isMobile ? (isRecording ? "Gravando..." : "Digite sua mensagem...") : (isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)")}
+              className={`flex-1 ${isMobile ? 'h-14 text-lg rounded-3xl bg-background/90 backdrop-blur-xl border-2 border-border/50 focus:border-primary focus:ring-4 focus:ring-primary/20 shadow-lg px-4 py-3 transition-all' : 'bg-background border-border text-sm sm:text-base'}`}
               disabled={isLoading || isRecording || isProcessingImage}
+              style={{
+                touchAction: 'manipulation',
+                WebkitAppearance: 'none',
+                WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
+                fontSize: isMobile ? '16px' : undefined, // Prevenir zoom no iOS
+                pointerEvents: 'auto',
+                userSelect: 'text',
+                WebkitUserSelect: 'text',
+              }}
             />
-          </motion.div>
+          </div>
           {isSpeaking && (
             <Button
               variant="ghost"
@@ -967,38 +1017,53 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               className="text-muted-foreground hover:text-foreground"
               title="Parar voz Jarvis"
               onClick={stopSpeaking}
+              type="button"
             >
               <VolumeX className="w-5 h-5" />
             </Button>
           )}
           <Button
+            type="button"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              if (!inputValue.trim() || isLoading || isRecording) {
-                console.log('[Chat] Botão desabilitado:', { inputValue: inputValue.trim(), isLoading, isRecording });
+              if (!inputValue.trim() || isLoading || isRecording || isProcessingImage) {
                 return;
               }
+              console.log('[Send] onClick triggered');
               triggerHaptic('light');
+              sounds.playClick();
               handleSendMessage();
             }}
             onTouchStart={(e) => {
-              // Prevenir comportamento padrão do toque no mobile
-              e.stopPropagation();
-            }}
-            onTouchEnd={(e) => {
-              // Prevenir comportamento padrão do toque no mobile
               e.preventDefault();
               e.stopPropagation();
-              if (!inputValue.trim() || isLoading || isRecording) {
+              console.log('[Send] onTouchStart triggered');
+            }}
+            onTouchEnd={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!inputValue.trim() || isLoading || isRecording || isProcessingImage) {
                 return;
               }
+              console.log('[Send] onTouchEnd triggered');
               triggerHaptic('light');
+              sounds.playClick();
               handleSendMessage();
             }}
             disabled={!inputValue.trim() || isLoading || isRecording || isProcessingImage}
-            className={`${isMobile ? 'h-14 w-14 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[56px] active:scale-95 transition-all duration-200' : 'h-12 w-12'} bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'flex items-center justify-center touch-manipulation' : ''}`}
+            className={`${isMobile ? 'h-14 w-14 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[56px] flex-shrink-0 transition-all active:scale-95' : 'h-12 w-12'} bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed`}
             title={isLoading ? "Processando..." : isRecording ? "Gravando..." : "Enviar mensagem"}
+            style={{
+              touchAction: 'manipulation',
+              WebkitTapHighlightColor: 'rgba(255,255,255,0.2)',
+              cursor: 'pointer',
+              position: 'relative',
+              zIndex: 10,
+              pointerEvents: 'auto',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
+            }}
           >
             {isLoading ? (
               <Loader2 className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} animate-spin`} />
@@ -1027,88 +1092,82 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             Powered by AutoGen Framework
           </div>
         </div>
-            {voiceError && (
-              <div className="text-xs text-red-500 mt-1 flex items-center gap-2 flex-wrap">
-                <span>⚠️ {voiceError}</span>
-                {voiceError.includes('Permissão') && !permissionRequested && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                    onClick={async () => {
-                      // Marcar que já tentou solicitar permissão
-                      setPermissionRequested(true);
-                      
-                      try {
-                        console.log('[STT] Solicitando permissão de microfone...');
-                        
-                        // Limpar erro antes de tentar
-                        setVoiceError(null);
-                        
-                        // Verificar se a API está disponível
-                        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                          setVoiceError('API de mídia não suportada neste navegador');
-                          setPermissionRequested(false); // Permitir tentar novamente
-                          return;
-                        }
-                        
-                        // Tentar solicitar permissão novamente
-                        console.log('[STT] Chamando getUserMedia...');
-                        const stream = await navigator.mediaDevices.getUserMedia({ 
-                          audio: { 
-                            echoCancellation: true, 
-                            noiseSuppression: true, 
-                            autoGainControl: true 
-                          } 
-                        });
-                        
-                        console.log('[STT] ✅ Permissão concedida!');
-                        
-                        // Permissão concedida - parar stream de teste
-                        stream.getTracks().forEach(track => {
-                          track.stop();
-                          console.log('[STT] Track parado:', track.label);
-                        });
-                        
-                        // Limpar erro completamente e resetar flag
-                        setVoiceError(null);
-                        setPermissionRequested(false);
-                        
-                        // Aguardar um pouco antes de tentar iniciar gravação
-                        await new Promise(resolve => setTimeout(resolve, 300));
-                        
-                        // Tentar iniciar gravação automaticamente após permissão concedida
-                        console.log('[STT] Tentando iniciar gravação após permissão concedida...');
-                        toggleListening();
-                        
-                        // Tentar iniciar gravação novamente
-                        console.log('[STT] Tentando iniciar gravação após permissão concedida...');
-                        toggleListening();
-                      } catch (err: any) {
-                        // Não logar múltiplas vezes o mesmo erro
-                        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                          // Permissão negada - não tentar novamente automaticamente
-                          setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços) e recarregue a página.');
-                          // Não resetar permissionRequested - deixar o usuário recarregar a página
-                        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                          setVoiceError('Nenhum microfone encontrado. Verifique se há um microfone conectado.');
-                          setPermissionRequested(false); // Permitir tentar novamente para outros erros
-                        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                          setVoiceError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
-                          setPermissionRequested(false); // Permitir tentar novamente para outros erros
-                        } else {
-                          setVoiceError(`Erro ao acessar microfone: ${err.message || err.name || 'Erro desconhecido'}`);
-                          setPermissionRequested(false); // Permitir tentar novamente para outros erros
-                        }
-                      }
-                    }}
-                  >
-                    Solicitar Permissão
-                  </Button>
-                )}
-              </div>
+        {voiceError && (
+          <div className="text-xs text-red-500 mt-1 flex items-center gap-2 flex-wrap">
+            <span>⚠️ {voiceError}</span>
+            {(voiceError.includes('Permissão') || voiceError.includes('permissão') || voiceError.includes('Permission')) && !permissionRequested && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`${isMobile ? 'h-8 px-3 text-sm' : 'h-6 px-2 text-xs'} text-red-500 hover:text-red-600 hover:bg-red-500/10 active:scale-95 transition-all`}
+                onClick={async () => {
+                  try {
+                    console.log('[STT] Solicitando permissão de microfone...');
+                    
+                    // Limpar erro antes de tentar
+                    setVoiceError(null);
+                    
+                    // Verificar se a API está disponível
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                      setVoiceError('API de mídia não suportada neste navegador. Use um navegador moderno (Chrome, Firefox, Safari, Edge).');
+                      return;
+                    }
+                    
+                    // Tentar solicitar permissão novamente
+                    console.log('[STT] Chamando getUserMedia para solicitar permissão...');
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                      audio: { 
+                        echoCancellation: true, 
+                        noiseSuppression: true, 
+                        autoGainControl: true 
+                      } 
+                    });
+                    
+                    console.log('[STT] ✅ Permissão concedida! Parando stream de teste...');
+                    
+                    // Permissão concedida - parar stream de teste imediatamente
+                    stream.getTracks().forEach(track => {
+                      track.stop();
+                      console.log('[STT] Track parado:', track.label);
+                    });
+                    
+                    // Limpar erro completamente
+                    setVoiceError(null);
+                    
+                    // Aguardar um pouco antes de tentar iniciar gravação
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                    
+                    // Tentar iniciar gravação automaticamente após permissão concedida
+                    console.log('[STT] Iniciando gravação após permissão concedida...');
+                    toggleListening();
+                  } catch (err: any) {
+                    console.error('[STT] Erro ao solicitar permissão:', err);
+                    
+                    // Tratar erros específicos
+                    if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                      // Permissão negada - mostrar mensagem clara
+                      setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços) e recarregue a página.');
+                      setPermissionRequested(true); // Marcar como solicitada para não tentar novamente
+                    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                      setVoiceError('Nenhum microfone encontrado. Verifique se há um microfone conectado.');
+                      setPermissionRequested(false); // Permitir tentar novamente
+                    } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                      setVoiceError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
+                      setPermissionRequested(false); // Permitir tentar novamente
+                    } else {
+                      setVoiceError(`Erro ao acessar microfone: ${err.message || err.name || 'Erro desconhecido'}`);
+                      setPermissionRequested(false); // Permitir tentar novamente
+                    }
+                  }
+                }}
+                type="button"
+              >
+                Solicitar Permissão
+              </Button>
             )}
-      </motion.div>
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 }

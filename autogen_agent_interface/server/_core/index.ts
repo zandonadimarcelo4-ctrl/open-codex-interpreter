@@ -511,12 +511,15 @@ async function startServer() {
     console.log(`   Resource Manager: ${resourceManager.getResourceUsage().isIdle ? '💤 Idle' : '⚡ Active'}`);
     console.log(`   VRAM Usage: ${resourceManager.getResourceUsage().vramUsed.toFixed(1)}GB / ${resourceManager.getResourceUsage().vramTotal}GB`);
     console.log(`\n💡 Para acessar na rede local, use: http://${localIP}:${port}/`);
-    console.log(`\n⚠️  IMPORTANTE: Se não conseguir conectar de outro PC:`);
-    console.log(`   1. Verifique se o Firewall do Windows permite conexões na porta ${port}`);
-    console.log(`   2. Execute no PowerShell (como Administrador):`);
-    console.log(`      New-NetFirewallRule -DisplayName "AutoGen Agent Interface" -Direction Inbound -LocalPort ${port} -Protocol TCP -Action Allow`);
-    console.log(`   3. Ou permita manualmente no Firewall do Windows`);
-    console.log(`   4. Certifique-se de que ambos os PCs estão na mesma rede\n`);
+    console.log(`\n⚠️  IMPORTANTE: Se não conseguir conectar de outro PC (timeout):`);
+    console.log(`   1. O Firewall do Windows está bloqueando a porta ${port}`);
+    console.log(`   2. Execute o script de configuração do firewall:`);
+    console.log(`      PowerShell (Admin): .\\scripts\\configure_firewall.ps1`);
+    console.log(`      OU CMD (Admin): .\\scripts\\configure_firewall.bat`);
+    console.log(`   3. Ou execute manualmente no PowerShell (como Administrador):`);
+    console.log(`      netsh advfirewall firewall add rule name="AutoGen Agent Interface" dir=in action=allow protocol=TCP localport=${port}`);
+    console.log(`   4. Certifique-se de que ambos os PCs estão na mesma rede`);
+    console.log(`   5. Teste a conectividade: Test-NetConnection -ComputerName ${localIP} -Port ${port}\n`);
   });
 }
 

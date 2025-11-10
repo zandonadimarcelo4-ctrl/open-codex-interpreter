@@ -583,13 +583,17 @@ export const appRouter = router({
           assistantMessageId = Date.now(); // ID temporário
         }
         
-        return {
+        const result = {
           messageId: assistantMessageId,
           conversationId,
           content: response,
           intent,
           agentName,
         };
+        console.log(`[Chat] ========== RETORNANDO RESPOSTA ==========`);
+        console.log(`[Chat] Result:`, JSON.stringify({ ...result, content: result.content.substring(0, 100) + "..." }, null, 2));
+        console.log(`[Chat] ==========================================`);
+        return result;
       }),
   }),
 

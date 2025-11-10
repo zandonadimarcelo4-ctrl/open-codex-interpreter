@@ -705,8 +705,9 @@ async function callOllamaWithAutoGenPrompt(
     }
 
     // Function calling para execução automática de código (estilo Open Interpreter)
-    // O LLM decide quando chamar esta função
-    const tools = intent.type === "action" || intent.type === "command" ? [
+    // IMPORTANTE: NÃO fornecer tools para conversas/perguntas - apenas para ações/comandos
+    // Isso evita que o modelo execute código indevidamente para saudações
+    const tools = (intent.type === "action" || intent.type === "command") ? [
       {
         type: "function",
         function: {
@@ -747,12 +748,17 @@ async function callOllamaWithAutoGenPrompt(
       },
     };
 
-    if (tools) {
+    // IMPORTANTE: NÃO fornecer tools para conversas/perguntas
+    // Isso evita que o modelo execute código indevidamente (como obter horas)
+    if (tools && (intent.type === "action" || intent.type === "command")) {
       requestBody.tools = tools;
-      // Forçar uso de function calling para ações/comandos
-      requestBody.tool_choice = intent.type === "action" || intent.type === "command" 
-        ? { type: "function", function: { name: "run_code" } } 
-        : "auto";
+      // Forçar uso de function calling apenas para ações/comandos
+      requestBody.tool_choice = { type: "function", function: { name: "run_code" } };
+    } else {
+      // Para conversas/perguntas, NÃO fornecer tools
+      // Isso garante que o modelo apenas responda, sem executar código
+      requestBody.tools = undefined;
+      requestBody.tool_choice = undefined;
     }
 
     // Timeout de 10 segundos para evitar espera infinita

@@ -27,7 +27,10 @@ pnpm-debug.log*
 
 # Parcel
 .parcel-cache/
+.parcel-dist/
 .cache/
+*.sqlite3
+*.bak
 
 # IDE
 .vscode/

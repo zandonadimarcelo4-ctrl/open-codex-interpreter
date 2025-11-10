@@ -788,6 +788,17 @@ async function callOllamaWithAutoGenPrompt(
     let responseContent = data.message?.content || "";
     console.log(`[AutoGen] ✅ Conteúdo extraído (${responseContent.length} chars)`);
     
+    // Filtrar thinking tokens do DeepSeek R1 (raciocínio interno não deve aparecer na resposta)
+    // DeepSeek R1 usa tags como <think>, </think>, <reasoning>, </reasoning>, etc.
+    responseContent = responseContent
+      .replace(/<think>[\s\S]*?<\/think>/gi, '') // Remove <think>...</think>
+      .replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '') // Remove <reasoning>...</reasoning>
+      .replace(/<think>[\s\S]*?<\/redacted_reasoning>/gi, '') // Remove <think>...</think>
+      .replace(/<think>[\s\S]*$/gi, '') // Remove <think> no final (cortado)
+      .trim();
+    
+    console.log(`[AutoGen] ✅ Thinking tokens removidos (${responseContent.length} chars restantes)`);
+    
     // Se houver function calls, executar automaticamente (estilo Open Interpreter)
     if (data.message.tool_calls && Array.isArray(data.message.tool_calls)) {
       const { executeCode } = await import("./code_executor");

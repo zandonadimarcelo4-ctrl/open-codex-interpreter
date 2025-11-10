@@ -128,7 +128,13 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     sttEnabled: true,
     onTextReceived: (text) => {
       setInputValue(text);
-      handleSendMessage(text);
+      // Não chamar handleSendMessage diretamente aqui - será chamado depois quando o componente estiver pronto
+      // handleSendMessage será chamado após um pequeno delay para garantir que o estado está atualizado
+      setTimeout(() => {
+        if (text.trim() && !isLoading) {
+          handleSendMessage(text);
+        }
+      }, 100);
     },
     onAudioReady: (audioUrl) => {
       // Áudio pronto para reproduzir
@@ -349,7 +355,18 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
 
   const handleSendMessage = async (text?: string) => {
     const messageText = text || inputValue;
-    if (!messageText.trim() || isLoading) return;
+    if (!messageText.trim()) {
+      console.log('[Chat] Mensagem vazia, não enviando');
+      return;
+    }
+    if (isLoading) {
+      console.log('[Chat] Já está carregando, não enviando');
+      return;
+    }
+    if (isRecording) {
+      console.log('[Chat] Está gravando, não enviando');
+      return;
+    }
 
     // Detectar intenção no frontend (feedback visual imediato)
     const intent = detectIntent(messageText);
@@ -430,20 +447,36 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
     // Tentar usar WebSocket primeiro (chat em tempo real)
     if (isConnected) {
       try {
+        console.log('[Chat] Enviando via WebSocket:', currentInput.substring(0, 50));
         sendWebSocket({
           type: 'text',
           message: currentInput,
         });
         // WebSocket vai processar e enviar resposta via handleWebSocketMessage
         // Os estados serão resetados em handleWebSocketMessage quando a resposta chegar
+        
+        // Timeout de segurança: se não receber resposta em 30s, resetar estados
+        setTimeout(() => {
+          if (isLoading) {
+            console.warn('[Chat] Timeout ao aguardar resposta do WebSocket, resetando estados');
+            setIsLoading(false);
+            setIsThinking(false);
+            setThinkingStartTime(null);
+            setStreamingContent('');
+          }
+        }, 30000);
+        
         return;
       } catch (error) {
-        console.warn('Erro ao enviar via WebSocket, usando tRPC:', error);
+        console.warn('[Chat] Erro ao enviar via WebSocket, usando tRPC:', error);
         // Resetar estados em caso de erro no WebSocket
         setIsLoading(false);
         setIsThinking(false);
         setThinkingStartTime(null);
+        setStreamingContent('');
       }
+    } else {
+      console.log('[Chat] WebSocket não conectado, usando tRPC');
     }
 
     // Fallback: usar tRPC
@@ -895,10 +928,12 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                handleSendMessage();
+                if (!isLoading && !isRecording && inputValue.trim()) {
+                  handleSendMessage();
+                }
               }
             }}
             placeholder={isMobile ? (isRecording ? "Gravando..." : "Digite sua mensagem...") : (isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)")}
@@ -917,22 +952,41 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               <VolumeX className="w-5 h-5" />
             </Button>
           )}
-          <motion.div
-            whileHover={isMobile ? { scale: 1.1 } : {}}
-            whileTap={isMobile ? { scale: 0.9 } : {}}
+          <Button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!inputValue.trim() || isLoading || isRecording) {
+                console.log('[Chat] Botão desabilitado:', { inputValue: inputValue.trim(), isLoading, isRecording });
+                return;
+              }
+              triggerHaptic('light');
+              handleSendMessage();
+            }}
+            onTouchStart={(e) => {
+              // Prevenir comportamento padrão do toque no mobile
+              e.stopPropagation();
+            }}
+            onTouchEnd={(e) => {
+              // Prevenir comportamento padrão do toque no mobile
+              e.preventDefault();
+              e.stopPropagation();
+              if (!inputValue.trim() || isLoading || isRecording) {
+                return;
+              }
+              triggerHaptic('light');
+              handleSendMessage();
+            }}
+            disabled={!inputValue.trim() || isLoading || isRecording || isProcessingImage}
+            className={`${isMobile ? 'h-14 w-14 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[56px] active:scale-95 transition-all duration-200' : 'h-12 w-12'} bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'flex items-center justify-center touch-manipulation' : ''}`}
+            title={isLoading ? "Processando..." : isRecording ? "Gravando..." : "Enviar mensagem"}
           >
-            <Button
-              onClick={() => {
-                triggerHaptic('light');
-                handleSendMessage();
-              }}
-              disabled={!inputValue.trim() || isLoading || isRecording}
-              className={`${isMobile ? 'h-14 w-14 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[56px]' : 'h-12 w-12'} bg-primary hover:bg-primary/90 ${isMobile ? 'flex items-center justify-center' : ''}`}
-              title="Enviar mensagem"
-            >
+            {isLoading ? (
+              <Loader2 className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'} animate-spin`} />
+            ) : (
               <Send className={`${isMobile ? 'w-7 h-7' : 'w-5 h-5'}`} />
-            </Button>
-          </motion.div>
+            )}
+          </Button>
         </div>
         <div className="flex items-center justify-between mt-2">
           <div className="text-xs text-muted-foreground">

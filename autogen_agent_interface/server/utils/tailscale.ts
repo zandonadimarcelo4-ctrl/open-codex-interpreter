@@ -45,17 +45,45 @@ export async function checkTailscaleFunnel(port: number): Promise<{ active: bool
     });
     
     let output = '';
+    let errorOutput = '';
+    
     process.stdout.on('data', (data) => {
       output += data.toString();
     });
     
+    process.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+    });
+    
     process.on('close', (code) => {
-      if (code === 0 && output.includes(`:${port}`)) {
-        // Extrair URL do Funnel do output
-        const urlMatch = output.match(/https:\/\/[^\s]+/);
+      const fullOutput = output + errorOutput;
+      
+      // Verificar se a porta está mencionada no output
+      if (code === 0 && (fullOutput.includes(`:${port}`) || fullOutput.includes(` ${port} `) || fullOutput.includes(`localhost:${port}`))) {
+        // Tentar extrair URL do Funnel do output - várias formas possíveis
+        let urlMatch = fullOutput.match(/https:\/\/[^\s\n\r]+/);
+        if (!urlMatch) {
+          // Tentar formato alternativo: https://hostname.ts.net:port
+          urlMatch = fullOutput.match(/https:\/\/[a-zA-Z0-9\-]+\.ts\.net[^\s\n\r]*/);
+        }
+        if (!urlMatch) {
+          // Tentar extrair hostname e construir URL
+          const hostMatch = fullOutput.match(/([a-zA-Z0-9\-]+\.ts\.net)/);
+          if (hostMatch) {
+            urlMatch = [`https://${hostMatch[1]}:${port}`];
+          }
+        }
+        
         if (urlMatch) {
-          resolve({ active: true, url: urlMatch[0] });
+          // Limpar a URL (remover caracteres inválidos no final)
+          let url = urlMatch[0].replace(/[^\w\-\.:/\s]+$/, '');
+          // Garantir que a porta está na URL se não estiver
+          if (!url.includes(`:${port}`) && !url.endsWith('/')) {
+            url = `${url}:${port}`;
+          }
+          resolve({ active: true, url });
         } else {
+          // Funnel ativo mas não conseguiu extrair URL - tentar obter via outro comando
           resolve({ active: true });
         }
       } else {
@@ -96,14 +124,40 @@ export async function startTailscaleFunnel(port: number): Promise<{ success: boo
       errorOutput += data.toString();
     });
     
-    process.on('close', (code) => {
+    process.on('close', async (code) => {
       if (code === 0) {
-        // Extrair URL do Funnel do output
-        const urlMatch = output.match(/https:\/\/[^\s]+/) || output.match(/https:\/\/[^\n]+/);
+        // Tentar extrair URL do output
+        const fullOutput = output + errorOutput;
+        let urlMatch = fullOutput.match(/https:\/\/[^\s\n\r]+/);
+        if (!urlMatch) {
+          // Tentar formato alternativo
+          urlMatch = fullOutput.match(/https:\/\/[a-zA-Z0-9\-]+\.ts\.net[^\s\n\r]*/);
+        }
+        if (!urlMatch) {
+          // Tentar extrair hostname e construir URL
+          const hostMatch = fullOutput.match(/([a-zA-Z0-9\-]+\.ts\.net)/);
+          if (hostMatch) {
+            urlMatch = [`https://${hostMatch[1]}:${port}`];
+          }
+        }
+        
         if (urlMatch) {
-          resolve({ success: true, url: urlMatch[0] });
+          // Limpar a URL
+          let url = urlMatch[0].replace(/[^\w\-\.:/\s]+$/, '');
+          if (!url.includes(`:${port}`) && !url.endsWith('/')) {
+            url = `${url}:${port}`;
+          }
+          resolve({ success: true, url });
         } else {
-          resolve({ success: true });
+          // Se não conseguiu extrair do output, verificar status após um delay
+          setTimeout(async () => {
+            const status = await checkTailscaleFunnel(port);
+            if (status.active && status.url) {
+              resolve({ success: true, url: status.url });
+            } else {
+              resolve({ success: true });
+            }
+          }, 1000);
         }
       } else {
         resolve({ 

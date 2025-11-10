@@ -329,31 +329,58 @@ async function startServer() {
         return res.status(400).json({ error: "Text is empty after cleaning" });
       }
       
-      console.log("[TTS] 🎙️ Gerando áudio com ElevenLabs/Piper...");
+      console.log("[TTS] 🎙️ Gerando áudio com ElevenLabs Turbo v2.5 (ultra-rápido)...");
       
       try {
-        const audioBuffer = await generateTTS(text, "pt-BR");
+        // Verificar se o cliente suporta streaming (via header)
+        const supportsStreaming = req.headers.accept?.includes('stream') || req.headers['x-streaming'] === 'true';
         
-        if (audioBuffer && audioBuffer.length > 0) {
-          console.log("[TTS] ✅ Áudio gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
+        if (supportsStreaming) {
+          // Streaming mode - enviar áudio assim que começar a chegar
+          console.log("[TTS] 🚀 Modo streaming ativado - resposta quase em tempo real");
+          res.setHeader("Content-Type", "audio/mpeg");
+          res.setHeader("Transfer-Encoding", "chunked");
+          res.setHeader("Cache-Control", "no-cache");
+          res.setHeader("Connection", "keep-alive");
           
-          // Detectar formato do áudio baseado no conteúdo
-          // ElevenLabs retorna MP3, Piper retorna WAV
-          let contentType = "audio/wav"; // Padrão
-          if (audioBuffer[0] === 0xFF && audioBuffer[1] === 0xFB) {
-            // MP3 começa com FF FB
-            contentType = "audio/mpeg";
-            console.log("[TTS] Formato detectado: MP3 (ElevenLabs)");
-          } else if (audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49 && audioBuffer[2] === 0x46 && audioBuffer[3] === 0x46) {
-            // WAV começa com RIFF
-            contentType = "audio/wav";
-            console.log("[TTS] Formato detectado: WAV (Piper)");
+          // Gerar TTS e enviar em chunks
+          const audioBuffer = await generateTTS(text, "pt-BR");
+          if (audioBuffer && audioBuffer.length > 0) {
+            console.log("[TTS] ✅ Áudio gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
+            // Enviar em chunks para streaming mais rápido
+            const chunkSize = 8192; // 8KB chunks
+            for (let i = 0; i < audioBuffer.length; i += chunkSize) {
+              const chunk = audioBuffer.slice(i, i + chunkSize);
+              res.write(chunk);
+            }
+            res.end();
+          } else {
+            throw new Error("Audio buffer is empty");
           }
+        } else {
+          // Modo normal - enviar áudio completo
+          const audioBuffer = await generateTTS(text, "pt-BR");
           
-          res.setHeader("Content-Type", contentType);
-          res.setHeader("Content-Length", audioBuffer.length.toString());
-          res.setHeader("Accept-Ranges", "bytes");
-          res.send(audioBuffer);
+          if (audioBuffer && audioBuffer.length > 0) {
+            console.log("[TTS] ✅ Áudio gerado com sucesso, tamanho:", audioBuffer.length, "bytes");
+            
+            // Detectar formato do áudio baseado no conteúdo
+            // ElevenLabs retorna MP3, Piper retorna WAV
+            let contentType = "audio/wav"; // Padrão
+            if (audioBuffer[0] === 0xFF && audioBuffer[1] === 0xFB) {
+              // MP3 começa com FF FB
+              contentType = "audio/mpeg";
+              console.log("[TTS] Formato detectado: MP3 (ElevenLabs Turbo)");
+            } else if (audioBuffer[0] === 0x52 && audioBuffer[1] === 0x49 && audioBuffer[2] === 0x46 && audioBuffer[3] === 0x46) {
+              // WAV começa com RIFF
+              contentType = "audio/wav";
+              console.log("[TTS] Formato detectado: WAV (Piper)");
+            }
+            
+            res.setHeader("Content-Type", contentType);
+            res.setHeader("Content-Length", audioBuffer.length.toString());
+            res.setHeader("Accept-Ranges", "bytes");
+            res.send(audioBuffer);
         } else {
           console.error("[TTS] ❌ TTS não disponível - audioBuffer é null ou vazio");
           res.status(500).json({ 

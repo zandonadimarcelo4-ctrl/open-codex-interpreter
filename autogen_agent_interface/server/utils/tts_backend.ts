@@ -190,20 +190,26 @@ async def generate():
             
             data = {
                 "text": text_data,
-                "model_id": "eleven_multilingual_v2",  # Modelo multilíngue (melhor para pt-BR)
+                "model_id": "eleven_turbo_v2_5",  # Modelo Turbo v2.5 - MUITO mais rápido (75ms latência)
                 "voice_settings": {
-                    "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade (reduzido de 0.75)
-                    "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural (reduzido de 0.9)
-                    "style": 0.0,  # Estilo neutro para voz mais natural e menos robótica (reduzido de 0.3)
+                    "stability": 0.5,  # Menor estabilidade = mais variação e naturalidade
+                    "similarity_boost": 0.75,  # Similaridade moderada para voz mais natural
+                    "style": 0.0,  # Estilo neutro para voz mais natural
                     "use_speaker_boost": True  # Melhorar clareza e naturalidade
-                }
+                },
+                "optimize_streaming_latency": 3,  # Otimização máxima de latência (0-4, 4 = mais rápido)
+                "output_format": "mp3_44100_128"  # Formato MP3 otimizado para streaming rápido
             }
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, json=data, headers=headers) as response:
                     if response.status == 200:
-                        print("[TTS] Python: ✅ ElevenLabs API retornou 200", file=sys.stderr)
-                        audio_data = await response.read()
-                        print(f"[TTS] Python: Áudio recebido, tamanho: {len(audio_data)} bytes", file=sys.stderr)
+                        print("[TTS] Python: ✅ ElevenLabs API retornou 200 (Turbo v2.5 - Ultra-rápido)", file=sys.stderr)
+                        # Ler áudio em chunks para streaming mais rápido
+                        audio_chunks = []
+                        async for chunk in response.content.iter_chunked(8192):
+                            audio_chunks.append(chunk)
+                        audio_data = b''.join(audio_chunks)
+                        print(f"[TTS] Python: Áudio recebido (streaming), tamanho: {len(audio_data)} bytes", file=sys.stderr)
                         with open(output_file, "wb") as f:
                             f.write(audio_data)
                         print(f"[TTS] Python: Arquivo salvo: {output_file}", file=sys.stderr)

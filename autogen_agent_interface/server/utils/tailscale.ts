@@ -78,11 +78,12 @@ export async function checkTailscaleInstalled(): Promise<boolean> {
 /**
  * Verifica se o Tailscale Funnel está ativo para uma porta específica
  */
-export async function checkTailscaleFunnel(port: number): Promise<{ active: boolean; url?: string }> {
+export async function checkTailscaleFunnel(port: number): Promise<{ active: boolean; url?: string; error?: string }> {
   return new Promise((resolve) => {
     const process = spawn('tailscale', ['funnel', 'status'], { 
       shell: true,
-      stdio: 'pipe'
+      stdio: 'pipe',
+      windowsHide: true
     });
     
     let output = '';
@@ -99,8 +100,15 @@ export async function checkTailscaleFunnel(port: number): Promise<{ active: bool
     process.on('close', (code) => {
       const fullOutput = output + errorOutput;
       
+      // Verificar se há erro primeiro
+      const fullOutputLower = fullOutput.toLowerCase();
+      if (fullOutputLower.includes('stopped') || fullOutputLower.includes('not running')) {
+        resolve({ active: false, error: 'Tailscale está parado. Execute: tailscale up' });
+        return;
+      }
+      
       // Verificar se a porta está mencionada no output
-      if (code === 0 && (fullOutput.includes(`:${port}`) || fullOutput.includes(` ${port} `) || fullOutput.includes(`localhost:${port}`))) {
+      if (code === 0 && (fullOutput.includes(`:${port}`) || fullOutput.includes(` ${port} `) || fullOutput.includes(`localhost:${port}`) || fullOutput.includes(`port ${port}`))) {
         // Tentar extrair URL do Funnel do output - várias formas possíveis
         let urlMatch = fullOutput.match(/https:\/\/[^\s\n\r]+/);
         if (!urlMatch) {
@@ -125,10 +133,16 @@ export async function checkTailscaleFunnel(port: number): Promise<{ active: bool
           resolve({ active: true, url });
         } else {
           // Funnel ativo mas não conseguiu extrair URL - tentar obter via outro comando
-          resolve({ active: true });
+          resolve({ active: true, error: 'Funnel ativo mas URL não encontrada. Execute: tailscale funnel status' });
         }
       } else {
-        resolve({ active: false });
+        // Verificar se há algum Funnel ativo (mesmo que não seja na porta especificada)
+        if (code === 0 && fullOutput.includes('https://')) {
+          // Há um Funnel ativo mas não na porta especificada
+          resolve({ active: false, error: `Funnel ativo em outra porta. Verifique: tailscale funnel status` });
+        } else {
+          resolve({ active: false, error: 'Nenhum Funnel ativo' });
+        }
       }
     });
     

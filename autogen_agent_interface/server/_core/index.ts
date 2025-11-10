@@ -550,8 +550,15 @@ async function startServer() {
         console.log(`\n🌐 Tailscale Funnel ATIVO:`);
         console.log(`   🌐 URL: ${funnelStatus.url}`);
         console.log(`   📡 WebSocket: ${funnelStatus.url.replace('https://', 'wss://')}/ws`);
+        console.log(`\n   ⚠️  Se estiver dando timeout, verifique:`);
+        console.log(`      1. O servidor está escutando em 0.0.0.0:${port} (não apenas localhost)`);
+        console.log(`      2. O Funnel está realmente ativo: tailscale funnel status`);
+        console.log(`      3. O servidor está respondendo localmente: http://localhost:${port}/api/test`);
       } else {
         console.log(`\n🌐 Tailscale Funnel ATIVO (porta ${port})`);
+        if (funnelStatus.error) {
+          console.log(`   ⚠️  ${funnelStatus.error}`);
+        }
         console.log(`   💡 Para ver a URL, execute: tailscale funnel status`);
         // Tentar obter a URL novamente após um delay
         setTimeout(async () => {
@@ -559,6 +566,8 @@ async function startServer() {
           if (retryStatus.url) {
             console.log(`   🌐 URL do Funnel: ${retryStatus.url}`);
             console.log(`   📡 WebSocket: ${retryStatus.url.replace('https://', 'wss://')}/ws`);
+          } else if (retryStatus.error) {
+            console.log(`   ⚠️  ${retryStatus.error}`);
           }
         }, 2000);
       }

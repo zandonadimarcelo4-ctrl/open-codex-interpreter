@@ -9,15 +9,17 @@ export function useSoundEffects(enabled: boolean = true) {
   const audioContextRef = useRef<AudioContext | null>(null);
   const [useElevenLabsSFX, setUseElevenLabsSFX] = useState(false); // Desabilitado por padrão (usa Web Audio API)
 
-  // Inicializar AudioContext apenas quando necessário
+  // Inicializar AudioContext apenas quando necessário (lazy initialization)
+  // Não tentar retomar aqui - será feito quando necessário (após interação do usuário)
   const getAudioContext = useCallback(() => {
     if (!enabled) return null;
     
     if (!audioContextRef.current) {
       try {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        // Não tentar retomar aqui - será feito quando necessário (após interação do usuário)
       } catch (error) {
-        console.warn('AudioContext não disponível:', error);
+        // Silenciosamente ignorar - AudioContext será criado quando necessário
         return null;
       }
     }
@@ -28,13 +30,18 @@ export function useSoundEffects(enabled: boolean = true) {
   /**
    * Tocar um tom (beep)
    */
-  const playTone = useCallback((frequency: number, duration: number, type: OscillatorType = 'sine') => {
+  const playTone = useCallback(async (frequency: number, duration: number, type: OscillatorType = 'sine') => {
     if (!enabled) return;
     
     const ctx = getAudioContext();
     if (!ctx) return;
 
     try {
+      // Garantir que o AudioContext esteja ativo antes de tocar
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
 
@@ -52,7 +59,8 @@ export function useSoundEffects(enabled: boolean = true) {
       oscillator.start(ctx.currentTime);
       oscillator.stop(ctx.currentTime + duration);
     } catch (error) {
-      console.warn('Erro ao tocar som:', error);
+      // Silenciosamente ignorar erros de autoplay - não logar para não poluir o console
+      // O som simplesmente não será reproduzido se o usuário não interagiu com a página
     }
   }, [enabled, getAudioContext]);
 
@@ -94,13 +102,18 @@ export function useSoundEffects(enabled: boolean = true) {
   /**
    * Som de enviar mensagem (whoosh)
    */
-  const playSend = useCallback(() => {
+  const playSend = useCallback(async () => {
     if (!enabled) return;
     // Som de whoosh (ruído branco com filtro)
     const ctx = getAudioContext();
     if (!ctx) return;
 
     try {
+      // Garantir que o AudioContext esteja ativo antes de tocar
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      
       const oscillator = ctx.createOscillator();
       const gainNode = ctx.createGain();
       const filter = ctx.createBiquadFilter();
@@ -123,7 +136,8 @@ export function useSoundEffects(enabled: boolean = true) {
       oscillator.start(ctx.currentTime);
       oscillator.stop(ctx.currentTime + 0.15);
     } catch (error) {
-      console.warn('Erro ao tocar som de envio:', error);
+      // Silenciosamente ignorar erros de autoplay - não logar para não poluir o console
+      // O som simplesmente não será reproduzido se o usuário não interagiu com a página
     }
   }, [enabled, getAudioContext]);
 

@@ -381,13 +381,14 @@ async function startServer() {
             res.setHeader("Content-Length", audioBuffer.length.toString());
             res.setHeader("Accept-Ranges", "bytes");
             res.send(audioBuffer);
-        } else {
-          console.error("[TTS] ❌ TTS não disponível - audioBuffer é null ou vazio");
-          res.status(500).json({ 
-            error: "TTS not available - ElevenLabs/Piper não configurado ou falhou",
-            details: "O áudio não foi gerado. Verifique se ElevenLabs está configurado ou se Piper TTS está instalado.",
-            suggestion: "Verifique os logs do servidor para mais detalhes sobre o erro."
-          });
+          } else {
+            console.error("[TTS] ❌ TTS não disponível - audioBuffer é null ou vazio");
+            res.status(500).json({ 
+              error: "TTS not available - ElevenLabs/Piper não configurado ou falhou",
+              details: "O áudio não foi gerado. Verifique se ElevenLabs está configurado ou se Piper TTS está instalado.",
+              suggestion: "Verifique os logs do servidor para mais detalhes sobre o erro."
+            });
+          }
         }
       } catch (ttsError) {
         console.error("[TTS] ❌ Erro ao gerar TTS:", ttsError);

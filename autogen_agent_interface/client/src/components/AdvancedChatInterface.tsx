@@ -510,16 +510,16 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
 
   return (
     <div className={`flex flex-col h-full bg-background ${isMobile ? 'mobile-layout' : ''}`}>
-      {/* Status Bar - Mostrar agentes AutoGen trabalhando */}
+      {/* Status Bar - Premium Mobile Style */}
       {activeAgents.length > 0 && (
-        <div className={`border-b border-border bg-card/50 backdrop-blur-sm ${isMobile ? 'p-1.5' : 'p-2'}`}>
-          <div className={`flex items-center gap-2 ${isMobile ? 'text-[10px]' : 'text-xs'} text-muted-foreground flex-wrap`}>
-            <Loader2 className={`${isMobile ? 'w-2.5 h-2.5' : 'w-3 h-3'} animate-spin`} />
-            <span>{isMobile ? 'Processando...' : 'AutoGen orquestrando:'}</span>
+        <div className={`border-b border-border/50 ${isMobile ? 'p-2 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent backdrop-blur-md' : 'p-2 bg-card/50 backdrop-blur-sm'}`}>
+          <div className={`flex items-center gap-2 ${isMobile ? 'text-[11px] font-medium' : 'text-xs'} text-muted-foreground flex-wrap`}>
+            <Loader2 className={`${isMobile ? 'w-3 h-3' : 'w-3 h-3'} animate-spin text-primary`} />
+            <span className={isMobile ? 'text-foreground/90' : ''}>{isMobile ? 'Processando...' : 'AutoGen orquestrando:'}</span>
             {!isMobile && (
               <div className="flex gap-1 flex-wrap">
                 {activeAgents.map((agent) => (
-                  <span key={agent} className="px-2 py-0.5 bg-primary/20 rounded text-primary text-xs">
+                  <span key={agent} className="px-2 py-0.5 bg-primary/20 rounded-full text-primary text-xs font-medium">
                     {agent}
                   </span>
                 ))}
@@ -529,25 +529,31 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         </div>
       )}
 
-      {/* Messages Container - Responsivo Mobile */}
-      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-2 space-y-2' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'}`}>
+      {/* Messages Container - Premium Mobile Style */}
+      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-3 space-y-3' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'} ${isMobile ? 'scroll-smooth' : ''}`}>
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'} ${isMobile ? 'animate-in fade-in slide-in-from-bottom-2 duration-300' : ''}`}
           >
             <div
-              className={`w-full ${isMobile ? 'max-w-[85%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
+              className={`w-full ${isMobile ? 'max-w-[88%]' : 'max-w-xs sm:max-w-sm md:max-w-md lg:max-w-lg xl:max-w-xl'} group ${
                 message.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-lg rounded-tr-none'
+                  ? isMobile 
+                    ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-2xl rounded-tr-sm shadow-lg shadow-primary/20'
+                    : 'bg-primary text-primary-foreground rounded-lg rounded-tr-none'
                   : message.role === 'system'
-                  ? 'bg-muted/50 border border-border rounded-lg'
-                  : 'bg-card border border-border rounded-lg rounded-tl-none'
-              } ${isMobile ? 'p-2 space-y-1' : 'p-3 sm:p-4 space-y-2'}`}
+                  ? isMobile
+                    ? 'bg-muted/60 backdrop-blur-sm border border-border/50 rounded-2xl shadow-sm'
+                    : 'bg-muted/50 border border-border rounded-lg'
+                  : isMobile
+                    ? 'bg-card/95 backdrop-blur-sm border border-border/50 rounded-2xl rounded-tl-sm shadow-md'
+                    : 'bg-card border border-border rounded-lg rounded-tl-none'
+              } ${isMobile ? 'p-3 space-y-1.5' : 'p-3 sm:p-4 space-y-2'} ${isMobile ? 'transition-all duration-200 hover:scale-[1.01]' : ''}`}
             >
               {message.agentName && message.role === 'assistant' && (
-                <div className={`flex items-center gap-2 ${isMobile ? 'text-[10px]' : 'text-xs'} font-semibold text-accent`}>
-                  <span>{message.agentName}</span>
+                <div className={`flex items-center gap-2 ${isMobile ? 'text-[11px] font-bold' : 'text-xs font-semibold'} text-accent ${isMobile ? 'mb-1' : ''}`}>
+                  <span className={isMobile ? 'bg-accent/20 px-2 py-0.5 rounded-full' : ''}>{message.agentName}</span>
                   {!isMobile && message.agents && message.agents.length > 0 && (
                     <span className="text-muted-foreground">
                       ({message.agents.join(', ')})
@@ -581,11 +587,11 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                 </div>
               )}
               
-              <div className={`${isMobile ? 'text-xs' : 'text-sm'} prose prose-invert max-w-none`}>
+              <div className={`${isMobile ? 'text-sm leading-relaxed' : 'text-sm'} prose prose-invert max-w-none ${isMobile ? 'prose-sm' : ''}`}>
                 {message.role === 'assistant' ? (
                   <Streamdown>{message.content}</Streamdown>
                 ) : (
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <p className={`whitespace-pre-wrap ${isMobile ? 'leading-relaxed' : ''}`}>{message.content}</p>
                 )}
               </div>
 
@@ -719,10 +725,10 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         </div>
       )}
 
-      {/* Input Area - Mobile App Style */}
-      <div className={`border-t border-border ${isMobile ? 'p-2 pb-safe' : 'p-2 sm:p-4'} bg-card`}>
-        <div className={`flex ${isMobile ? 'flex-col gap-1.5' : 'flex-col sm:flex-row gap-2'}`}>
-          <div className={`flex ${isMobile ? 'gap-1' : 'gap-2'}`}>
+      {/* Input Area - Premium Mobile Style */}
+      <div className={`border-t border-border/50 ${isMobile ? 'p-3 pb-safe bg-gradient-to-t from-card via-card/95 to-card backdrop-blur-xl shadow-[0_-4px_20px_rgba(0,0,0,0.1)]' : 'p-2 sm:p-4 bg-card'}`}>
+        <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-col sm:flex-row gap-2'}`}>
+          <div className={`flex ${isMobile ? 'gap-2' : 'gap-2'}`}>
             <input
               ref={fileInputRef}
               type="file"

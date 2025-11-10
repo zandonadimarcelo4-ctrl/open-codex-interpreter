@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Menu } from 'lucide-react';
+import { Menu, Download, Maximize, Minimize } from 'lucide-react';
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { APP_TITLE, getLoginUrl } from "@/const";
@@ -8,6 +8,8 @@ import { AdvancedChatInterface } from '@/components/AdvancedChatInterface';
 import { RightPanel } from '@/components/RightPanel';
 import { AgentTeamVisualization } from '@/components/AgentTeamVisualization';
 import { useIsMobile } from '@/hooks/useMobile';
+import { usePWA } from '@/hooks/usePWA';
+import { useFullscreen } from '@/hooks/useFullscreen';
 
 export default function Home() {
   const { user, loading, isAuthenticated, logout } = useAuth();
@@ -15,6 +17,10 @@ export default function Home() {
   const [rightPanelOpen, setRightPanelOpen] = useState(false); // Fechado por padrão no mobile
   const isMobile = useIsMobile(); // Detecção automática de mobile
   const [newChatTrigger, setNewChatTrigger] = useState(0); // Trigger para nova conversa
+
+  // PWA e tela cheia
+  const { isInstallable, isInstalled, install } = usePWA();
+  const { isFullscreen, toggleFullscreen } = useFullscreen();
 
   // Permitir acesso sem autenticação (modo demo)
   // Se loading demorar muito, permitir acesso
@@ -108,6 +114,34 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Botão de instalação PWA */}
+            {!isInstalled && isInstallable && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={install}
+                className={`${isMobile ? 'h-12 w-12 rounded-full hover:bg-primary/10 active:scale-95 transition-all duration-200 min-w-[48px]' : 'h-9 w-9'} text-primary hover:text-primary/80`}
+                title="Instalar app"
+              >
+                <Download className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
+              </Button>
+            )}
+            
+            {/* Botão de tela cheia */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleFullscreen}
+              className={`${isMobile ? 'h-12 w-12 rounded-full hover:bg-primary/10 active:scale-95 transition-all duration-200 min-w-[48px]' : 'h-9 w-9'} text-muted-foreground hover:text-foreground`}
+              title={isFullscreen ? "Sair de tela cheia" : "Tela cheia"}
+            >
+              {isFullscreen ? (
+                <Minimize className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
+              ) : (
+                <Maximize className={`${isMobile ? 'w-6 h-6' : 'w-5 h-5'}`} />
+              )}
+            </Button>
+            
             {isAuthenticated && user && (
               <>
                 <span className="text-sm text-muted-foreground">{user.name}</span>

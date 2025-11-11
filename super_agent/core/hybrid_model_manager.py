@@ -76,9 +76,11 @@ class HybridModelManager:
             max_retries: Número máximo de tentativas
         """
         # Cloud configuration
+        # Ollama Cloud usa a mesma API do Ollama local, mas em https://ollama.com
         self.cloud_model = cloud_model or os.getenv("OLLAMA_CLOUD_MODEL", "qwen3-coder:480b-cloud")
-        self.cloud_api_key = cloud_api_key or os.getenv("OLLAMA_CLOUD_API_KEY", "")
-        self.cloud_base_url = cloud_base_url.rstrip("/")
+        self.cloud_api_key = cloud_api_key or os.getenv("OLLAMA_API_KEY", "")  # OLLAMA_API_KEY é a variável oficial
+        self.cloud_base_url = cloud_base_url or os.getenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.com")
+        self.cloud_base_url = self.cloud_base_url.rstrip("/")
         self.cloud_enabled = cloud_enabled and os.getenv("OLLAMA_CLOUD_ENABLED", "true").lower() == "true"
         
         # Local configuration
@@ -127,8 +129,8 @@ class HybridModelManager:
             if not REQUESTS_AVAILABLE:
                 return False
             
-            # Verificar endpoint Cloud
-            url = f"{self.cloud_base_url}/models"
+            # Verificar endpoint Cloud (mesmo formato do Ollama local)
+            url = f"{self.cloud_base_url}/api/tags"
             headers = {}
             if self.cloud_api_key:
                 headers["Authorization"] = f"Bearer {self.cloud_api_key}"
@@ -187,7 +189,7 @@ class HybridModelManager:
                     "api_key": self.cloud_api_key,
                     "tier": ModelTier.CLOUD_PRIMARY.value,
                     "timeout": self.timeout_cloud,
-                    "provider": "ollama_cloud",
+                    "provider": "ollama_cloud",  # Mesma API do Ollama, mas na Cloud
                 }
         
         # Fallback para local
@@ -318,33 +320,21 @@ class HybridModelManager:
         if messages is None:
             messages = [{"role": "user", "content": prompt}]
         
-        # Preparar URL e headers
-        if model_info["provider"] == "ollama_cloud":
-            url = f"{model_info['base_url']}/chat/completions"
-            headers = {
-                "Content-Type": "application/json",
-            }
-            if model_info["api_key"]:
-                headers["Authorization"] = f"Bearer {model_info['api_key']}"
-        else:
-            url = f"{model_info['base_url']}/api/chat"
-            headers = {
-                "Content-Type": "application/json",
-            }
+        # Ollama Cloud usa a mesma API do Ollama local
+        # URL: https://ollama.com/api/chat (mesmo formato)
+        url = f"{model_info['base_url']}/api/chat"
+        headers = {
+            "Content-Type": "application/json",
+        }
+        if model_info["api_key"]:
+            headers["Authorization"] = f"Bearer {model_info['api_key']}"
         
-        # Preparar payload
-        if model_info["provider"] == "ollama_cloud":
-            payload = {
-                "model": model_info["model"],
-                "messages": messages,
-                "stream": False,
-            }
-        else:
-            payload = {
-                "model": model_info["model"],
-                "messages": messages,
-                "stream": False,
-            }
+        # Preparar payload (mesmo formato para Cloud e Local)
+        payload = {
+            "model": model_info["model"],
+            "messages": messages,
+            "stream": False,
+        }
         
         # Fazer requisição
         response = requests.post(
@@ -357,15 +347,9 @@ class HybridModelManager:
         if response.status_code != 200:
             raise RuntimeError(f"Erro ao chamar modelo: {response.status_code} - {response.text}")
         
-        # Parsear resposta
+        # Parsear resposta (mesmo formato para Cloud e Local)
         data = response.json()
-        
-        if model_info["provider"] == "ollama_cloud":
-            # Formato OpenAI-compatible
-            return data["choices"][0]["message"]["content"]
-        else:
-            # Formato Ollama
-            return data["message"]["content"]
+        return data["message"]["content"]
     
     def get_status(self) -> Dict[str, Any]:
         """
@@ -400,8 +384,8 @@ def get_hybrid_model_manager() -> HybridModelManager:
     if _hybrid_manager is None:
         _hybrid_manager = HybridModelManager(
             cloud_model=os.getenv("OLLAMA_CLOUD_MODEL", "qwen3-coder:480b-cloud"),
-            cloud_api_key=os.getenv("OLLAMA_CLOUD_API_KEY", ""),
-            cloud_base_url=os.getenv("OLLAMA_CLOUD_BASE_URL", "https://api.ollama.cloud/v1"),
+            cloud_api_key=os.getenv("OLLAMA_API_KEY", ""),  # OLLAMA_API_KEY é a variável oficial
+            cloud_base_url=os.getenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.com"),  # URL oficial da Ollama Cloud
             cloud_enabled=os.getenv("OLLAMA_CLOUD_ENABLED", "true").lower() == "true",
             local_brain_model=os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx"),
             local_executor_model=os.getenv("EXECUTOR_MODEL", "networkjohnny/deepseek-coder-v2-lite-base-q4_k_m-gguf"),

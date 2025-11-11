@@ -48,9 +48,6 @@ class CognitiveOrchestrator:
         enable_meta_reasoning: bool = True,
         enable_regulation: bool = True,
     ):
-        if not AUTOGEN_V2_AVAILABLE:
-            raise ImportError("AutoGen v2 (autogen-agentchat) é obrigatório")
-        
         if not COGNITIVE_CORE_AVAILABLE:
             raise ImportError("ANIMA Cognitive Core não está disponível")
         
@@ -59,7 +56,7 @@ class CognitiveOrchestrator:
         self.api_key = api_key
         self.base_url = base_url
         
-        # Inicializar Cognitive Core
+        # Inicializar Cognitive Core (sempre disponível)
         self.cognitive_core = CognitiveCore(
             enable_emotions=enable_emotions,
             enable_memory=enable_memory,
@@ -68,16 +65,28 @@ class CognitiveOrchestrator:
             user_id=user_id
         )
         
-        # Criar Model Client
-        self.model_client = self._create_model_client()
+        # Model Client e Agent são opcionais (apenas se AutoGen v2 estiver disponível)
+        self.model_client = None
+        self.agent = None
         
-        # Criar Agent com sistema de mensagens cognitivo
-        self.agent = self._create_cognitive_agent()
+        if AUTOGEN_V2_AVAILABLE and (api_key or base_url):
+            try:
+                # Criar Model Client
+                self.model_client = self._create_model_client()
+                
+                # Criar Agent com sistema de mensagens cognitivo
+                self.agent = self._create_cognitive_agent()
+            except Exception as e:
+                logger.warning(f"AutoGen v2 não disponível ou configurado incorretamente: {e}")
+                logger.info("Continuando apenas com Cognitive Core (sem modelo LLM)")
         
         logger.info("🧠 CognitiveOrchestrator inicializado com sistema emocional e memória")
     
     def _create_model_client(self):
-        """Cria Model Client para AutoGen v2"""
+        """Cria Model Client para AutoGen v2 (opcional)"""
+        if not AUTOGEN_V2_AVAILABLE:
+            return None
+        
         use_ollama = (
             self.base_url and 
             ("ollama" in self.base_url.lower() or "11434" in str(self.base_url))
@@ -90,36 +99,47 @@ class CognitiveOrchestrator:
                     base_url=self.base_url or "http://localhost:11434"
                 )
             except Exception as e:
-                logger.warning(f"Falha ao criar Ollama client: {e}, tentando OpenAI...")
+                logger.warning(f"Falha ao criar Ollama client: {e}")
                 if not self.api_key:
-                    raise ValueError("Ollama não disponível e nenhuma API key fornecida")
+                    return None  # Não falhar, apenas retornar None
         
         # Usar OpenAI
         if not self.api_key:
-            raise ValueError("API key é necessária para OpenAI")
+            return None  # Não falhar, apenas retornar None
         
-        return OpenAIChatCompletionClient(
-            model=self.model_name,
-            api_key=self.api_key
-        )
+        try:
+            return OpenAIChatCompletionClient(
+                model=self.model_name,
+                api_key=self.api_key
+            )
+        except Exception as e:
+            logger.warning(f"Falha ao criar OpenAI client: {e}")
+            return None
     
-    def _create_cognitive_agent(self) -> AssistantAgent:
-        """Cria Agent com sistema de mensagens cognitivo"""
-        # Obter estado cognitivo para criar system message
-        cognitive_summary = self.cognitive_core.get_cognitive_summary()
+    def _create_cognitive_agent(self) -> Optional[AssistantAgent]:
+        """Cria Agent com sistema de mensagens cognitivo (opcional)"""
+        if not AUTOGEN_V2_AVAILABLE or not self.model_client:
+            return None
         
-        # Criar system message que inclui contexto emocional e de memória
-        system_message = self._create_cognitive_system_message(cognitive_summary)
-        
-        # Criar agent
-        agent = AssistantAgent(
-            name="ANIMA_Cognitive_Agent",
-            model_client=self.model_client,
-            system_message=system_message,
-            description="Agente cognitivo com emoções balanceadas, memória profunda e meta-raciocínio"
-        )
-        
-        return agent
+        try:
+            # Obter estado cognitivo para criar system message
+            cognitive_summary = self.cognitive_core.get_cognitive_summary()
+            
+            # Criar system message que inclui contexto emocional e de memória
+            system_message = self._create_cognitive_system_message(cognitive_summary)
+            
+            # Criar agent
+            agent = AssistantAgent(
+                name="ANIMA_Cognitive_Agent",
+                model_client=self.model_client,
+                system_message=system_message,
+                description="Agente cognitivo com emoções balanceadas, memória profunda e meta-raciocínio"
+            )
+            
+            return agent
+        except Exception as e:
+            logger.warning(f"Falha ao criar agent: {e}")
+            return None
     
     def _create_cognitive_system_message(self, cognitive_summary: Dict[str, Any]) -> str:
         """Cria system message que integra estado cognitivo"""

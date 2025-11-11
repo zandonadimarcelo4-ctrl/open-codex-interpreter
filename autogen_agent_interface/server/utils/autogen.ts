@@ -54,12 +54,34 @@ export async function executeWithAutoGen(
   console.log(`[AutoGen] Intent:`, JSON.stringify(intent, null, 2));
   console.log(`[AutoGen] Context:`, JSON.stringify(context || {}, null, 2));
   
+  // Tentar enriquecer com sistema cognitivo (opcional, não bloqueia se falhar)
+  let enrichedTask = task;
+  let cognitiveContext: any = null;
+  try {
+    const { processWithCognitiveSystem } = await import("./cognitive_bridge");
+    cognitiveContext = await processWithCognitiveSystem(
+      task,
+      context,
+      context?.userId as string
+    );
+    
+    if (cognitiveContext?.enriched_message) {
+      enrichedTask = cognitiveContext.enriched_message;
+      console.log(`[AutoGen] 🧠 Mensagem enriquecida com sistema cognitivo`);
+      console.log(`[AutoGen] 🧠 Confiança: ${cognitiveContext.confidence?.toFixed(2) || 'N/A'}`);
+      console.log(`[AutoGen] 🧠 Tom emocional: ${cognitiveContext.emotional_tone || 'N/A'}`);
+    }
+  } catch (cognitiveError) {
+    // Não bloquear se sistema cognitivo não estiver disponível
+    console.warn(`[AutoGen] ⚠️ Sistema cognitivo não disponível, continuando sem ele`);
+  }
+  
   try {
     // Pular verificação de disponibilidade para resposta mais rápida
     // A verificação será feita apenas quando necessário (se houver erro)
 
     // Inicializar AutoGen se necessário (cacheado, não bloqueia)
-    console.log(`[AutoGen] Iniciando execução para: "${task.substring(0, 50)}..."`);
+    console.log(`[AutoGen] Iniciando execução para: "${enrichedTask.substring(0, 50)}..."`);
     const framework = await initializeAutoGen();
     console.log(`[AutoGen] Framework inicializado`);
 

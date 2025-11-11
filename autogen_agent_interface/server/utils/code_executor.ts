@@ -191,38 +191,145 @@ export async function executeShell(
       fs.mkdirSync(workspace, { recursive: true });
     }
 
-    // Executar comando shell diretamente
-    const { stdout, stderr } = await execAsync(code, {
-      cwd: workspace,
-      timeout,
-      maxBuffer: 10 * 1024 * 1024, // 10MB
-      shell: process.platform === "win32" ? "cmd.exe" : "/bin/bash",
-    });
+    // Detectar se é Windows
+    const isWindows = process.platform === "win32";
+    
+    // Normalizar comando para Windows
+    let normalizedCode = code.trim();
+    
+    if (isWindows) {
+      // Comandos comuns que precisam ser executados de forma assíncrona (não bloqueiam)
+      const asyncCommands = [
+        "cmd", "powershell", "notepad", "calc", "chrome", "firefox", "edge",
+        "code", "explorer", "msedge", "winword", "excel", "outlook"
+      ];
+      
+      // Verificar se é um comando que precisa ser executado assincronamente
+      const commandName = normalizedCode.split(/\s+/)[0].toLowerCase();
+      const needsAsync = asyncCommands.some(cmd => 
+        commandName === cmd || 
+        commandName === `${cmd}.exe` ||
+        normalizedCode.toLowerCase().includes(`start ${cmd}`) ||
+        normalizedCode.toLowerCase().includes(`${cmd}.exe`)
+      );
+      
+      // Se não começa com "start" e precisa ser assíncrono, adicionar "start"
+      if (needsAsync && !normalizedCode.toLowerCase().startsWith("start ")) {
+        // Para comandos simples como "powershell" ou "cmd", usar "start" para abrir em nova janela
+        if (commandName === "powershell" || commandName === "powershell.exe") {
+          normalizedCode = "start powershell";
+        } else if (commandName === "cmd" || commandName === "cmd.exe") {
+          normalizedCode = "start cmd";
+        } else {
+          normalizedCode = `start ${normalizedCode}`;
+        }
+      }
+      
+    }
 
-    const executionTime = Date.now() - startTime;
+    console.log(`[CodeExecutor] 🔧 Executando comando shell: ${normalizedCode}`);
+    console.log(`[CodeExecutor] 🔧 Plataforma: ${process.platform}`);
+    console.log(`[CodeExecutor] 🔧 Shell: ${isWindows ? "cmd.exe" : "/bin/bash"}`);
 
-    if (stderr && stderr.trim()) {
+    // Executar comando shell
+    // No Windows, usar spawn para comandos assíncronos (que abrem janelas)
+    if (isWindows && normalizedCode.toLowerCase().startsWith("start ")) {
+      // Comandos "start" devem ser executados de forma assíncrona
+      // Usar spawn em vez de exec para não bloquear
+      return new Promise((resolve) => {
+        try {
+          // Separar o comando "start" do resto
+          const commandParts = normalizedCode.split(/\s+/, 2);
+          const appName = commandParts[1] || "";
+          
+          console.log(`[CodeExecutor] 🚀 Executando comando assíncrono: start ${appName}`);
+          
+          // Usar spawn com cmd.exe /c start
+          const child = spawn("cmd.exe", ["/c", "start", appName], {
+            cwd: workspace,
+            detached: true,
+            stdio: "ignore",
+            shell: false,
+            windowsHide: false, // Mostrar janela
+          });
+          
+          // Não esperar pelo processo (detached)
+          child.unref();
+          
+          // Verificar se houve erro imediato
+          child.on("error", (error) => {
+            console.error(`[CodeExecutor] ❌ Erro ao iniciar processo:`, error);
+            resolve({
+              success: false,
+              output: "",
+              error: `Erro ao executar comando: ${error.message}`,
+              exitCode: 1,
+              executionTime: Date.now() - startTime,
+              language: "shell",
+            });
+          });
+          
+          // Aguardar um pouco para confirmar que iniciou
+          setTimeout(() => {
+            const executionTime = Date.now() - startTime;
+            console.log(`[CodeExecutor] ✅ Comando executado com sucesso (${executionTime}ms)`);
+            resolve({
+              success: true,
+              output: `✅ Comando executado com sucesso: ${normalizedCode}\n\nAplicativo "${appName}" aberto em nova janela.`,
+              executionTime,
+              language: "shell",
+            });
+          }, 1000); // 1 segundo para dar tempo de iniciar
+        } catch (error: any) {
+          console.error(`[CodeExecutor] ❌ Erro crítico ao executar comando assíncrono:`, error);
+          resolve({
+            success: false,
+            output: "",
+            error: `Erro crítico: ${error.message || String(error)}`,
+            exitCode: 1,
+            executionTime: Date.now() - startTime,
+            language: "shell",
+          });
+        }
+      });
+    } else {
+      // Comandos normais (síncronos) - usar execAsync
+      const { stdout, stderr } = await execAsync(normalizedCode, {
+        cwd: workspace,
+        timeout,
+        maxBuffer: 10 * 1024 * 1024, // 10MB
+        shell: isWindows ? "cmd.exe" : "/bin/bash",
+      });
+
+      const executionTime = Date.now() - startTime;
+
+      if (stderr && stderr.trim()) {
+        return {
+          success: false,
+          output: stdout,
+          error: stderr,
+          exitCode: 1,
+          executionTime,
+          language: "shell",
+        };
+      }
+
       return {
-        success: false,
-        output: stdout,
-        error: stderr,
-        exitCode: 1,
+        success: true,
+        output: stdout || "Comando executado com sucesso (sem saída)",
         executionTime,
         language: "shell",
       };
     }
-
-    return {
-      success: true,
-      output: stdout || "Comando executado com sucesso (sem saída)",
-      executionTime,
-      language: "shell",
-    };
   } catch (error: any) {
     const executionTime = Date.now() - startTime;
     const errorMessage = error.message || String(error);
     const errorOutput = error.stdout || "";
     const errorStderr = error.stderr || "";
+
+    console.error(`[CodeExecutor] ❌ Erro ao executar shell: ${errorMessage}`);
+    console.error(`[CodeExecutor] ❌ Comando: ${code}`);
+    console.error(`[CodeExecutor] ❌ stderr: ${errorStderr}`);
 
     return {
       success: false,

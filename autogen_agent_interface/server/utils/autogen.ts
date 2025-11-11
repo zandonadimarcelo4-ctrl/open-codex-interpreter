@@ -1195,12 +1195,162 @@ async function callOllamaWithAutoGenPrompt(
     
     console.log(`[AutoGen] ✅ Thinking tokens removidos (${originalLength} -> ${responseContent.length} chars)`);
     
-    // VALIDAÇÃO CRÍTICA: Se a resposta estiver vazia após filtrar thinking tokens, usar fallback
+    // Verificar se há tool_calls ANTES de aplicar fallback
+    const hasToolCalls = data.message?.tool_calls && Array.isArray(data.message.tool_calls) && data.message.tool_calls.length > 0;
+    
+    // Se houver function calls, executar automaticamente (estilo Open Interpreter)
+    // IMPORTANTE: Executar ANTES de aplicar fallback, pois a resposta pode ser preenchida pela execução
+    if (hasToolCalls) {
+      console.log(`[AutoGen] 🔧 Tool calls detectados (${data.message.tool_calls.length}), executando código...`);
+      const { executeCode } = await import("./code_executor");
+      
+      for (const toolCall of data.message.tool_calls) {
+        if (toolCall.function?.name === "run_code") {
+          try {
+            // Parse seguro dos argumentos - garantir serialização JSON adequada
+            let args: any = {};
+            const rawArgs = toolCall.function.arguments;
+            
+            try {
+              // CASO 1: String JSON válida
+              if (typeof rawArgs === "string") {
+                try {
+                  args = JSON.parse(rawArgs);
+                } catch (parseError) {
+                  // Tentar extrair código diretamente se os argumentos não são JSON válido
+                  console.warn(`[AutoGen] ⚠️ Falha ao parsear JSON string, tentando extrair código diretamente...`);
+                  const codeMatch = rawArgs.match(/"code"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)"/);
+                  const langMatch = rawArgs.match(/"language"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)"/);
+                  if (codeMatch) {
+                    args.code = codeMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n');
+                  }
+                  if (langMatch) {
+                    args.language = langMatch[1];
+                  }
+                  if (!args.code && !args.language) {
+                    // Último recurso: tentar encontrar código em blocos markdown
+                    const codeBlockMatch = rawArgs.match(/```(\w+)?\n([\s\S]*?)```/);
+                    if (codeBlockMatch) {
+                      args.language = codeBlockMatch[1] || "python";
+                      args.code = codeBlockMatch[2];
+                    }
+                  }
+                }
+              }
+              // CASO 2: Objeto JavaScript (já parseado) - usar diretamente
+              else if (typeof rawArgs === "object" && rawArgs !== null) {
+                // Ollama já retornou como objeto, usar diretamente
+                console.log(`[AutoGen] ✅ Argumentos já são objeto:`, JSON.stringify(rawArgs, null, 2));
+                args = rawArgs;
+              }
+              // CASO 3: Outros tipos (null, undefined, number, boolean)
+              else if (rawArgs !== null && rawArgs !== undefined) {
+                // Tentar converter para string e parsear
+                try {
+                  args = JSON.parse(String(rawArgs));
+                } catch {
+                  args = { code: String(rawArgs), language: "python" };
+                }
+              }
+              
+              // Validar que args tem pelo menos 'code' ou 'language'
+              if (!args || (typeof args !== "object")) {
+                console.warn(`[AutoGen] ⚠️ Argumentos inválidos após parsing:`, rawArgs);
+                args = {};
+              }
+            } catch (parseError: any) {
+              console.error(`[AutoGen] ❌ Erro crítico ao parsear argumentos do tool_call:`, parseError);
+              console.error(`[AutoGen] ❌ Tipo do rawArgs:`, typeof rawArgs);
+              console.error(`[AutoGen] ❌ Valor do rawArgs:`, rawArgs);
+              console.error(`[AutoGen] ❌ Stringify do rawArgs:`, JSON.stringify(rawArgs));
+              args = {};
+            }
+            
+            // Extrair código e linguagem - tentar várias chaves possíveis
+            const language = args.language || args.lang || "python";
+            const code = args.code || args.code_string || args.code_block || args.command;
+            
+            console.log(`[AutoGen] 📋 Argumentos parseados:`, {
+              language,
+              code: code ? code.substring(0, 100) : "N/A",
+              argsKeys: Object.keys(args),
+            });
+            
+            if (code && typeof code === "string" && code.trim().length > 0) {
+              console.log(`[AutoGen] ✅ Executando código (${language}): ${code.substring(0, 100)}...`);
+              
+              try {
+                // Executar código automaticamente
+                const result = await executeCode(code, language, {
+                  timeout: 60000, // 60 segundos para comandos que abrem aplicativos
+                  workspace: process.cwd(),
+                });
+                
+                console.log(`[AutoGen] ✅ Resultado da execução:`, {
+                  success: result.success,
+                  outputLength: result.output?.length || 0,
+                  errorLength: result.error?.length || 0,
+                  executionTime: result.executionTime,
+                });
+                
+                // Adicionar resultado à resposta - garantir que output/error sejam strings válidas
+                const outputStr = result.output ? String(result.output) : "Sem saída";
+                const errorStr = result.error ? String(result.error) : "Erro desconhecido";
+                
+                if (result.success) {
+                  // Mensagem mais amigável para comandos que abrem aplicativos
+                  if (outputStr && outputStr.includes("aberto em nova janela") || outputStr.includes("Aplicativo")) {
+                    responseContent = `✅ **Comando executado com sucesso!**\n\n${outputStr}`;
+                  } else if (outputStr && outputStr.trim().length > 0 && !outputStr.includes("Sem saída")) {
+                    responseContent = `✅ **Comando executado com sucesso!**\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Resultado:**\n\`\`\`\n${outputStr}\n\`\`\``;
+                  } else {
+                    responseContent = `✅ **Comando executado com sucesso!**\n\nComando: \`${code}\`\n\nSe você pediu para abrir um aplicativo, ele deve estar aberto agora.`;
+                  }
+                } else {
+                  responseContent = `❌ **Erro ao executar comando**\n\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Erro:**\n\`\`\`\n${errorStr}\n\`\`\``;
+                }
+              } catch (execError: any) {
+                console.error(`[AutoGen] ❌ Erro ao executar código:`, execError);
+                const execErrorMessage = execError instanceof Error ? execError.message : String(execError);
+                responseContent = `**❌ Erro ao executar código (${language}):**\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Erro:**\n\`\`\`\n${execErrorMessage}\n\`\`\``;
+              }
+            } else {
+              console.warn(`[AutoGen] ⚠️ Código não encontrado ou inválido nos argumentos:`, args);
+              console.warn(`[AutoGen] ⚠️ Tipo do código:`, typeof code);
+              console.warn(`[AutoGen] ⚠️ Valor do código:`, code);
+              console.warn(`[AutoGen] ⚠️ Chaves disponíveis em args:`, Object.keys(args));
+              responseContent = `**⚠️ Erro:** Não foi possível extrair o código dos argumentos do tool_call.\n\n**Argumentos recebidos:**\n\`\`\`json\n${JSON.stringify(args, null, 2)}\n\`\`\``;
+            }
+          } catch (error: any) {
+            console.error("[AutoGen] ❌ Erro ao executar function call:", error);
+            console.error("[AutoGen] ❌ Stack trace:", error?.stack);
+            
+            // Garantir que a mensagem de erro seja uma string válida
+            let errorMessage: string;
+            try {
+              if (error instanceof Error) {
+                errorMessage = error.message;
+              } else if (typeof error === "object" && error !== null) {
+                // Tentar serializar objeto de erro
+                errorMessage = JSON.stringify(error, Object.getOwnPropertyNames(error), 2);
+              } else {
+                errorMessage = String(error);
+              }
+            } catch (stringifyError) {
+              errorMessage = "Erro desconhecido ao processar código";
+            }
+            
+            responseContent += `\n\n⚠️ Erro ao executar código: ${errorMessage}`;
+          }
+        }
+      }
+    }
+    
+    // VALIDAÇÃO CRÍTICA: Se a resposta ainda estiver vazia após processar tool_calls, usar fallback
     if (!responseContent || responseContent.length === 0) {
-      console.warn(`[AutoGen] ⚠️ Resposta vazia após filtrar thinking tokens! Usando fallback...`);
+      console.warn(`[AutoGen] ⚠️ Resposta vazia após processar tool_calls! Usando fallback...`);
       console.warn(`[AutoGen] ⚠️ Resposta original tinha ${originalLength} chars`);
       console.warn(`[AutoGen] ⚠️ Primeiros 500 chars da resposta original:`, originalContent.substring(0, 500));
-      console.warn(`[AutoGen] ⚠️ Data completa:`, JSON.stringify(data, null, 2));
       
       // Tentar extrair conteúdo antes dos thinking tokens
       const beforeThinking = originalContent.split(/<think|<reasoning|<redacted_reasoning/i)[0]?.trim();
@@ -1217,38 +1367,6 @@ async function callOllamaWithAutoGenPrompt(
           responseContent = "Desculpe, não consegui processar sua solicitação. Pode tentar novamente?";
         }
         console.log(`[AutoGen] ✅ Fallback aplicado: "${responseContent}"`);
-      }
-    }
-    
-    // Se houver function calls, executar automaticamente (estilo Open Interpreter)
-    if (data.message.tool_calls && Array.isArray(data.message.tool_calls)) {
-      const { executeCode } = await import("./code_executor");
-      
-      for (const toolCall of data.message.tool_calls) {
-        if (toolCall.function?.name === "run_code") {
-          try {
-            const args = JSON.parse(toolCall.function.arguments || "{}");
-            const { language, code } = args;
-            
-            if (code) {
-              // Executar código automaticamente
-              const result = await executeCode(code, language, {
-                timeout: 30000,
-                workspace: process.cwd(),
-              });
-              
-              // Adicionar resultado à resposta
-              if (result.success) {
-                responseContent += `\n\n**✅ Código executado (${language}):**\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Resultado:**\n\`\`\`\n${result.output}\n\`\`\``;
-              } else {
-                responseContent += `\n\n**❌ Erro na execução (${language}):**\n\`\`\`${language}\n${code}\n\`\`\`\n\n**Erro:**\n\`\`\`\n${result.error}\n\`\`\``;
-              }
-            }
-          } catch (error) {
-            console.warn("[AutoGen] Erro ao executar function call:", error);
-            responseContent += `\n\n⚠️ Erro ao executar código: ${error instanceof Error ? error.message : String(error)}`;
-          }
-        }
       }
     }
     

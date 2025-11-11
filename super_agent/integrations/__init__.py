@@ -1,7 +1,15 @@
 """
 Integrações externas para o Super Agent
 """
-from .open_interpreter import OpenInterpreterIntegration
+try:
+    from .open_interpreter import OpenInterpreterIntegration
+except ImportError:
+    OpenInterpreterIntegration = None
 
-__all__ = ["OpenInterpreterIntegration"]
+try:
+    from .ufo import UFOIntegration
+except ImportError:
+    UFOIntegration = None
+
+__all__ = ["OpenInterpreterIntegration", "UFOIntegration"]
 

@@ -37,6 +37,17 @@ fastapi>=0.104.0
 websockets>=12.0
 uvicorn>=0.24.0
 
+# Web Automation
+selenium>=4.0.0
+playwright>=1.40.0
+
+# GUI Automation (UFO + PyAutoGUI)
+pyautogui>=0.9.54
+pygetwindow>=0.0.9
+pyscreeze>=1.0.1
+opencv-python>=4.8.0
+Pillow>=10.0.0
+
 # ChromaDB - Memória Vetorial Persistente
 chromadb>=0.4.0
 

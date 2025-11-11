@@ -102,9 +102,9 @@ class SuperAgentConfig:
     open_interpreter_enabled: bool = True
     open_interpreter_auto_run: bool = False
     
-    # UFO Config
+    # UFO Config (PyAutoGUI)
     ufo_enabled: bool = True
-    ufo_workspace: Optional[Path] = None
+    ufo_workspace: Optional[Path] = None  # Se None, usa workspace/ufo_workspace
     
     # Multimodal Config
     multimodal_enabled: bool = True
@@ -216,15 +216,17 @@ class SuperAgentOrchestrator:
             except Exception as e:
                 logger.warning(f"Falha ao integrar Open Interpreter: {e}")
         
-        # UFO
-        if self.config.ufo_enabled and self.config.ufo_workspace:
+        # UFO (PyAutoGUI)
+        if self.config.ufo_enabled:
             try:
+                workspace = self.config.ufo_workspace or self.config.workspace / "ufo_workspace"
                 self.integrations["ufo"] = UFOIntegration(
-                    workspace=self.config.ufo_workspace
+                    workspace=workspace
                 )
-                logger.info("UFO integrado")
+                logger.info(f"UFO (PyAutoGUI) integrado em {workspace}")
             except Exception as e:
                 logger.warning(f"Falha ao integrar UFO: {e}")
+                self.integrations["ufo"] = None
         
         # Multimodal
         if self.config.multimodal_enabled:
@@ -351,25 +353,66 @@ class SuperAgentOrchestrator:
                 )
                 logger.info("Executor Agent criado com Open Interpreter Tool - AutoGen comanda tudo")
         
-        # UFO Agent (com memória)
-        if self.config.enable_ufo and "ufo" in self.integrations and UFOAgent:
+        # UFO Agent (com memória e PyAutoGUI)
+        if self.config.enable_ufo:
+            # Criar tool de GUI automation
+            from ..tools.gui_automation import GUIAutomationTool
+            gui_tool = None
             try:
-                self.agents["ufo"] = UFOAgent(
-                    name="ufo_agent",
-                    model_client=self.model_client,
-                    memory=self.memory,
-                    ufo_integration=self.integrations["ufo"],
-                )
+                workspace = self.config.ufo_workspace or self.config.workspace / "ufo_workspace"
+                gui_tool = GUIAutomationTool(workspace=workspace)
+                logger.info("GUI Automation Tool criada para UFO Agent")
             except Exception as e:
-                logger.warning(f"Falha ao criar UFOAgent: {e}")
+                logger.warning(f"Falha ao criar GUI Automation Tool: {e}")
+            
+            if self.config.enable_ufo and "ufo" in self.integrations and self.integrations["ufo"] and UFOAgent:
+                try:
+                    workspace = self.config.ufo_workspace or self.config.workspace / "ufo_workspace"
+                    self.agents["ufo"] = UFOAgent(
+                        name="ufo_agent",
+                        model_client=self.model_client,
+                        memory=self.memory,
+                        ufo_integration=self.integrations["ufo"],
+                        workspace=workspace,
+                    )
+                    logger.info("UFO Agent criado com sucesso")
+                except Exception as e:
+                    logger.warning(f"Falha ao criar UFOAgent: {e}")
+                    # Criar agente básico com tool de GUI automation
+                    if gui_tool:
+                        self.agents["ufo"] = AgentWithMemory(
+                            name="ufo",
+                            model_client=self.model_client,
+                            memory=self.memory,
+                            system_message="""Você é um agente de automação GUI especializado em controlar aplicativos Windows.
+                            Use a ferramenta 'gui_automation' para:
+                            - Capturar screenshots da tela
+                            - Clicar em botões e elementos
+                            - Digitar texto
+                            - Pressionar teclas e hotkeys
+                            - Fazer scroll
+                            - Arrastar elementos
+                            - Localizar imagens na tela
+                            - Gerenciar janelas
+                            
+                            Use a memória para lembrar sequências de ações e padrões de interface.
+                            Armazene sequências de automação na memória para reutilização.""",
+                            tools=[gui_tool.get_function_schema()["function"]],
+                        )
+                        logger.info("UFO Agent básico criado com GUI Automation Tool")
+            elif gui_tool:
+                # Criar agente básico com tool de GUI automation mesmo sem integração UFO completa
                 self.agents["ufo"] = AgentWithMemory(
                     name="ufo",
                     model_client=self.model_client,
                     memory=self.memory,
                     system_message="""Você é um agente de automação GUI especializado em controlar aplicativos Windows.
+                    Use a ferramenta 'gui_automation' para interagir com interfaces gráficas.
                     Use a memória para lembrar sequências de ações e padrões de interface.
                     Armazene sequências de automação na memória para reutilização.""",
+                    tools=[gui_tool.get_function_schema()["function"]],
                 )
+                logger.info("UFO Agent básico criado com GUI Automation Tool (sem integração UFO completa)")
         
         # Multimodal Agent (com memória)
         if self.config.enable_multimodal and "multimodal" in self.integrations and MultimodalAgent:

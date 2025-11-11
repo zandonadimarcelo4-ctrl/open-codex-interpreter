@@ -25,7 +25,7 @@ echo Verificando GPU NVIDIA...
 nvidia-smi >nul 2>&1
 if %ERRORLEVEL% EQU 0 (
     echo [OK] GPU NVIDIA detectada!
-    nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
+    for /f "tokens=*" %%i in ('nvidia-smi --query-gpu^=name^,memory.total --format^=csv^,noheader 2^>nul') do echo %%i
     echo.
 ) else (
     echo [AVISO] GPU NVIDIA nao detectada. O modelo funcionara em CPU (mais lento).

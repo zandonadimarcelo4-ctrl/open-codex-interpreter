@@ -63,7 +63,8 @@ async function callOllamaChatFallback(messages: any[], options: any): Promise<st
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
 // Modelos disponíveis
-const DEFAULT_CODING_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m";
+// Modelo quantizado otimizado para RTX NVIDIA (Q4_K_M)
+const DEFAULT_CODING_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx";
 const FALLBACK_MODEL = "deepseek-coder"; // Fallback se modelo principal não disponível
 
 interface CodeGenerationRequest {

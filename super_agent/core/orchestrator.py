@@ -397,7 +397,7 @@ class SuperAgentOrchestrator:
                             
                             Use a memória para lembrar sequências de ações e padrões de interface.
                             Armazene sequências de automação na memória para reutilização.""",
-                            tools=[gui_tool.get_function_schema()["function"]],
+                            tools=[gui_tool.get_function_schema()],
                         )
                         logger.info("UFO Agent básico criado com GUI Automation Tool")
             elif gui_tool:

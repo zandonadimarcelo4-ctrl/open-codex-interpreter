@@ -145,115 +145,114 @@ class GUIAutomationTool:
     
     def get_function_schema(self) -> Dict[str, Any]:
         """Obter schema da função para AutoGen v2"""
-        schema = {
-                "name": "gui_automation",
-                "description": "Automação GUI completa usando PyAutoGUI. Permite interagir com interfaces gráficas: capturar screenshots, clicar, digitar, pressionar teclas, fazer scroll, arrastar, mover mouse, localizar imagens, gerenciar janelas, etc.",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "action": {
-                            "type": "string",
-                            "enum": [
-                                "screenshot",
-                                "click",
-                                "double_click",
-                                "right_click",
-                                "type",
-                                "press_key",
-                                "hotkey",
-                                "scroll",
-                                "drag",
-                                "move_mouse",
-                                "get_mouse_position",
-                                "locate_on_screen",
-                                "get_window_list",
-                                "activate_window",
-                                "execute_task"
-                            ],
-                            "description": "Ação a executar"
-                        },
-                        "x": {
-                            "type": "integer",
-                            "description": "Coordenada X (para click, move_mouse, scroll, etc.)"
-                        },
-                        "y": {
-                            "type": "integer",
-                            "description": "Coordenada Y (para click, move_mouse, scroll, etc.)"
-                        },
-                        "button": {
-                            "type": "string",
-                            "enum": ["left", "right", "middle"],
-                            "description": "Botão do mouse (para click)"
-                        },
-                        "clicks": {
-                            "type": "integer",
-                            "description": "Número de cliques"
-                        },
-                        "text": {
-                            "type": "string",
-                            "description": "Texto para digitar"
-                        },
-                        "key": {
-                            "type": "string",
-                            "description": "Tecla para pressionar (ex: 'enter', 'tab', 'ctrl', 'alt')"
-                        },
-                        "keys": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Teclas para hotkey (ex: ['ctrl', 'c'])"
-                        },
-                        "direction": {
-                            "type": "string",
-                            "enum": ["up", "down"],
-                            "description": "Direção do scroll"
-                        },
-                        "x1": {
-                            "type": "integer",
-                            "description": "Coordenada X inicial (para drag)"
-                        },
-                        "y1": {
-                            "type": "integer",
-                            "description": "Coordenada Y inicial (para drag)"
-                        },
-                        "x2": {
-                            "type": "integer",
-                            "description": "Coordenada X final (para drag)"
-                        },
-                        "y2": {
-                            "type": "integer",
-                            "description": "Coordenada Y final (para drag)"
-                        },
-                        "duration": {
-                            "type": "number",
-                            "description": "Duração em segundos (para drag, move_mouse)"
-                        },
-                        "image_path": {
-                            "type": "string",
-                            "description": "Caminho para imagem a localizar (para locate_on_screen)"
-                        },
-                        "confidence": {
-                            "type": "number",
-                            "description": "Nível de confiança (0.0 a 1.0) para locate_on_screen"
-                        },
-                        "title": {
-                            "type": "string",
-                            "description": "Título da janela (para activate_window)"
-                        },
-                        "region": {
-                            "type": "array",
-                            "items": {"type": "integer"},
-                            "description": "Região para screenshot [x, y, width, height]"
-                        },
-                        "save": {
-                            "type": "boolean",
-                            "description": "Salvar screenshot (para screenshot)"
-                        },
-                        "task": {
-                            "type": "string",
-                            "description": "Descrição da tarefa (para execute_task)"
+        return {
+            "name": "gui_automation",
+            "description": "Automação GUI completa usando PyAutoGUI. Permite interagir com interfaces gráficas: capturar screenshots, clicar, digitar, pressionar teclas, fazer scroll, arrastar, mover mouse, localizar imagens, gerenciar janelas, etc.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": [
+                            "screenshot",
+                            "click",
+                            "double_click",
+                            "right_click",
+                            "type",
+                            "press_key",
+                            "hotkey",
+                            "scroll",
+                            "drag",
+                            "move_mouse",
+                            "get_mouse_position",
+                            "locate_on_screen",
+                            "get_window_list",
+                            "activate_window",
+                            "execute_task"
+                        ],
+                        "description": "Ação a executar"
+                    },
+                    "x": {
+                        "type": "integer",
+                        "description": "Coordenada X (para click, move_mouse, scroll, etc.)"
+                    },
+                    "y": {
+                        "type": "integer",
+                        "description": "Coordenada Y (para click, move_mouse, scroll, etc.)"
+                    },
+                    "button": {
+                        "type": "string",
+                        "enum": ["left", "right", "middle"],
+                        "description": "Botão do mouse (para click)"
+                    },
+                    "clicks": {
+                        "type": "integer",
+                        "description": "Número de cliques"
+                    },
+                    "text": {
+                        "type": "string",
+                        "description": "Texto para digitar"
+                    },
+                    "key": {
+                        "type": "string",
+                        "description": "Tecla para pressionar (ex: 'enter', 'tab', 'ctrl', 'alt')"
+                    },
+                    "keys": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Teclas para hotkey (ex: ['ctrl', 'c'])"
+                    },
+                    "direction": {
+                        "type": "string",
+                        "enum": ["up", "down"],
+                        "description": "Direção do scroll"
+                    },
+                    "x1": {
+                        "type": "integer",
+                        "description": "Coordenada X inicial (para drag)"
+                    },
+                    "y1": {
+                        "type": "integer",
+                        "description": "Coordenada Y inicial (para drag)"
+                    },
+                    "x2": {
+                        "type": "integer",
+                        "description": "Coordenada X final (para drag)"
+                    },
+                    "y2": {
+                        "type": "integer",
+                        "description": "Coordenada Y final (para drag)"
+                    },
+                    "duration": {
+                        "type": "number",
+                        "description": "Duração em segundos (para drag, move_mouse)"
+                    },
+                    "image_path": {
+                        "type": "string",
+                        "description": "Caminho para imagem a localizar (para locate_on_screen)"
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "Nível de confiança (0.0 a 1.0) para locate_on_screen"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "Título da janela (para activate_window)"
+                    },
+                    "region": {
+                        "type": "array",
+                        "items": {"type": "integer"},
+                        "description": "Região para screenshot [x, y, width, height]"
+                    },
+                    "save": {
+                        "type": "boolean",
+                        "description": "Salvar screenshot (para screenshot)"
+                    },
+                    "task": {
+                        "type": "string",
+                        "description": "Descrição da tarefa (para execute_task)"
                     }
                 },
                 "required": ["action"]
             }
         }
-        return schema

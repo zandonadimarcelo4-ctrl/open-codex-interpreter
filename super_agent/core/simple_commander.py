@@ -19,25 +19,24 @@ except ImportError:
     logger.error("autogen-agentchat não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
 
 # Importar tools
-# PRIORIDADE: NativeInterpreter (sem dependência externa)
+# PRIORIDADE: Open Interpreter Externo (projeto estático, código testado, funcionalidades completas)
+# DECISÃO TÉCNICA: Open Interpreter Externo é mais eficiente (ver FORMA_MAIS_EFICIENTE.md)
+try:
+    from ..tools.open_interpreter_protocol_tool import create_open_interpreter_protocol_tool
+    OPEN_INTERPRETER_TOOL_AVAILABLE = True
+    logger.info("✅ Open Interpreter Protocol Tool disponível (código testado, funcionalidades completas)")
+except ImportError:
+    OPEN_INTERPRETER_TOOL_AVAILABLE = False
+    logger.warning("⚠️ Open Interpreter Protocol Tool não disponível")
+
+# Fallback: NativeInterpreter (reimplementação - funcionalidades parciais, código novo)
 try:
     from ..tools.native_interpreter_tool import create_native_interpreter_tool
     NATIVE_INTERPRETER_TOOL_AVAILABLE = True
-    logger.info("✅ NativeInterpreter Tool disponível (sem dependência externa)")
+    logger.info("✅ NativeInterpreter Tool disponível (fallback - reimplementação)")
 except ImportError:
     NATIVE_INTERPRETER_TOOL_AVAILABLE = False
     logger.warning("⚠️ NativeInterpreter Tool não disponível")
-
-# Fallback: Open Interpreter com protocolo (se disponível)
-OPEN_INTERPRETER_TOOL_AVAILABLE = False
-if not NATIVE_INTERPRETER_TOOL_AVAILABLE:
-    try:
-        from ..tools.open_interpreter_protocol_tool import create_open_interpreter_protocol_tool
-        OPEN_INTERPRETER_TOOL_AVAILABLE = True
-        logger.warning("⚠️ Usando Open Interpreter Protocol tool (fallback - requer projeto externo)")
-    except ImportError:
-        OPEN_INTERPRETER_TOOL_AVAILABLE = False
-        logger.warning("⚠️ Open Interpreter Protocol tool não disponível")
 
 
 def create_simple_commander(

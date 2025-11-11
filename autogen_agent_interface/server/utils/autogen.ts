@@ -411,12 +411,207 @@ Sugira comandos diretos como:
       // O Code Executor já funciona bem e é mais rápido
       console.log(`[AutoGen] 🔧 Processando tarefa complexa com Code Executor...`);
       
+      // Verificar se é tarefa de refatoração
+      const isRefactoringTask = task.toLowerCase().includes('refactor') || 
+                                task.toLowerCase().includes('refatorar') ||
+                                task.toLowerCase().includes('improve code') ||
+                                task.toLowerCase().includes('melhorar código');
+      
+      // Verificar se é tarefa de detecção de bugs
+      const isBugDetectionTask = task.toLowerCase().includes('detect bugs') || 
+                                 task.toLowerCase().includes('find bugs') ||
+                                 task.toLowerCase().includes('analisar bugs') ||
+                                 task.toLowerCase().includes('check errors');
+      
+      // Verificar se é tarefa de geração de código a partir de imagem
+      const isVisualCodeTask = task.toLowerCase().includes('image') || 
+                              task.toLowerCase().includes('screenshot') ||
+                              task.toLowerCase().includes('visual') ||
+                              task.toLowerCase().includes('from image') ||
+                              task.toLowerCase().includes('from screenshot');
+      
       // Verificar se é uma tarefa de geração de código
       const isCodeGenerationTask = task.toLowerCase().includes('write') || 
                                    task.toLowerCase().includes('create') || 
                                    task.toLowerCase().includes('generate') ||
                                    task.toLowerCase().includes('make') ||
                                    task.toLowerCase().includes('build');
+      
+      // Se for tarefa de refatoração, usar Refactoring Agent
+      if (isRefactoringTask && (intent.type === "action" || intent.actionType === "code")) {
+        try {
+          const { executeRefactoring, applyRefactoringToFile } = await import("./refactoring_agent");
+          const language = detectLanguage(task);
+          
+          console.log(`[AutoGen] 🔧 Refatorando código: linguagem=${language}`);
+          
+          // Tentar extrair caminho do arquivo da tarefa
+          const filePathMatch = task.match(/(?:file|arquivo|path):\s*([^\s]+)/i);
+          const filePath = filePathMatch ? filePathMatch[1] : undefined;
+          
+          let refactoringResult;
+          if (filePath) {
+            refactoringResult = await applyRefactoringToFile(filePath, {
+              language,
+              refactoringType: 'all',
+              description: task,
+              backup: true,
+            });
+          } else {
+            // Extrair código da tarefa
+            const codeMatch = task.match(/```[\s\S]*?```/);
+            const code = codeMatch ? codeMatch[0].replace(/```\w*\n?/g, '').replace(/```/g, '').trim() : undefined;
+            
+            if (code) {
+              refactoringResult = await executeRefactoring({
+                code,
+                language,
+                refactoringType: 'all',
+                description: task,
+              });
+            } else {
+              throw new Error("No code or file path found for refactoring");
+            }
+          }
+          
+          let resultText = `✅ Refatoração concluída com sucesso!\n\n`;
+          resultText += `**Linguagem**: ${language}\n`;
+          resultText += `**Risco**: ${refactoringResult.plan.riskLevel}\n`;
+          resultText += `**Tempo estimado**: ${refactoringResult.plan.estimatedTime} minutos\n\n`;
+          
+          resultText += `**Melhorias**:\n`;
+          for (const improvement of refactoringResult.improvements) {
+            resultText += `- ${improvement}\n`;
+          }
+          resultText += `\n`;
+          
+          resultText += `**Código Refatorado**:\n`;
+          resultText += `\`\`\`${language}\n${refactoringResult.refactoredCode}\n\`\`\`\n\n`;
+          
+          if (refactoringResult.warnings.length > 0) {
+            resultText += `**⚠️ Avisos**:\n`;
+            for (const warning of refactoringResult.warnings) {
+              resultText += `- ${warning}\n`;
+            }
+            resultText += `\n`;
+          }
+          
+          return resultText;
+        } catch (error: any) {
+          console.error(`[AutoGen] ❌ Erro ao refatorar código:`, error);
+          // Continuar com fluxo normal se refatoração falhar
+        }
+      }
+      
+      // Se for tarefa de detecção de bugs, usar Bug Detection Agent
+      if (isBugDetectionTask && (intent.type === "action" || intent.actionType === "code")) {
+        try {
+          const { detectBugs, generateBugReport } = await import("./bug_detection_agent");
+          const language = detectLanguage(task);
+          
+          console.log(`[AutoGen] 🐛 Detectando bugs: linguagem=${language}`);
+          
+          // Tentar extrair caminho do arquivo da tarefa
+          const filePathMatch = task.match(/(?:file|arquivo|path):\s*([^\s]+)/i);
+          const filePath = filePathMatch ? filePathMatch[1] : undefined;
+          
+          // Extrair código da tarefa
+          const codeMatch = task.match(/```[\s\S]*?```/);
+          const code = codeMatch ? codeMatch[0].replace(/```\w*\n?/g, '').replace(/```/g, '').trim() : undefined;
+          
+          const bugResult = await detectBugs({
+            filePath,
+            code,
+            language,
+            severityFilter: 'all',
+          });
+          
+          return generateBugReport(bugResult, language);
+        } catch (error: any) {
+          console.error(`[AutoGen] ❌ Erro ao detectar bugs:`, error);
+          // Continuar com fluxo normal se detecção de bugs falhar
+        }
+      }
+      
+      // Se for tarefa visual, usar Visual Code Agent
+      if (isVisualCodeTask && (intent.type === "action" || intent.actionType === "code")) {
+        try {
+          const { generateCodeFromImage, analyzeInterfaceAndGenerateCode, extractCodeFromScreenshot } = await import("./visual_code_agent");
+          const language = detectLanguage(task);
+          
+          console.log(`[AutoGen] 🖼️ Gerando código a partir de imagem: linguagem=${language}`);
+          
+          // Tentar extrair URL da imagem da tarefa
+          const imageUrlMatch = task.match(/(?:image|url|screenshot):\s*([^\s]+)/i) || 
+                               task.match(/(https?:\/\/[^\s]+)/i) ||
+                               task.match(/(data:image\/[^;]+;base64,[^\s]+)/i);
+          const imageUrl = imageUrlMatch ? imageUrlMatch[1] : undefined;
+          
+          if (!imageUrl && images.length > 0) {
+            // Usar imagem do contexto se disponível
+            const imageUrlFromContext = images[0];
+            if (imageUrlFromContext) {
+              const visualResult = await generateCodeFromImage({
+                imageUrl: imageUrlFromContext,
+                language,
+                description: task,
+              });
+              
+              let resultText = `✅ Código gerado a partir de imagem com sucesso!\n\n`;
+              resultText += `**Linguagem**: ${visualResult.language}\n`;
+              resultText += `**Confiança**: ${(visualResult.confidence * 100).toFixed(0)}%\n\n`;
+              resultText += `**Código Gerado**:\n`;
+              resultText += `\`\`\`${visualResult.language}\n${visualResult.code}\n\`\`\`\n\n`;
+              
+              if (visualResult.suggestions.length > 0) {
+                resultText += `**💡 Sugestões**:\n`;
+                for (const suggestion of visualResult.suggestions) {
+                  resultText += `- ${suggestion}\n`;
+                }
+                resultText += `\n`;
+              }
+              
+              return resultText;
+            }
+          }
+          
+          if (!imageUrl) {
+            throw new Error("No image URL found in task or context");
+          }
+          
+          let visualResult;
+          if (task.toLowerCase().includes('interface') || task.toLowerCase().includes('ui')) {
+            visualResult = await analyzeInterfaceAndGenerateCode(imageUrl, task, language);
+          } else if (task.toLowerCase().includes('screenshot')) {
+            visualResult = await extractCodeFromScreenshot(imageUrl, language);
+          } else {
+            visualResult = await generateCodeFromImage({
+              imageUrl,
+              language,
+              description: task,
+            });
+          }
+          
+          let resultText = `✅ Código gerado a partir de imagem com sucesso!\n\n`;
+          resultText += `**Linguagem**: ${visualResult.language}\n`;
+          resultText += `**Confiança**: ${(visualResult.confidence * 100).toFixed(0)}%\n\n`;
+          resultText += `**Código Gerado**:\n`;
+          resultText += `\`\`\`${visualResult.language}\n${visualResult.code}\n\`\`\`\n\n`;
+          
+          if (visualResult.suggestions.length > 0) {
+            resultText += `**💡 Sugestões**:\n`;
+            for (const suggestion of visualResult.suggestions) {
+              resultText += `- ${suggestion}\n`;
+            }
+            resultText += `\n`;
+          }
+          
+          return resultText;
+        } catch (error: any) {
+          console.error(`[AutoGen] ❌ Erro ao gerar código a partir de imagem:`, error);
+          // Continuar com fluxo normal se geração visual falhar
+        }
+      }
       
       // Se for tarefa de geração de código, usar Code Router
       if (isCodeGenerationTask && (intent.type === "action" || intent.actionType === "code")) {

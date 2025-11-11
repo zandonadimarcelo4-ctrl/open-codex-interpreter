@@ -8,7 +8,7 @@
 # - Batch size: 2048
 # - Máxima performance em GPU
 
-# Modelo base oficial do Ollama (já quantizado, mas vamos usar como base)
+# Modelo base oficial do Ollama (já quantizado)
 FROM deepseek-coder-v2:16b
 
 # Sistema de prompt otimizado para código
@@ -36,6 +36,7 @@ TEMPLATE """<|start_header_id|>system<|end_header_id|>
 
 # ============================================
 # PARÂMETROS OTIMIZADOS PARA RTX NVIDIA GPU
+# Apenas parâmetros suportados pelo Ollama
 # ============================================
 
 # Temperature: 0.2 (muito determinístico, ideal para código)
@@ -59,37 +60,13 @@ PARAMETER repeat_penalty 1.1
 # Repeat last N tokens: 128 (mais contexto para RTX 4080 Super)
 PARAMETER repeat_last_n 128
 
-# Threads: 16 (CPU auxilia, GPU faz trabalho pesado)
-PARAMETER num_thread 16
-
-# Batch size: 2048 (RTX 4080 Super 16GB suporta batches muito grandes)
-PARAMETER num_batch 2048
-
-# GPU layers: TODAS (forçar uso completo da GPU RTX 4080 Super 16GB)
-# RTX 4080 Super 16GB: usar todas as camadas na GPU para máxima performance
-PARAMETER num_gpu 99
-
 # Stop sequences (padrão DeepSeek-Coder-V2)
 PARAMETER stop "<|start_header_id|>"
 PARAMETER stop "<|end_header_id|>"
 PARAMETER stop "<|eot_id|>"
 PARAMETER stop "```"
-PARAMETER stop "System:"
 PARAMETER stop "User:"
 PARAMETER stop "Assistant:"
 
 # Seed: -1 (aleatório, mas determinístico por padrão)
 PARAMETER seed -1
-
-# TFS: 1.0 (sem filtro de cauda)
-PARAMETER tfs_z 1.0
-
-# Typical p: 1.0 (sem filtro típico)
-PARAMETER typical_p 1.0
-
-# Mirostat: 0 (desabilitado para performance máxima)
-PARAMETER mirostat 0
-
-# Penalize newlines: false (permitir múltiplas linhas de código)
-PARAMETER penalize_newline false
-

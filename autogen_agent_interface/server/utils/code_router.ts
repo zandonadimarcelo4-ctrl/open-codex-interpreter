@@ -12,7 +12,7 @@
  * @since 1.0.0
  */
 
-import { callOllamaChat } from "../ollama";
+import { callOllamaChat } from "./ollama";
 import { ValidationError, ExecutionError, withErrorHandling } from "./error_handler";
 import {
   validateNonEmptyString,

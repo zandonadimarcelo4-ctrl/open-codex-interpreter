@@ -10,7 +10,7 @@
  * - Validação de consistência
  */
 
-import { callOllamaChat } from "../ollama";
+import { callOllamaChat } from "./ollama";
 
 export interface VerificationResult {
   isValid: boolean;

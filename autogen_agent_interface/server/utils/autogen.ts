@@ -380,71 +380,47 @@ Sugira comandos diretos como:
     // Extrair imagens do contexto se disponíveis
     const images = context?.images || [];
 
-    // Para ações/comandos, otimizar execução:
-    // 1. Comandos simples (abrir apps, executar comandos shell) → executar diretamente
-    // 2. Tarefas complexas (editar arquivos, refatorar código) → usar Open Interpreter
+    // IMPORTANTE: Sempre usar AutoGen v2 para processar tarefas
+    // AutoGen v2 comanda TUDO e decide quando usar Open Interpreter, UFO, Browser-Use, etc.
+    // NÃO executar comandos diretamente - deixar o AutoGen v2 processar
     if (intent.type === "action" || intent.type === "command") {
-      // Detectar comandos simples que podem ser executados diretamente
-      const lowerTask = task.toLowerCase().trim();
-      const simpleCommands = [
-        'notepad', 'bloco de notas', 'code', 'vs code', 'chrome', 'firefox', 'edge',
-        'abrir notepad', 'abrir bloco de notas', 'abrir code', 'abrir vs code',
-        'executa notepad', 'executa bloco de notas', 'executa code', 'executa vs code',
-        'abre notepad', 'abre bloco de notas', 'abre code', 'abre vs code',
-        'calculadora', 'calc', 'explorer', 'explorador', 'cmd', 'powershell',
-        'abrir calculadora', 'abrir calc', 'abrir explorer', 'abrir cmd',
-        'executa calculadora', 'executa calc', 'executa explorer', 'executa cmd'
-      ];
+      console.log(`[AutoGen] 🚀 Processando tarefa com AutoGen v2 (AutoGen comanda tudo)...`);
       
-      // Detectar padrões de comandos simples (mais agressivo)
-      // Qualquer comando que comece com "abrir", "abre", "executa", etc. é considerado simples
-      const isSimpleCommand = simpleCommands.some(cmd => lowerTask.includes(cmd)) ||
-        /^(abrir|abre|executa|execute|rodar|roda|iniciar|inicia|start)\s+[a-z0-9\s\-]+$/i.test(task.trim());
-      
-      if (isSimpleCommand) {
-        // Executar comando simples diretamente (muito mais rápido)
-        try {
-          // Mapear comandos para executáveis
-          let command = '';
-          if (lowerTask.includes('notepad') || lowerTask.includes('bloco de notas')) {
-            command = 'notepad';
-          } else if (lowerTask.includes('code') || lowerTask.includes('vs code')) {
-            command = 'code';
-          } else if (lowerTask.includes('chrome')) {
-            command = 'chrome';
-          } else if (lowerTask.includes('firefox')) {
-            command = 'firefox';
-          } else if (lowerTask.includes('edge')) {
-            command = 'msedge';
-          } else {
-            // Tentar extrair o comando da mensagem
-            const match = task.match(/(?:abrir|abre|executa|execute)\s+(.+)/i);
-            if (match) {
-              command = match[1].trim();
-            } else {
-              command = task.trim();
-            }
-          }
+      // SEMPRE usar AutoGen v2 para processar tarefas
+      // O AutoGen v2 vai decidir quando usar Open Interpreter, executar comandos, etc.
+      try {
+        const autogenV2Available = await checkAutoGenV2Available();
+        
+        if (autogenV2Available) {
+          console.log(`[AutoGen] ✅ AutoGen v2 disponível - delegando tarefa para AutoGen v2`);
           
-          console.log(`[AutoGen] Executando comando simples: ${command}`);
-          // Usar executeShell diretamente para comandos shell
-          const { executeShell } = await import("./code_executor");
-          const result = await executeShell(command, { timeout: 3000 });
+          // Delegar para AutoGen v2 Python
+          const autogenV2Response = await executeWithAutoGenV2({
+            task: enrichedTask,
+            intent: intent,
+            context: context || {},
+            userId: context?.userId as string || "default",
+            conversationId: context?.conversationId as number || 0,
+            model: DEFAULT_MODEL,
+          });
           
-          if (result.success) {
-            return `✅ Comando executado com sucesso: ${command}\n\n${result.output || 'Aplicativo aberto'}`;
+          if (autogenV2Response.success) {
+            console.log(`[AutoGen] ✅ AutoGen v2 executou tarefa com sucesso`);
+            return autogenV2Response.result || "✅ Tarefa executada com sucesso";
           } else {
-            return `⚠️ Erro ao executar comando: ${command}\n\n${result.error || 'Erro desconhecido'}`;
+            console.warn(`[AutoGen] ⚠️ AutoGen v2 falhou: ${autogenV2Response.error}`);
+            // Continuar para fallback se AutoGen v2 falhar
           }
-        } catch (error) {
-          console.warn("[AutoGen] Erro ao executar comando simples:", error);
-          // Continuar para Open Interpreter se falhar
+        } else {
+          console.warn(`[AutoGen] ⚠️ AutoGen v2 não disponível - usando fallback`);
         }
+      } catch (autogenV2Error) {
+        console.warn(`[AutoGen] ⚠️ Erro ao usar AutoGen v2: ${autogenV2Error}`);
+        // Continuar para fallback se AutoGen v2 falhar
       }
       
-      // Para tarefas complexas, usar Code Executor (mais simples e confiável que Open Interpreter)
-      // O Code Executor já funciona bem e é mais rápido
-      console.log(`[AutoGen] 🔧 Processando tarefa complexa com Code Executor...`);
+      // Fallback: usar Code Executor apenas se AutoGen v2 não estiver disponível
+      console.log(`[AutoGen] 🔧 Usando fallback: Code Executor...`);
       
       // Verificar se é tarefa de refatoração
       const isRefactoringTask = task.toLowerCase().includes('refactor') || 

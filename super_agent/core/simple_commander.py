@@ -110,30 +110,78 @@ def create_simple_commander(
             )
             
             # Criar tool wrapper para o agente autônomo
-            async def autonomous_agent_tool(prompt: str) -> Dict[str, Any]:
-                """Tool wrapper para AutonomousInterpreterAgent"""
+            # AutoGen v2 espera tools no formato OpenAI function calling
+            def autonomous_agent_tool(task: str) -> str:
+                """
+                Tool wrapper para AutonomousInterpreterAgent
+                AutoGen v2 chama esta função com a tarefa em linguagem natural
+                """
+                import asyncio
                 try:
-                    response = await autonomous_agent.process_message(prompt)
-                    return {
+                    # Executar de forma síncrona (usando asyncio.run se necessário)
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # Se já há um loop rodando, criar task
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, autonomous_agent.process_message(task))
+                                response = future.result(timeout=300)  # 5 minutos timeout
+                        else:
+                            response = loop.run_until_complete(autonomous_agent.process_message(task))
+                    except RuntimeError:
+                        # Não há loop, criar um novo
+                        response = asyncio.run(autonomous_agent.process_message(task))
+                    
+                    # Retornar JSON estruturado
+                    import json
+                    result = {
                         "success": True,
                         "output": response,
                         "code_executed": "",
                         "errors": []
                     }
+                    return json.dumps(result, ensure_ascii=False)
                 except Exception as e:
                     logger.error(f"Erro no agente autônomo: {e}")
-                    return {
+                    import json
+                    import traceback
+                    result = {
                         "success": False,
                         "output": "",
                         "code_executed": "",
-                        "errors": [str(e)]
+                        "errors": [str(e), traceback.format_exc()]
                     }
+                    return json.dumps(result, ensure_ascii=False)
             
-            # Registrar como tool
+            # Registrar como tool no formato AutoGen v2 (OpenAI function calling)
             tools: List[Dict[str, Any]] = [{
-                "name": "autonomous_interpreter_agent",
-                "description": "Agente autônomo que reutiliza 100% da lógica do Open Interpreter. Raciocina, executa e corrige código sozinho com autonomia total.",
-                "func": autonomous_agent_tool
+                "type": "function",
+                "function": {
+                    "name": "autonomous_interpreter_agent",
+                    "description": (
+                        "Agente autônomo que reutiliza 100% da lógica do Open Interpreter. "
+                        "Raciocina, executa e corrige código sozinho com autonomia total. "
+                        "Use quando precisar: executar código, criar scripts, processar dados, etc. "
+                        "Retorna JSON com 'success', 'output', 'code_executed', 'errors'."
+                    ),
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "task": {
+                                "type": "string",
+                                "description": (
+                                    "Tarefa em linguagem natural. "
+                                    "Exemplos: 'Crie um script Python que abre o navegador', "
+                                    "'Execute ls -la no diretório atual', "
+                                    "'Analise o arquivo data.csv e gere um relatório'"
+                                ),
+                            },
+                        },
+                        "required": ["task"],
+                    },
+                },
+                "func": autonomous_agent_tool,
             }]
             
             logger.info(f"✅ AutonomousInterpreterAgent registrado como tool (REUTILIZAÇÃO COMPLETA)")

@@ -39,8 +39,8 @@ def get_llm_client(model: Optional[str] = None, api_base: Optional[str] = None) 
     if not AUTOGEN_EXT_AVAILABLE:
         raise ImportError("autogen-ext não está disponível. Instale: pip install autogen-ext[openai]")
     
-    # Obter modelo do ambiente ou usar padrão
-    model = model or os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+    # Obter modelo do ambiente ou usar padrão (qwen2.5:14b suporta function calling)
+    model = model or os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
     
     # Obter API base do ambiente
     # IMPORTANTE: Usar a mesma URL que o Open Interpreter (OllamaAdapter)

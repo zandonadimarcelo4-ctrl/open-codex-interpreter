@@ -73,8 +73,8 @@ def create_simple_commander(
     if not AUTOGEN_V2_AVAILABLE:
         raise ImportError("autogen-agentchat não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
     
-    # Obter modelo do ambiente ou usar padrão
-    model = model or os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+    # Obter modelo do ambiente ou usar padrão (qwen2.5:14b suporta function calling)
+    model = model or os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
     
     # Obter API base do ambiente
     api_base = api_base or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

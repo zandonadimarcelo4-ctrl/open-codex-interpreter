@@ -1,32 +1,65 @@
-"""Executor agent that connects to Open Interpreter and external tooling."""
+"""Executor agent that connects to Open Interpreter and external tooling (AutoGen v2)."""
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from autogen import UserProxyAgent
+try:
+    from autogen_agentchat.agents import AssistantAgent
+    AUTOGEN_V2_AVAILABLE = True
+except ImportError:
+    AUTOGEN_V2_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.error("AutoGen v2 não disponível. Execute: pip install autogen-agentchat autogen-ext[openai]")
+    raise ImportError("AutoGen v2 (autogen-agentchat) é obrigatório")
 
 from ..integrations.after_effects import AfterEffectsIntegration
 from ..integrations.ufo import UFOIntegration
 from ..memory.memory_manager import MemoryManager
 
+logger = logging.getLogger(__name__)
 
-class ExecutorAgent:
-    """Runs code locally and coordinates integrations."""
+
+class ExecutorAgent(AssistantAgent):
+    """Runs code locally and coordinates integrations (AutoGen v2)."""
 
     def __init__(
         self,
         *,
         name: str,
-        user_proxy: UserProxyAgent,
+        model_client: Any,
         workspace: Path,
         memory: MemoryManager,
         auto_exec: bool = True,
+        **kwargs
     ) -> None:
-        self.name = name
-        self._user_proxy = user_proxy
+        """
+        Inicializar Executor Agent com AutoGen v2
+        
+        Args:
+            name: Nome do agente
+            model_client: Model Client (Ollama ou OpenAI)
+            workspace: Diretório de trabalho
+            memory: Gerenciador de memória
+            auto_exec: Executar código automaticamente
+            **kwargs: Argumentos adicionais
+        """
+        system_message = """Você é um agente executor especializado em executar código e comandos.
+        Sua função é executar código Python, JavaScript, Shell, etc.
+        Use a memória para lembrar comandos e resultados anteriores.
+        Armazene resultados de execução na memória para referência futura.
+        Sempre verifique resultados antes de prosseguir."""
+        
+        super().__init__(
+            name=name,
+            model_client=model_client,
+            system_message=system_message,
+            **kwargs
+        )
+        
         self._workspace = Path(workspace)
         self._memory = memory
         self._auto_exec = auto_exec

@@ -1,16 +1,30 @@
 """Entry point for the unified development agent framework."""
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
-from autogen import AssistantAgent, UserProxyAgent
+# AutoGen v2 - Nova API moderna
+try:
+    from autogen_agentchat.agents import AssistantAgent
+    from autogen_agentchat.teams import RoundRobinTeam
+    from autogen_ext.models.openai import OpenAIChatCompletionClient
+    from autogen_ext.models.ollama import OllamaChatCompletionClient
+    AUTOGEN_V2_AVAILABLE = True
+except ImportError as e:
+    AUTOGEN_V2_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.error(f"AutoGen v2 não disponível: {e}")
+    raise ImportError("AutoGen v2 (autogen-agentchat) é obrigatório. Execute: pip install autogen-agentchat autogen-ext[openai]")
 
 from .agents.critic import CriticAgent
 from .agents.executor import ExecutorAgent
 from .agents.generator import GeneratorAgent
 from .memory.memory_manager import MemoryManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -40,26 +54,29 @@ class UnifiedDevAgent:
 
     def __post_init__(self) -> None:
         self._memory = MemoryManager(self.config.memory_path)
+        
+        # Criar Model Client para AutoGen v2
+        model_client = OllamaChatCompletionClient(
+            model=self.config.ollama_model,
+            base_url=self.config.ollama_base_url,
+        )
+        
+        # Criar agentes com AutoGen v2
         self._generator = GeneratorAgent(
             name="Generator",
-            llm_config={
-                "model": f"ollama/{self.config.ollama_model}",
-                "api_base": self.config.ollama_base_url,
-            },
+            model_client=model_client,
             memory=self._memory,
         )
         self._critic = CriticAgent(
             name="Critic",
-            llm_config={
-                "model": f"ollama/{self.config.ollama_model}",
-                "api_base": self.config.ollama_base_url,
-            },
+            model_client=model_client,
             memory=self._memory,
         )
-        user_proxy = UserProxyAgent("UnifiedDevUser")
+        
+        # Executor não usa UserProxyAgent no AutoGen v2
         self._executor = ExecutorAgent(
             name="Executor",
-            user_proxy=user_proxy,
+            model_client=model_client,
             workspace=self.config.workspace,
             memory=self._memory,
             auto_exec=self.config.enable_auto_execution,
@@ -68,27 +85,37 @@ class UnifiedDevAgent:
             self._executor.load_after_effects_project(self.config.after_effects_project_path)
         if self.config.ufo_workspace:
             self._executor.connect_ufo_workspace(self.config.ufo_workspace)
+        
+        # Criar Team para coordenação
+        self._team = RoundRobinTeam(
+            agents=[self._generator, self._critic],
+            max_turns=50,
+        )
 
-    def run(self, prompt: str, *, history: Optional[Iterable[str]] = None) -> None:
-        """Run the unified development flow for a prompt."""
+    async def run(self, prompt: str, *, history: Optional[Iterable[str]] = None) -> None:
+        """Run the unified development flow for a prompt (AutoGen v2 - assíncrono)."""
         if history:
             for item in history:
                 self._memory.add_event("history", item)
 
-        conversation = self._generator.initiate_chat_with_critic(
-            critic=self._critic,
-            user_message=prompt,
-        )
+        # Executar usando Team (AutoGen v2)
+        try:
+            result = await self._team.run(task=prompt)
+            
+            # Extrair resultado
+            if result:
+                result_text = str(result)
+                self._memory.add_event("conversation", result_text)
+                
+                if self.config.enable_auto_execution and "```" in result_text:
+                    self._executor.execute_from_conversation(result_text)
+        except Exception as e:
+            logger.error(f"Erro ao executar prompt: {e}")
+            raise
 
-        if not conversation.summary:
-            return
-
-        self._memory.add_event("conversation", conversation.summary)
-        if self.config.enable_auto_execution and "```" in conversation.summary:
-            self._executor.execute_from_conversation(conversation.summary)
-
-    def interactive(self) -> None:
-        """Start an interactive prompt loop."""
+    async def interactive(self) -> None:
+        """Start an interactive prompt loop (AutoGen v2 - assíncrono)."""
+        import asyncio
         print("\n💡 O que você quer que o framework desenvolva?")
         while True:
             try:
@@ -100,7 +127,7 @@ class UnifiedDevAgent:
             if not prompt.strip():
                 continue
 
-            self.run(prompt)
+            await self.run(prompt)
 
 
 __all__ = ["UnifiedDevAgent", "UnifiedDevAgentConfig"]

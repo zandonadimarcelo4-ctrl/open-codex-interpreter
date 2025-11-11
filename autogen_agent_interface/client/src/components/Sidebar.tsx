@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Menu, Plus, Search, Clock, Trash2, Settings, LogOut } from 'lucide-react';
+import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
@@ -19,6 +20,7 @@ export function Sidebar({
   onToggle: () => void;
   onNewChat: () => void;
 }) {
+  const [, setLocation] = useLocation();
   const [conversations, setConversations] = useState<ConversationItem[]>([
     {
       id: '1',
@@ -127,6 +129,10 @@ export function Sidebar({
           <Button
             variant="ghost"
             className="w-full justify-start text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setLocation('/settings');
+              onToggle(); // Fechar sidebar no mobile
+            }}
           >
             <Settings className="w-4 h-4 mr-2" />
             Configurações

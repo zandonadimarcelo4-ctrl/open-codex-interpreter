@@ -1,9 +1,16 @@
 # Super Agent Framework - Dependências
 
-# AutoGen
-pyautogen>=0.2.0
+# AutoGen v2 (autogen-agentchat) - Versão moderna (OBRIGATÓRIO)
+autogen-agentchat>=0.7.0
+autogen-ext[openai]>=0.7.0
 
-# Open Interpreter
+# Ollama - Atualizado para versão compatível
+ollama>=0.3.0
+
+# ChromaDB - Memória Vetorial Persistente (OBRIGATÓRIO)
+chromadb>=0.4.24,<0.5.0
+
+# Open Interpreter (opcional)
 open-interpreter>=0.1.0
 
 # Voice (TTS) - ElevenLabs API (PRIORIDADE) para voz ultra-realista

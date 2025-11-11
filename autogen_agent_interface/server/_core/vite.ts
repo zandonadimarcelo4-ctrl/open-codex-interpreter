@@ -631,15 +631,77 @@ export function serveStatic(app: Express) {
 
   console.log(`[Vite] ✅ Servindo arquivos estáticos de: ${distPath}`);
 
-  // Servir arquivos estáticos
-  app.use(express.static(distPath, {
-    maxAge: 0, // Sem cache em desenvolvimento
-    etag: false,
-    lastModified: false,
-  }));
+  // Servir arquivos estáticos - MAS apenas para arquivos que não são rotas de API
+  // IMPORTANTE: Este middleware deve ignorar rotas de API e WebSocket
+  app.use((req, res, next) => {
+    const url = req.originalUrl || req.url || '';
+    const pathname = req.path || url.split('?')[0] || '';
+    
+    // CRÍTICO: NÃO servir arquivos estáticos para rotas de API ou WebSocket
+    if (pathname.startsWith('/api/') || 
+        pathname.startsWith('/ws') ||
+        url.startsWith('/api/') || 
+        url.startsWith('/ws')) {
+      // Esta é uma rota de API ou WebSocket, não servir arquivos estáticos
+      next();
+      return;
+    }
+    
+    // Para outras rotas, servir arquivos estáticos normalmente
+    express.static(distPath, {
+      maxAge: 0, // Sem cache em desenvolvimento
+      etag: false,
+      lastModified: false,
+    })(req, res, next);
+  });
 
   // Fallback para index.html (SPA routing)
-  app.use("*", (_req, res) => {
-    res.sendFile(path.resolve(distPath, "index.html"));
+  // IMPORTANTE: Este middleware deve ser executado APENAS para rotas que não são API, WebSocket ou assets
+  // O Express processa middlewares em ordem, então este só será executado se nenhum middleware anterior respondeu
+  app.use("*", (req, res) => {
+    const url = req.url || req.originalUrl || '';
+    const pathname = req.path || url.split('?')[0] || '';
+    const fullUrl = req.originalUrl || req.url || '';
+    
+    // Lista de extensões de arquivos estáticos
+    const staticExtensions = ['.js', '.mjs', '.css', '.json', '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.webp', '.map'];
+    
+    // Verificar se é um arquivo estático (por extensão ou caminho)
+    const isStaticFile = staticExtensions.some(ext => pathname.endsWith(ext)) || 
+                         pathname.startsWith('/assets/') ||
+                         pathname.startsWith('/static/') ||
+                         fullUrl.startsWith('/assets/') ||
+                         fullUrl.startsWith('/static/');
+    
+    // CRÍTICO: Se for rota de API ou WebSocket, NÃO servir index.html
+    // Estas rotas devem ser processadas pelos middlewares anteriores (TRPC, etc)
+    if (pathname.startsWith('/api/') || 
+        pathname.startsWith('/ws') ||
+        fullUrl.startsWith('/api/') || 
+        fullUrl.startsWith('/ws')) {
+      // Esta é uma rota de API ou WebSocket que não foi processada por nenhum middleware anterior
+      // Retornar 404 (não servir index.html)
+      console.log(`[Static] ⚠️ Rota de API/WebSocket não processada: ${req.method} ${fullUrl}`);
+      res.status(404).json({ error: 'Rota não encontrada', path: pathname, url: fullUrl });
+      return;
+    }
+    
+    // Se for arquivo estático mas não foi encontrado, retornar 404
+    if (isStaticFile) {
+      console.log(`[Static] ⚠️ Arquivo estático não encontrado: ${fullUrl}`);
+      res.status(404).json({ error: 'Arquivo não encontrado', path: pathname });
+      return;
+    }
+    
+    // Servir index.html apenas para rotas que não são API, WebSocket ou assets (SPA routing)
+    // Se chegou aqui, é uma rota do React Router (ex: /, /app, /settings, etc)
+    const indexHtmlPath = path.resolve(distPath, "index.html");
+    if (!fs.existsSync(indexHtmlPath)) {
+      console.error(`[Static] ❌ index.html não encontrado em: ${indexHtmlPath}`);
+      res.status(500).json({ error: 'index.html não encontrado' });
+      return;
+    }
+    
+    res.sendFile(indexHtmlPath);
   });
 }

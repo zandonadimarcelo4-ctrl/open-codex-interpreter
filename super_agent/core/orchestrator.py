@@ -1,15 +1,28 @@
 """
 Super Agent Orchestrator - Coordenador principal do sistema
+Atualizado para AutoGen v2 (autogen-agentchat)
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from autogen import AssistantAgent, GroupChat, GroupChatManager, UserProxyAgent
+# AutoGen v2 - Nova API moderna
+try:
+    from autogen_agentchat.agents import AssistantAgent
+    from autogen_agentchat.teams import RoundRobinTeam
+    from autogen_ext.models.openai import OpenAIChatCompletionClient
+    from autogen_ext.models.ollama import OllamaChatCompletionClient
+    AUTOGEN_V2_AVAILABLE = True
+except ImportError:
+    AUTOGEN_V2_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.error("autogen-agentchat não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
+    raise ImportError("AutoGen v2 (autogen-agentchat) é obrigatório. Instale com: pip install autogen-agentchat autogen-ext[openai]")
 
 # Imports opcionais - agentes especializados podem não existir ainda
 try:
@@ -58,6 +71,7 @@ except ImportError:
     MultimodalIntegration = None
 
 from ..memory.chromadb_backend import ChromaDBBackend
+from ..agents.base_agent_with_memory import AgentWithMemory
 
 logger = logging.getLogger(__name__)
 
@@ -106,18 +120,61 @@ class SuperAgentOrchestrator:
     """
     
     def __init__(self, config: SuperAgentConfig):
+        if not AUTOGEN_V2_AVAILABLE:
+            raise ImportError("AutoGen v2 (autogen-agentchat) é obrigatório. Instale com: pip install autogen-agentchat autogen-ext[openai]")
+        
         self.config = config
         self.agents: Dict[str, Any] = {}
         self.integrations: Dict[str, Any] = {}
         self.memory: Optional[ChromaDBBackend] = None
-        self.group_chat: Optional[GroupChat] = None
-        self.manager: Optional[GroupChatManager] = None
+        self.team: Optional[RoundRobinTeam] = None
+        self.model_client = self._create_model_client()
         
         # Inicializar componentes
         self._initialize_memory()
         self._initialize_integrations()
         self._initialize_agents()
-        self._setup_group_chat()
+        self._setup_team()
+    
+    def _create_model_client(self):
+        """Criar Model Client para AutoGen v2"""
+        # Verificar se deve usar Ollama (base_url contém ollama ou porta 11434)
+        use_ollama = (
+            self.config.autogen_base_url and 
+            ("ollama" in self.config.autogen_base_url.lower() or "11434" in str(self.config.autogen_base_url))
+        ) or not self.config.autogen_api_key  # Se não há API key, usar Ollama como padrão
+        
+        if use_ollama:
+            # Usar Ollama
+            try:
+                return OllamaChatCompletionClient(
+                    model=self.config.autogen_model,
+                    base_url=self.config.autogen_base_url or "http://127.0.0.1:11434",
+                )
+            except Exception as e:
+                logger.warning(f"Erro ao criar OllamaChatCompletionClient: {e}")
+                logger.warning("Tentando usar OpenAI como fallback...")
+                # Fallback para OpenAI se Ollama falhar
+                api_key = self.config.autogen_api_key or os.getenv("OPENAI_API_KEY")
+                if api_key:
+                    return OpenAIChatCompletionClient(
+                        model=self.config.autogen_model,
+                        api_key=api_key,
+                        base_url=self.config.autogen_base_url,
+                    )
+                else:
+                    raise ValueError("Ollama não disponível e OPENAI_API_KEY não configurada")
+        else:
+            # Usar OpenAI
+            api_key = self.config.autogen_api_key or os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY não configurada. Configure a chave ou use autogen_base_url com Ollama")
+            
+            return OpenAIChatCompletionClient(
+                model=self.config.autogen_model,
+                api_key=api_key,
+                base_url=self.config.autogen_base_url,
+            )
     
     def _initialize_memory(self):
         """Inicializar ChromaDB para memória persistente"""
@@ -164,102 +221,143 @@ class SuperAgentOrchestrator:
                 logger.warning(f"Falha ao integrar Multimodal: {e}")
     
     def _initialize_agents(self):
-        """Inicializar agentes AutoGen"""
-        llm_config = {
-            "model": self.config.autogen_model,
-            "temperature": self.config.autogen_temperature,
-        }
+        """Inicializar agentes AutoGen v2 com memória ChromaDB"""
+        # Generator Agent (com memória)
+        if self.config.enable_generator and GeneratorAgent:
+            try:
+                self.agents["generator"] = GeneratorAgent(
+                    name="generator",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    open_interpreter=self.integrations.get("open_interpreter"),
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao criar GeneratorAgent: {e}")
+                # Criar agente básico com memória se GeneratorAgent não funcionar
+                self.agents["generator"] = AgentWithMemory(
+                    name="generator",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    system_message="""Você é um agente gerador especializado em criar código e soluções.
+                    Use a memória para consultar soluções similares anteriores.
+                    Armazene código e soluções importantes na memória para reutilização.""",
+                )
         
-        if self.config.autogen_api_key:
-            llm_config["api_key"] = self.config.autogen_api_key
-        if self.config.autogen_base_url:
-            llm_config["api_base"] = self.config.autogen_base_url
+        # Critic Agent (com memória)
+        if self.config.enable_critic and CriticAgent:
+            try:
+                self.agents["critic"] = CriticAgent(
+                    name="critic",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao criar CriticAgent: {e}")
+                self.agents["critic"] = AgentWithMemory(
+                    name="critic",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    system_message="""Você é um agente crítico especializado em revisar e validar código.
+                    Consulte a memória para padrões de qualidade e problemas comuns.
+                    Armazene críticas e melhorias na memória para aprendizado futuro.""",
+                )
         
-        # User Proxy
-        user_proxy = UserProxyAgent(
-            name="user_proxy",
-            human_input_mode="NEVER",
-            max_consecutive_auto_reply=10,
-            code_execution_config={
-                "work_dir": str(self.config.workspace),
-                "use_docker": False,
-            },
-        )
+        # Planner Agent (com memória)
+        if self.config.enable_planner and PlannerAgent:
+            try:
+                self.agents["planner"] = PlannerAgent(
+                    name="planner",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao criar PlannerAgent: {e}")
+                self.agents["planner"] = AgentWithMemory(
+                    name="planner",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    system_message="""Você é um agente de planejamento especializado em quebrar tarefas complexas em subtarefas menores.
+                    Consulte a memória para planos similares anteriores.
+                    Armazene planos importantes na memória para referência futura.""",
+                )
         
-        # Generator Agent
-        if self.config.enable_generator:
-            self.agents["generator"] = GeneratorAgent(
-                name="generator",
-                llm_config=llm_config,
-                memory=self.memory,
-                open_interpreter=self.integrations.get("open_interpreter"),
-            )
+        # Executor Agent (se disponível, com memória)
+        if self.config.enable_executor and ExecutorAgent:
+            try:
+                self.agents["executor"] = ExecutorAgent(
+                    name="executor",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    workspace=self.config.workspace,
+                    open_interpreter=self.integrations.get("open_interpreter"),
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao criar ExecutorAgent: {e}")
+                # Criar agente executor básico com memória
+                self.agents["executor"] = AgentWithMemory(
+                    name="executor",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    system_message="""Você é um agente executor especializado em executar código e comandos.
+                    Use a memória para lembrar comandos e resultados anteriores.
+                    Armazene resultados de execução na memória para referência futura.""",
+                )
         
-        # Critic Agent
-        if self.config.enable_critic:
-            self.agents["critic"] = CriticAgent(
-                name="critic",
-                llm_config=llm_config,
-                memory=self.memory,
-            )
+        # UFO Agent (com memória)
+        if self.config.enable_ufo and "ufo" in self.integrations and UFOAgent:
+            try:
+                self.agents["ufo"] = UFOAgent(
+                    name="ufo_agent",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    ufo_integration=self.integrations["ufo"],
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao criar UFOAgent: {e}")
+                self.agents["ufo"] = AgentWithMemory(
+                    name="ufo",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    system_message="""Você é um agente de automação GUI especializado em controlar aplicativos Windows.
+                    Use a memória para lembrar sequências de ações e padrões de interface.
+                    Armazene sequências de automação na memória para reutilização.""",
+                )
         
-        # Planner Agent
-        if self.config.enable_planner:
-            self.agents["planner"] = PlannerAgent(
-                name="planner",
-                llm_config=llm_config,
-                memory=self.memory,
-            )
-        
-        # Executor Agent
-        if self.config.enable_executor:
-            self.agents["executor"] = ExecutorAgent(
-                name="executor",
-                llm_config=llm_config,
-                user_proxy=user_proxy,
-                memory=self.memory,
-                open_interpreter=self.integrations.get("open_interpreter"),
-            )
-        
-        # UFO Agent
-        if self.config.enable_ufo and "ufo" in self.integrations:
-            self.agents["ufo"] = UFOAgent(
-                name="ufo_agent",
-                llm_config=llm_config,
-                memory=self.memory,
-                ufo_integration=self.integrations["ufo"],
-            )
-        
-        # Multimodal Agent
-        if self.config.enable_multimodal and "multimodal" in self.integrations:
-            self.agents["multimodal"] = MultimodalAgent(
-                name="multimodal_agent",
-                llm_config=llm_config,
-                memory=self.memory,
-                multimodal_integration=self.integrations["multimodal"],
-            )
+        # Multimodal Agent (com memória)
+        if self.config.enable_multimodal and "multimodal" in self.integrations and MultimodalAgent:
+            try:
+                self.agents["multimodal"] = MultimodalAgent(
+                    name="multimodal_agent",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    multimodal_integration=self.integrations["multimodal"],
+                )
+            except Exception as e:
+                logger.warning(f"Falha ao criar MultimodalAgent: {e}")
+                self.agents["multimodal"] = AgentWithMemory(
+                    name="multimodal",
+                    model_client=self.model_client,
+                    memory=self.memory,
+                    system_message="""Você é um agente multimodal especializado em processar imagens, vídeos e áudio.
+                    Use a memória para lembrar análises anteriores e padrões identificados.
+                    Armazene análises e descrições na memória para referência futura.""",
+                )
     
-    def _setup_group_chat(self):
-        """Configurar GroupChat para colaboração entre agentes"""
+    def _setup_team(self):
+        """Configurar Team para colaboração entre agentes (AutoGen v2)"""
         agent_list = list(self.agents.values())
         
         if not agent_list:
             logger.warning("Nenhum agente disponível")
             return
         
-        self.group_chat = GroupChat(
+        # AutoGen v2 usa RoundRobinTeam
+        self.team = RoundRobinTeam(
             agents=agent_list,
-            messages=[],
-            max_round=50,
+            max_turns=50,
         )
         
-        self.manager = GroupChatManager(
-            groupchat=self.group_chat,
-            llm_config={
-                "model": self.config.autogen_model,
-                "temperature": self.config.autogen_temperature,
-            },
-        )
+        logger.info(f"Team (RoundRobinTeam) configurado com {len(agent_list)} agentes")
     
     async def execute(self, task: str, context: Optional[Dict] = None) -> Dict[str, Any]:
         """
@@ -274,9 +372,25 @@ class SuperAgentOrchestrator:
         """
         logger.info(f"Executando tarefa: {task}")
         
-        # Salvar na memória
+        # Armazenar tarefa na memória
         if self.memory:
-            self.memory.add_task(task, context or {})
+            try:
+                self.memory.store(
+                    f"Tarefa: {task}",
+                    {"type": "task", "context": context, "timestamp": self._get_timestamp()}
+                )
+            except Exception as e:
+                logger.warning(f"Erro ao armazenar tarefa na memória: {e}")
+        
+        # Buscar contexto relevante na memória
+        memory_context = []
+        if self.memory:
+            try:
+                memory_context = self.memory.search(task, n_results=5)
+                if memory_context:
+                    logger.info(f"Encontrados {len(memory_context)} resultados relevantes na memória")
+            except Exception as e:
+                logger.warning(f"Erro ao buscar contexto na memória: {e}")
         
         # Processar contexto multimodal se fornecido
         multimodal_context = None
@@ -285,36 +399,106 @@ class SuperAgentOrchestrator:
                 context["images"]
             )
         
-        # Planejar tarefa
+        # Planejar tarefa (se planner disponível e tiver método plan_task)
         plan = None
         if self.agents.get("planner"):
-            plan = await self.agents["planner"].plan_task(task, context)
-            logger.info(f"Plano criado: {plan}")
+            try:
+                if hasattr(self.agents["planner"], "plan_task"):
+                    plan = await self.agents["planner"].plan_task(task, context)
+                    logger.info(f"Plano criado: {plan}")
+            except Exception as e:
+                logger.warning(f"Erro ao criar plano: {e}")
         
-        # Executar usando GroupChat
-        if self.manager:
-            result = await self.manager.a_initiate_chat(
-                message=task,
-                recipient=self.agents.get("planner") or self.agents.get("generator"),
-            )
-            
-            # Extrair resultado
-            return {
-                "task": task,
-                "plan": plan,
-                "result": result,
-                "messages": self.group_chat.messages if self.group_chat else [],
-            }
+        # Executar usando Team (AutoGen v2) com memória
+        if self.team:
+            try:
+                # Criar mensagem inicial com contexto da memória
+                initial_message = task
+                
+                # Adicionar contexto da memória
+                if memory_context:
+                    initial_message += "\n\n=== CONTEXTO DA MEMÓRIA ===\n"
+                    for i, item in enumerate(memory_context, 1):
+                        initial_message += f"{i}. {item.get('text', '')[:300]}...\n"
+                    initial_message += "========================\n"
+                
+                # Adicionar contexto adicional
+                if context:
+                    initial_message += f"\n\n=== CONTEXTO ADICIONAL ===\n{context}\n=======================\n"
+                
+                # Adicionar contexto multimodal
+                if multimodal_context:
+                    initial_message += f"\n\n=== CONTEXTO MULTIMODAL ===\n{multimodal_context}\n==========================\n"
+                
+                # Adicionar plano se disponível
+                if plan:
+                    initial_message += f"\n\n=== PLANO ===\n{plan}\n=============\n"
+                
+                # Executar usando Team
+                logger.info(f"Executando tarefa com {len(self.agents)} agentes e memória ChromaDB")
+                result = await self.team.run(task=initial_message)
+                
+                # Armazenar resultado na memória
+                if self.memory and result:
+                    try:
+                        result_text = str(result)[:1000]  # Limitar tamanho
+                        self.memory.store(
+                            f"Resultado da tarefa: {task}",
+                            {
+                                "type": "task_result",
+                                "task": task,
+                                "result_preview": result_text,
+                                "timestamp": self._get_timestamp()
+                            }
+                        )
+                    except Exception as e:
+                        logger.warning(f"Erro ao armazenar resultado na memória: {e}")
+                
+                # Extrair resultado
+                return {
+                    "task": task,
+                    "plan": plan,
+                    "result": result,
+                    "memory_context": memory_context,
+                    "success": True,
+                }
+            except Exception as e:
+                logger.error(f"Erro ao executar tarefa: {e}")
+                return {
+                    "task": task,
+                    "plan": plan,
+                    "error": str(e),
+                    "memory_context": memory_context,
+                    "success": False,
+                }
         
-        return {"error": "Manager não inicializado"}
+        return {"error": "Team não inicializado"}
+    
+    def _get_timestamp(self) -> str:
+        """Obter timestamp atual"""
+        from datetime import datetime
+        return datetime.now().isoformat()
     
     def get_status(self) -> Dict[str, Any]:
         """Obter status de todos os agentes"""
+        memory_status = {
+            "enabled": self.memory is not None,
+        }
+        
+        if self.memory:
+            try:
+                all_docs = self.memory.get_all()
+                memory_status["total_documents"] = len(all_docs)
+                memory_status["path"] = str(self.memory.persist_directory)
+            except Exception as e:
+                memory_status["error"] = str(e)
+        
         return {
             "agents": {
                 name: {
                     "enabled": agent is not None,
                     "type": type(agent).__name__,
+                    "has_memory": hasattr(agent, "memory") and agent.memory is not None,
                 }
                 for name, agent in self.agents.items()
             },
@@ -322,8 +506,13 @@ class SuperAgentOrchestrator:
                 name: {"enabled": integration is not None}
                 for name, integration in self.integrations.items()
             },
-            "memory": {
-                "enabled": self.memory is not None,
+            "memory": memory_status,
+            "team": {
+                "enabled": self.team is not None,
+                "agents_count": len(self.agents) if self.team else 0,
+            },
+            "model_client": {
+                "type": type(self.model_client).__name__ if self.model_client else None,
             },
         }
 

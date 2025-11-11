@@ -465,36 +465,31 @@ async function startServer() {
     }
   });
   
-  // tRPC API - DEVE estar configurado ANTES do Parcel para não interferir
-  // IMPORTANTE: O tRPC só processa rotas que começam com /api/trpc
-  // Usar um middleware wrapper para garantir que apenas rotas tRPC sejam processadas
+  // tRPC API - DEVE estar configurado ANTES do serveStatic para não interferir
+  // IMPORTANTE: Este middleware processa TODAS as rotas que começam com /api/trpc
+  console.log('[tRPC] 🔧 Configurando middleware do tRPC em /api/trpc');
+  
+  const trpcHandler = createExpressMiddleware({
+    router: appRouter,
+    createContext,
+    onError: ({ error, path: errorPath, type }) => {
+      // Logar erros do tRPC para debug
+      console.error(`[tRPC] ❌ Erro em ${errorPath || 'unknown'}:`, error.message);
+      if (type) {
+        console.error(`[tRPC] Tipo de erro: ${type}`);
+      }
+    },
+  });
+  
+  // Middleware wrapper para adicionar logs
   app.use("/api/trpc", (req, res, next) => {
-    const path = req.path || req.url?.split('?')[0] || '';
     const method = req.method;
-    
-    // CRÍTICO: Verificar explicitamente se é uma rota tRPC ANTES de processar
-    if (!path.startsWith('/api/trpc')) {
-      // NÃO é uma rota tRPC, passar para o próximo middleware
-      console.log(`[tRPC] ⏭️  Ignorando rota não-tRPC: ${method} ${path}`);
-      next();
-      return;
-    }
-    
-    // É uma rota tRPC válida, processar
-    console.log(`[tRPC] ✅ Processando rota tRPC: ${method} ${path}`);
-    const trpcHandler = createExpressMiddleware({
-      router: appRouter,
-      createContext,
-      onError: ({ error, path: errorPath }) => {
-        // Só logar erros reais do tRPC
-        if (errorPath) {
-          console.error(`[tRPC] ❌ Erro em ${errorPath}:`, error.message);
-        }
-      },
-    });
-    
+    const url = req.originalUrl || req.url || '';
+    console.log(`[tRPC] 📨 Requisição recebida: ${method} ${url}`);
     trpcHandler(req, res, next);
   });
+  
+  console.log('[tRPC] ✅ Middleware do tRPC configurado');
   
   // production mode uses static files
   if (process.env.NODE_ENV !== "development") {
@@ -563,10 +558,25 @@ async function startServer() {
   }
 
   // Configurar Vite para servir arquivos estáticos (em desenvolvimento)
-  // IMPORTANTE: Os arquivos estáticos devem ser servidos ANTES de qualquer requisição chegar
+  // IMPORTANTE: serveStatic deve ser chamado DEPOIS de todos os middlewares de API
+  // para garantir que rotas de API sejam processadas antes de servir arquivos estáticos
   const preferredPort = parseInt(process.env.PORT || "3000");
+  
+  // Middleware de verificação para garantir que rotas de API não sejam interceptadas
+  // Este middleware não faz nada, apenas garante que está na ordem correta
+  app.use((req, res, next) => {
+    const url = req.originalUrl || req.url || '';
+    // Se for rota de API e ainda não foi processada, logar (mas não interferir)
+    if (url.startsWith('/api/') && !res.headersSent) {
+      console.log(`[Middleware] ⚠️ Rota de API chegou no middleware de verificação: ${req.method} ${url}`);
+    }
+    next();
+  });
+  
   if (process.env.NODE_ENV === "development") {
+    console.log('[Static] 🔧 Configurando serveStatic (desenvolvimento)');
     serveStatic(app);
+    console.log('[Static] ✅ serveStatic configurado');
   }
   
   // Tentar fazer bind na porta - usar fallback automático se falhar

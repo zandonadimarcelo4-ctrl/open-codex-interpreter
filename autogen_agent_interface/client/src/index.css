@@ -149,7 +149,24 @@
   /* Touch action optimization */
   * {
     -webkit-tap-highlight-color: transparent;
+  }
+  
+  /* Permitir scroll vertical em containers, mas manter toque responsivo em botões */
+  button, [role="button"], [type="button"] {
     touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
+  }
+  
+  /* Permitir scroll em áreas de conteúdo */
+  [role="main"], main, .overflow-y-auto, .overflow-auto {
+    touch-action: pan-y pinch-zoom;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Inputs devem permitir zoom no iOS para melhor UX */
+  input, textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(0,0,0,0);
   }
   
   /* Smooth scrolling for mobile */

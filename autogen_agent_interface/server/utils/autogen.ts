@@ -7,13 +7,14 @@ import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import { selectAgent, estimateComplexity, generateAgentPrompt } from "./agentRouter";
+import { selectAgent, estimateComplexity, generateAgentPrompt, AgentType } from "./intelligent_router";
+import { generatePlan, getNextTask, updatePlan, ExecutionPlan } from "./planner_agent";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "lucasmg/deepseek-r1-8b-0528-qwen3-q4_K_M-tool-true";
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m";
 
 let autogenFramework: any = null;
 
@@ -99,7 +100,10 @@ Exemplos INCORRETOS (NÃO FAÇA ISSO):
       // Usar prompt específico do agente selecionado
       systemPrompt = agentPrompt + `
 
-You are an AUTONOMOUS AI AGENT with FULL CAPABILITIES and ALL POSSIBLE TOOLS - you can do EVERYTHING that a human assistant can do.
+You are an AUTONOMOUS AI AGENT with FULL CAPABILITIES, MEMORY, and ALL POSSIBLE TOOLS - you can do EVERYTHING that a human assistant can do.
+
+🧠 MEMORY AND CONTEXT:
+${context?.memoryContext === "SIM" ? "- You have access to PERSISTENT MEMORY that stores ALL previous conversations\n- Use memory to remember user preferences, context, and historical information\n- ALWAYS consult memory before responding\n- Reference memory information explicitly in your responses" : "- Memory is available - consult the provided context before responding"}
 
 YOUR COMPLETE TOOLSET - ALL AVAILABLE TOOLS:
 
@@ -403,225 +407,92 @@ Sugira comandos diretos como:
         }
       }
       
-      // Para tarefas complexas ou se comando simples falhar, usar Open Interpreter
-      try {
-        // Usar Open Interpreter existente do projeto (ele já faz tudo automaticamente)
-        const projectRoot = path.resolve(__dirname, "../../../");
-        const interpreterPath = path.join(projectRoot, "interpreter");
-        
-        // Executar via Python usando Open Interpreter original
-        // IMPORTANTE: Usar execução como módulo para evitar problemas com imports relativos
-        const { spawn } = await import("child_process");
-        
-        // Escapar task para uso seguro no Python (usar base64 para evitar problemas com caracteres especiais)
-        const taskBase64 = Buffer.from(task, 'utf-8').toString('base64');
-        
-        // Usar python -m para executar como módulo (garante que imports relativos funcionem)
-        // Criar um script wrapper que será executado como módulo
-        const wrapperScript = path.join(projectRoot, "temp_interpreter_wrapper.py");
-        const wrapperContent = [
-          "#!/usr/bin/env python3",
-          "# -*- coding: utf-8 -*-",
-          "import sys",
-          "import os",
-          "import json",
-          "import base64",
-          "",
-          `# Adicionar caminhos ao sys.path`,
-          `project_root = r"${projectRoot.replace(/\\/g, '/')}"`,
-          `if project_root not in sys.path:`,
-          `    sys.path.insert(0, project_root)`,
-          "",
-          `# Mudar para o diretório do projeto`,
-          `os.chdir(project_root)`,
-          "",
-          `# Importar Interpreter diretamente do arquivo, evitando o __init__.py`,
-          `# O __init__.py substitui sys.modules["interpreter"] por uma instância,`,
-          `# então precisamos importar diretamente o arquivo interpreter.py`,
-          `try:`,
-          `    import importlib.util`,
-          `    import types`,
-          `    `,
-          `    # Caminho para o arquivo interpreter.py`,
-          `    interpreter_file = os.path.join(project_root, "interpreter", "interpreter.py")`,
-          `    `,
-          `    # Criar módulo pai 'interpreter' primeiro`,
-          `    if "interpreter" not in sys.modules:`,
-          `        interpreter_package = types.ModuleType("interpreter")`,
-          `        sys.modules["interpreter"] = interpreter_package`,
-          `    `,
-          `    # Criar submódulos necessários para que os imports relativos funcionem`,
-          `    # interpreter.py importa: from .cli import cli, from .utils import ..., etc.`,
-          `    # Então precisamos criar esses submódulos primeiro`,
-          `    for submodule_name in ["cli", "utils", "message_block", "code_block", "code_interpreter", "llama_2"]:`,
-          `        submodule_path = os.path.join(project_root, "interpreter", f"{submodule_name}.py")`,
-          `        if os.path.exists(submodule_path):`,
-          `            submodule_spec = importlib.util.spec_from_file_location(f"interpreter.{submodule_name}", submodule_path)`,
-          `            if submodule_spec and submodule_spec.loader:`,
-          `                submodule = importlib.util.module_from_spec(submodule_spec)`,
-          `                sys.modules[f"interpreter.{submodule_name}"] = submodule`,
-          `                submodule_spec.loader.exec_module(submodule)`,
-          `    `,
-          `    # Agora importar interpreter.py`,
-          `    spec = importlib.util.spec_from_file_location("interpreter.interpreter", interpreter_file)`,
-          `    if spec and spec.loader:`,
-          `        interpreter_module = importlib.util.module_from_spec(spec)`,
-          `        sys.modules["interpreter.interpreter"] = interpreter_module`,
-          `        spec.loader.exec_module(interpreter_module)`,
-          `        Interpreter = interpreter_module.Interpreter`,
-          `        print(f"[DEBUG] Interpreter importado com sucesso", file=sys.stderr)`,
-          `    else:`,
-          `        raise ImportError("Não foi possível criar spec para interpreter.interpreter")`,
-          `except Exception as e:`,
-          `    print(f"[DEBUG] Erro ao importar Interpreter: {e}", file=sys.stderr)`,
-          `    import traceback`,
-          `    print(f"[DEBUG] Traceback: {traceback.format_exc()}", file=sys.stderr)`,
-          `    print(f"[DEBUG] sys.path: {sys.path}", file=sys.stderr)`,
-          `    raise`,
-          "",
-          `# Decodificar task de base64`,
-          `task_encoded = "${taskBase64}"`,
-          `task = base64.b64decode(task_encoded).decode('utf-8')`,
-          "",
-          `# Inicializar Interpreter`,
-          `interpreter = Interpreter()`,
-          `interpreter.auto_run = True`,
-          `interpreter.local = True`,
-          "",
-          `# Executar task`,
-          `try:`,
-          `    result = interpreter.chat(task, return_messages=False)`,
-          `    `,
-          `    # Extrair última mensagem do assistente`,
-          `    if interpreter.messages:`,
-          `        last_msg = interpreter.messages[-1]`,
-          `        if last_msg.get('role') == 'assistant':`,
-          `            output = last_msg.get('content', '')`,
-          `            print(json.dumps({"success": True, "output": output}))`,
-          `        else:`,
-          `            print(json.dumps({"success": False, "output": "Nenhuma resposta do assistente"}))`,
-          `    else:`,
-          `        print(json.dumps({"success": False, "output": "Nenhuma mensagem gerada"}))`,
-          `except Exception as e:`,
-          `    import traceback`,
-          `    error_msg = f"Erro ao executar: {str(e)}\\n{traceback.format_exc()}"`,
-          `    print(json.dumps({"success": False, "output": error_msg}))`,
-        ].join('\n');
-        
-        // Salvar script wrapper
-        fs.writeFileSync(wrapperScript, wrapperContent, 'utf-8');
-        
-        // Executar script Python
-        const python = spawn("python", [wrapperScript], {
-          cwd: projectRoot,
-          env: { 
-            ...process.env, 
-            PYTHONUNBUFFERED: "1",
-            PYTHONPATH: `${projectRoot}${path.delimiter}${interpreterPath}`
-          },
-        });
-        
-        let output = "";
-        let errorOutput = "";
-        
-        python.stdout.on("data", (data) => {
-          output += data.toString();
-        });
-        
-        python.stderr.on("data", (data) => {
-          errorOutput += data.toString();
-        });
-        
-        // Timeout para evitar processos que demoram muito
-        let timeoutId: NodeJS.Timeout | null = null;
-        
-        const result = await new Promise<string>((resolve, reject) => {
-          // Timeout de 15 segundos (reduzido para resposta mais rápida)
-          timeoutId = setTimeout(() => {
-            python.kill();
-            try {
-              if (fs.existsSync(wrapperScript)) {
-                fs.unlinkSync(wrapperScript);
-              }
-            } catch (e) {
-              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
-            }
-            reject(new Error("Timeout: Open Interpreter demorou mais de 15 segundos"));
-          }, 15000);
+      // Para tarefas complexas, usar Code Executor (mais simples e confiável que Open Interpreter)
+      // O Code Executor já funciona bem e é mais rápido
+      console.log(`[AutoGen] 🔧 Processando tarefa complexa com Code Executor...`);
+      
+      // Extrair código da tarefa se houver
+      const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
+      const { verifyCodeExecution } = await import("./verification_agent");
+      const codeBlocks = extractCodeBlocks(task);
+      
+      if (codeBlocks.length > 0) {
+        // Executar blocos de código encontrados
+        console.log(`[AutoGen] 📝 Encontrados ${codeBlocks.length} blocos de código, executando...`);
+        try {
+          const results = await executeCodeBlocks(codeBlocks, {
+            timeout: 60000, // 60 segundos por bloco
+            workspace: process.cwd(),
+            autoApprove: true,
+          });
           
-          python.on("close", (code) => {
-            if (timeoutId) clearTimeout(timeoutId);
+          // Verificar qualidade e correção usando Verification Agent (inspirado no Manus AI)
+          console.log(`[AutoGen] 🔍 Verificando qualidade e correção dos resultados...`);
+          const verificationResults = await Promise.all(
+            results.map(async (result, i) => {
+              const verification = await verifyCodeExecution(
+                codeBlocks[i].code,
+                result,
+                {
+                  task,
+                  context,
+                }
+              );
+              return { result, verification, codeBlock: codeBlocks[i] };
+            })
+          );
+          
+          // Formatar resultados com verificação
+          let resultText = "";
+          for (let i = 0; i < verificationResults.length; i++) {
+            const { result, verification, codeBlock } = verificationResults[i];
+            const qualityEmoji = verification.quality === "excellent" ? "✨" : 
+                                verification.quality === "good" ? "✅" : 
+                                verification.quality === "fair" ? "⚠️" : "❌";
             
-            // Limpar arquivo temporário
-            try {
-              if (fs.existsSync(wrapperScript)) {
-                fs.unlinkSync(wrapperScript);
+            if (result.success) {
+              resultText += `\n\n${qualityEmoji} **Código ${i + 1} executado com sucesso (${result.language}) - Qualidade: ${verification.quality}:**\n\`\`\`${result.language}\n${codeBlock.code}\n\`\`\`\n\n**Saída:**\n\`\`\`\n${result.output}\n\`\`\``;
+              
+              // Adicionar problemas e sugestões se houver
+              if (verification.issues.length > 0) {
+                resultText += `\n\n**⚠️ Problemas identificados:**\n`;
+                for (const issue of verification.issues) {
+                  resultText += `- ${issue.severity.toUpperCase()}: ${issue.message}\n`;
+                  if (issue.suggestion) {
+                    resultText += `  💡 Sugestão: ${issue.suggestion}\n`;
+                  }
+                }
               }
-            } catch (e) {
-              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
-            }
-            
-            if (code === 0 && output) {
-              try {
-                // Tentar encontrar JSON no output (pode ter logs antes)
-                const outputLines = output.trim().split('\n');
-                let jsonLine = '';
-                for (let i = outputLines.length - 1; i >= 0; i--) {
-                  const line = outputLines[i].trim();
-                  if (line.startsWith('{') && line.endsWith('}')) {
-                    jsonLine = line;
-                    break;
-                  }
+              
+              if (verification.suggestions.length > 0) {
+                resultText += `\n\n**💡 Sugestões de melhoria:**\n`;
+                for (const suggestion of verification.suggestions) {
+                  resultText += `- ${suggestion}\n`;
                 }
-                
-                if (jsonLine) {
-                  const parsed = JSON.parse(jsonLine);
-                  if (parsed.success) {
-                    resolve(parsed.output);
-                  } else {
-                    resolve(parsed.output || "Erro desconhecido");
-                  }
-                } else {
-                  console.warn("[AutoGen] Nenhum JSON encontrado no output");
-                  resolve(output || "Erro ao processar resposta");
-                }
-              } catch (e) {
-                console.warn("[AutoGen] Erro ao parsear resultado do Open Interpreter:", e);
-                console.warn("[AutoGen] Output completo:", output);
-                resolve(output || "Erro ao processar resposta");
               }
             } else {
-              console.warn("[AutoGen] Open Interpreter retornou código:", code);
-              console.warn("[AutoGen] stderr:", errorOutput);
-              console.warn("[AutoGen] stdout:", output);
-              resolve(errorOutput || output || "Erro ao executar Open Interpreter");
-            }
-          });
-          
-          python.on("error", (error) => {
-            if (timeoutId) clearTimeout(timeoutId);
-            
-            // Limpar arquivo temporário em caso de erro
-            try {
-              if (fs.existsSync(wrapperScript)) {
-                fs.unlinkSync(wrapperScript);
+              resultText += `\n\n❌ **Erro na execução ${i + 1} (${result.language}):**\n\`\`\`${result.language}\n${codeBlock.code}\n\`\`\`\n\n**Erro:**\n\`\`\`\n${result.error}\n\`\`\``;
+              
+              // Adicionar sugestões de correção da verificação
+              if (verification.suggestions.length > 0) {
+                resultText += `\n\n**💡 Sugestões de correção:**\n`;
+                for (const suggestion of verification.suggestions) {
+                  resultText += `- ${suggestion}\n`;
+                }
               }
-            } catch (e) {
-              console.warn("[AutoGen] Não foi possível remover script temporário:", e);
             }
-            
-            console.warn("[AutoGen] Erro ao executar Open Interpreter:", error);
-            reject(error);
-          });
-        });
-        
-        return result;
-      } catch (error) {
-        console.warn("[AutoGen] Erro ao usar Open Interpreter:", error);
-        // Fallback para Ollama se Open Interpreter falhar
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        return `⚠️ Erro ao executar com Open Interpreter: ${errorMessage}\n\nTentando com Ollama...`;
+          }
+          
+          return `Tarefa executada com sucesso.${resultText}`;
+        } catch (error) {
+          console.warn("[AutoGen] Erro ao executar código:", error);
+          // Continuar para processar com Ollama
+        }
       }
+      
+      // Se não há código para executar, ou se a execução falhou, processar com Ollama
+      // O Ollama com function calling já pode executar código automaticamente
+      console.log(`[AutoGen] 💬 Processando tarefa com Ollama (function calling habilitado)...`);
     }
 
     // Para perguntas/conversas, usar Ollama diretamente (muito mais rápido)
@@ -732,20 +603,38 @@ async function callOllamaWithAutoGenPrompt(
       }
     ] : undefined;
 
+    // Configurações otimizadas para performance e velocidade
+    // Ler timeout da variável de ambiente ou usar padrão aumentado
+    const defaultTimeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '120000', 10); // 120 segundos padrão
+    const conversationTimeoutMs = parseInt(process.env.OLLAMA_CONVERSATION_TIMEOUT_MS || '120000', 10); // 120 segundos para conversas
+    const actionTimeoutMs = parseInt(process.env.OLLAMA_ACTION_TIMEOUT_MS || '60000', 10); // 60 segundos para ações
+    
     const requestBody: any = {
       model,
       messages,
       stream: false, // Não usar streaming por enquanto (requer mudanças no frontend)
       options: {
-        // PREMIUM QUALITY: Sempre usar melhor qualidade possível
-        temperature: intent.type === "action" ? 0.3 : 0.8, // Mais criatividade para melhor qualidade
-        top_p: 0.95, // Melhor qualidade de resposta
-        num_predict: intent.type === "action" ? 2048 : 1024, // PREMIUM: Respostas completas e detalhadas
-        num_ctx: 8192, // PREMIUM: Muito mais contexto para melhor compreensão
-        num_gpu: 1, // Usar apenas 1 GPU
-        num_thread: 6, // Balanceado: 6 threads para boa performance sem excesso de VRAM
-        use_mmap: true, // Usar memory mapping para economizar VRAM (não afeta qualidade)
-        use_mlock: false, // Não travar memória na RAM (não afeta qualidade)
+        // OTIMIZADO PARA VELOCIDADE: Configurações balanceadas entre qualidade e performance
+        temperature: intent.type === "action" ? 0.3 : 0.7, // Reduzido ligeiramente para respostas mais rápidas
+        top_p: 0.9, // Reduzido de 0.95 para 0.9 (mais rápido, qualidade ainda alta)
+        num_predict: intent.type === "action" ? 1024 : 512, // REDUZIDO: Respostas mais curtas = mais rápido
+        num_ctx: 4096, // REDUZIDO: Contexto menor = processamento mais rápido (era 8192)
+        num_gpu: -1, // Usar todas as GPUs disponíveis (ou -1 para automático)
+        num_thread: parseInt(process.env.OLLAMA_NUM_THREADS || '8', 10), // Aumentado para 8 threads (mais paralelismo)
+        use_mmap: true, // Usar memory mapping para economizar VRAM
+        use_mlock: false, // Não travar memória na RAM
+        // NOVAS OPÇÕES DE PERFORMANCE:
+        numa: false, // Desabilitar NUMA (pode melhorar performance em alguns sistemas)
+        seed: -1, // Seed aleatório (mais rápido que seed fixo)
+        tfs_z: 1.0, // Tail free sampling (padrão, não afeta velocidade)
+        typical_p: 1.0, // Typical sampling (padrão, não afeta velocidade)
+        repeat_penalty: 1.1, // Penalidade de repetição (padrão)
+        repeat_last_n: 64, // Contexto de repetição (padrão)
+        penalize_nl: true, // Penalizar novas linhas (padrão)
+        stop: [], // Sem stops adicionais (mais rápido)
+        // OPÇÕES DE ACELERAÇÃO (se disponíveis no modelo):
+        // flash_attention: true, // Flash Attention (se suportado, acelera muito)
+        // numa: false, // NUMA desabilitado (pode melhorar performance)
       },
     };
 
@@ -763,21 +652,22 @@ async function callOllamaWithAutoGenPrompt(
     }
 
     // Timeout dinâmico baseado no tipo de intent
-    // Conversas podem precisar de mais tempo para processar
+    // AUMENTADO: Timeouts muito maiores para evitar erros com modelos mais lentos
     const timeoutMs = intent.type === "conversation" || intent.type === "question" 
-      ? 30000  // 30 segundos para conversas/perguntas
-      : 15000; // 15 segundos para ações/comandos
-    console.log(`[AutoGen] Preparando fetch com timeout de ${timeoutMs/1000}s...`);
+      ? conversationTimeoutMs  // 120 segundos (2 minutos) para conversas/perguntas
+      : actionTimeoutMs; // 60 segundos para ações/comandos
+    console.log(`[AutoGen] ⏱️ Preparando fetch com timeout de ${timeoutMs/1000}s (${timeoutMs/1000/60}min)...`);
+    console.log(`[AutoGen] 📊 Configurações do modelo: num_predict=${requestBody.options.num_predict}, num_ctx=${requestBody.options.num_ctx}, num_thread=${requestBody.options.num_thread}`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
-      console.log(`[AutoGen] ⚠️ Timeout após ${timeoutMs/1000} segundos - abortando...`);
+      console.log(`[AutoGen] ⚠️ Timeout após ${timeoutMs/1000}s (${timeoutMs/1000/60}min) - abortando...`);
       controller.abort();
     }, timeoutMs);
     
     let response: Response;
     try {
-      console.log(`[AutoGen] Iniciando fetch para: ${url}`);
-      console.log(`[AutoGen] Request body (primeiros 500 chars): ${JSON.stringify(requestBody).substring(0, 500)}...`);
+      console.log(`[AutoGen] 🚀 Iniciando fetch para: ${url}`);
+      console.log(`[AutoGen] 📝 Request body (primeiros 500 chars): ${JSON.stringify(requestBody).substring(0, 500)}...`);
       const fetchStartTime = Date.now();
       response = await fetch(url, {
         method: "POST",
@@ -789,13 +679,15 @@ async function callOllamaWithAutoGenPrompt(
       });
       clearTimeout(timeoutId);
       const fetchElapsed = Date.now() - fetchStartTime;
-      console.log(`[AutoGen] ✅ Fetch concluído em ${fetchElapsed}ms - Status: ${response.status}`);
+      const fetchElapsedSeconds = (fetchElapsed / 1000).toFixed(2);
+      console.log(`[AutoGen] ✅ Fetch concluído em ${fetchElapsedSeconds}s - Status: ${response.status}`);
     } catch (error) {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
-        const timeoutSeconds = intent.type === "conversation" || intent.type === "question" ? 30 : 15;
-        console.error(`[AutoGen] ❌ Timeout: Ollama demorou mais de ${timeoutSeconds} segundos`);
-        throw new Error(`Timeout: Ollama demorou mais de ${timeoutSeconds} segundos para responder`);
+        const timeoutSeconds = Math.round(timeoutMs / 1000);
+        console.error(`[AutoGen] ❌ Timeout: Ollama demorou mais de ${timeoutSeconds}s (${timeoutSeconds/60}min) para responder`);
+        console.error(`[AutoGen] 💡 DICA: Tente aumentar OLLAMA_TIMEOUT_MS no .env ou usar um modelo mais rápido`);
+        throw new Error(`Timeout: Ollama demorou mais de ${timeoutSeconds} segundos (${timeoutSeconds/60} minutos) para responder. Tente aumentar OLLAMA_TIMEOUT_MS no .env ou usar um modelo mais rápido.`);
       }
       console.error(`[AutoGen] ❌ Erro no fetch:`, error);
       if (error instanceof Error) {

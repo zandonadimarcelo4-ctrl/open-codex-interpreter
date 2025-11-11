@@ -87,6 +87,16 @@ const DEEPSEEK_MODELS: Record<string, ModelConfig> = {
     qualityScore: 88, // Q4 mantém boa qualidade
     speedScore: 85, // Q4 é mais rápido que não quantizado
   },
+  'deepseek-coder-v2-16b-q4_k_m': {
+    name: 'deepseek-coder-v2-16b-q4_k_m',
+    provider: 'ollama',
+    type: 'code',
+    local: true,
+    baseUrl: process.env.OLLAMA_BASE_URL || 'http://localhost:11434',
+    vramRequired: 10, // Q4_K_M quantizado, requer ~10GB VRAM
+    qualityScore: 92, // Alta qualidade para geração de código
+    speedScore: 85, // Boa velocidade com quantização Q4_K_M
+  },
 };
 
 class ModelManager {

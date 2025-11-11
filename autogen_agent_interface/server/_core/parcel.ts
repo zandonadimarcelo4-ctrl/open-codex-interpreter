@@ -2,7 +2,6 @@ import express, { type Express } from "express";
 import fs from "fs";
 import { type Server } from "http";
 import path from "path";
-import { createProxyMiddleware } from "http-proxy-middleware";
 
 /**
  * ============================================================================
@@ -15,21 +14,17 @@ import { createProxyMiddleware } from "http-proxy-middleware";
  * - Funciona com Tailscale (https://revision-pc.tailb3613b.ts.net)
  * - Funciona em LAN (rede local) - outros dispositivos podem acessar
  * 
- * POR QUE PARCEL?
- * - Zero-config: Não precisa de configuração complexa
- * - Funciona perfeitamente em LAN: Escuta em 0.0.0.0 por padrão
- * - HMR estável: Hot Module Replacement sem loops infinitos
- * - Tailscale funciona: Sem problemas de hostname
- * - Simples para devs juniores: Configuração mínima
- * 
  * COMO FUNCIONA?
- * - Parcel roda em uma porta separada (ex: 1234)
- * - Express faz proxy das requisições para o Parcel
- * - Parcel processa e serve os arquivos (JS, CSS, etc)
+ * - Parcel watch faz build dos arquivos para .parcel-dist
+ * - Express serve os arquivos estáticos do .parcel-dist diretamente
+ * - Parcel watch monitora mudanças e faz rebuild automaticamente
+ * - Express automaticamente serve os novos arquivos após rebuild
  * - Funciona perfeitamente com Tailscale e LAN
  * 
- * IMPORTANTE: Você precisa iniciar o Parcel manualmente ou via script:
- *   npx parcel serve client/index.html --host 0.0.0.0 --port 1234
+ * IMPORTANTE: 
+ * - Execute 'npm run dev:parcel' em outro terminal para fazer build/watch
+ * - Ou execute 'npm run dev:parcel:build' para fazer apenas um build
+ * - Express serve os arquivos estáticos automaticamente
  * 
  * ============================================================================
  */
@@ -43,99 +38,136 @@ import { createProxyMiddleware } from "http-proxy-middleware";
  */
 export async function setupParcel(app: Express, _server: Server, port?: number) {
   const serverPort = port || parseInt(process.env.PORT || '3000', 10);
-  const parcelPort = parseInt(process.env.PARCEL_PORT || '1234', 10);
-  
-  console.log('[Parcel] ⚙️  Configurando servidor Parcel');
-  console.log('[Parcel] 📍 Porta Express:', serverPort);
-  console.log('[Parcel] 📍 Porta Parcel:', parcelPort);
-  console.log('[Parcel] 🌐 Host: 0.0.0.0 (acessível de LAN e Tailscale)');
-  console.log('[Parcel] 🔥 HMR: ATIVO (Hot Module Replacement)');
-  console.log('[Parcel] 💡 Certifique-se de que o Parcel está rodando na porta', parcelPort);
-
-  // Caminho para o arquivo HTML de entrada
-  const clientTemplate = path.resolve(
+  const distPath = path.resolve(
     import.meta.dirname,
     "../..",
-    "client",
-    "index.html"
+    ".parcel-dist"
   );
 
-  // Verificar se o arquivo existe
-  if (!fs.existsSync(clientTemplate)) {
-    console.error(`[Parcel] ❌ Template não encontrado: ${clientTemplate}`);
-    throw new Error(`Template não encontrado: ${clientTemplate}`);
+  console.log('[Parcel] ⚙️  Configurando servidor de arquivos estáticos');
+  console.log('[Parcel] 📍 Porta Express:', serverPort);
+  console.log('[Parcel] 📍 Diretório de build:', distPath);
+  console.log('[Parcel] 💡 Servindo arquivos estáticos diretamente do build');
+  console.log('[Parcel] 💡 Para fazer build/watch, execute: npm run dev:parcel');
+  console.log('[Parcel] 💡 Para fazer apenas um build: npm run dev:parcel:build');
+
+  // Verificar se o diretório de build existe
+  if (!fs.existsSync(distPath)) {
+    console.warn(`[Parcel] ⚠️  Diretório de build não encontrado: ${distPath}`);
+    console.warn(`[Parcel] 💡 Execute 'npm run dev:parcel:build' para fazer build inicial`);
+    console.warn(`[Parcel] 💡 Ou execute 'npm run dev:parcel' para watch mode`);
+    
+    // Tentar criar o diretório
+    try {
+      fs.mkdirSync(distPath, { recursive: true });
+      console.log(`[Parcel] ✅ Diretório criado: ${distPath}`);
+      console.log(`[Parcel] 💡 Agora execute 'npm run dev:parcel:build' para gerar os arquivos`);
+    } catch (error) {
+      console.error(`[Parcel] ❌ Erro ao criar diretório: ${error}`);
+    }
+  } else {
+    console.log(`[Parcel] ✅ Diretório de build encontrado: ${distPath}`);
+    
+    // Verificar se index.html existe
+    const indexPath = path.join(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      console.log(`[Parcel] ✅ Arquivos de build encontrados e prontos para servir`);
+    } else {
+      console.warn(`[Parcel] ⚠️  index.html não encontrado no diretório de build`);
+      console.warn(`[Parcel] 💡 Execute 'npm run dev:parcel:build' para gerar os arquivos`);
+    }
   }
 
-  // ==========================================================================
-  // CONFIGURAR PROXY NO EXPRESS
-  // ==========================================================================
-  // 
-  // Fazer proxy de todas as requisições para o Parcel
-  // Exceto requisições de API (/api) e WebSocket (/ws)
-  // 
-  // ==========================================================================
+  // Servir arquivos estáticos do build do Parcel
+  app.use(express.static(distPath, {
+    maxAge: 0, // Sem cache em desenvolvimento
+    etag: false,
+    lastModified: false,
+  }));
 
-  // Criar proxy middleware para o Parcel
-  const parcelProxy = createProxyMiddleware({
-    target: `http://localhost:${parcelPort}`,
-    changeOrigin: true,
-    ws: false, // Não fazer proxy de WebSocket (Express gerencia)
-    logLevel: process.env.NODE_ENV === 'development' ? 'info' : 'silent',
-    onError: (err, req, res) => {
-      console.error('[Parcel] ❌ Erro no proxy:', err.message);
-      console.error('[Parcel] 💡 Certifique-se de que o Parcel está rodando na porta', parcelPort);
-      if (!res.headersSent) {
-        res.status(503).json({
-          error: 'Parcel server not available',
-          message: `Parcel server is not running on port ${parcelPort}`,
-          suggestion: `Start Parcel with: npx parcel serve client/index.html --host 0.0.0.0 --port ${parcelPort}`
-        });
-      }
-    },
-  });
-
-  // NOTA: Arquivos públicos já são servidos pelo Express em index.ts (ANTES do setupParcel)
-  // Não precisamos configurá-los aqui novamente para evitar duplicação
-
-  // Middleware para fazer proxy das requisições para o Parcel
-  app.use((req, res, next) => {
+  // Servir index.html para todas as rotas não-API/não-WebSocket
+  app.use("*", (req, res, next) => {
     const url = req.url || req.originalUrl || '';
+    const pathName = req.path || url.split('?')[0];
 
-    // Ignorar API e WebSocket (deixa Express processar)
-    if (url.startsWith('/api/') || url.startsWith('/ws')) {
-      next();
-      return;
+    // Ignorar API, WebSocket e arquivos públicos já servidos pelo Express
+    if (
+      pathName.startsWith("/api/") ||
+      pathName.startsWith("/ws") ||
+      pathName === "/manifest.json" ||
+      pathName === "/favicon.png" ||
+      pathName === "/icon-192.png" ||
+      pathName === "/icon-512.png" ||
+      pathName === "/sw.js"
+    ) {
+      return next();
     }
 
-    // Se já foi respondido, não fazer nada
-    if (res.headersSent) {
-      return;
+    // Servir index.html para todas as outras rotas
+    const indexPath = path.join(distPath, "index.html");
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      // Se index.html não existe ainda, retornar mensagem útil
+      res.status(503).send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Parcel Build Pendente</title>
+            <style>
+              body {
+                font-family: system-ui, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                min-height: 100vh;
+                margin: 0;
+                background: #1a1a1a;
+                color: white;
+              }
+              .container {
+                text-align: center;
+                padding: 2rem;
+                max-width: 600px;
+              }
+              h1 { color: #ff6b6b; }
+              code {
+                background: #2a2a2a;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                display: inline-block;
+                margin: 1rem 0;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <h1>⏳ Parcel Build Pendente</h1>
+              <p>O Parcel ainda não gerou os arquivos de build.</p>
+              <p>Execute em outro terminal:</p>
+              <code>npm run dev:parcel</code>
+              <p>Ou aguarde alguns segundos e recarregue a página.</p>
+            </div>
+          </body>
+        </html>
+      `);
     }
-
-    // Fazer proxy para o Parcel
-    parcelProxy(req, res, next);
   });
 
-  console.log('[Parcel] ✅ Proxy configurado!');
-  console.log(`[Parcel] 📡 Proxy: Express (${serverPort}) → Parcel (${parcelPort})`);
-  console.log('[Parcel] 💡 Para iniciar o Parcel, execute em outro terminal:');
-  console.log(`[Parcel]    npx parcel serve client/index.html --host 0.0.0.0 --port ${parcelPort}`);
+  console.log('[Parcel] ✅ Configuração concluída!');
+  console.log('[Parcel] 📡 Servindo arquivos estáticos de:', distPath);
+  console.log('[Parcel] 💡 Express serve os arquivos diretamente (sem proxy)');
+  console.log('[Parcel] 💡 Para desenvolvimento, execute Parcel em outro terminal:');
+  console.log('[Parcel]    - npm run dev:parcel (watch mode - rebuild automático)');
+  console.log('[Parcel]    - npm run dev:parcel:build (build único)');
 }
 
-/**
- * Serve arquivos estáticos em PRODUÇÃO
- * 
- * Esta função é usada apenas quando NODE_ENV=production.
- * Em desenvolvimento, o Parcel serve os arquivos.
- * 
- * @param app - Aplicação Express
- */
 export function serveStatic(app: Express) {
   const distPath =
     process.env.NODE_ENV === "development"
-      ? path.resolve(import.meta.dirname, "../..", "dist", "public")
+      ? path.resolve(import.meta.dirname, "../..", ".parcel-dist")
       : path.resolve(import.meta.dirname, "public");
-      
+
   if (!fs.existsSync(distPath)) {
     console.error(
       `[Parcel] ❌ Diretório não encontrado: ${distPath}`
@@ -145,13 +177,8 @@ export function serveStatic(app: Express) {
     );
     return;
   }
-
-  // Servir arquivos estáticos
   app.use(express.static(distPath));
-
-  // Fallback para index.html (SPA routing)
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
-

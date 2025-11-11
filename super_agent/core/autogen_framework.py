@@ -1,18 +1,53 @@
 """
-Super Agent Framework - AutoGen como Base
-Framework unificado usando AutoGen
+Super Agent Framework - AutoGen v2 (autogen-agentchat) como Base
+Framework unificado usando AutoGen v2 - API moderna
 """
 from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+# Configurar logger primeiro
+logger = logging.getLogger(__name__)
+
+# AutoGen v2 - Nova API moderna
+try:
+    from autogen_agentchat.agents import AssistantAgent
+    from autogen_agentchat.teams import RoundRobinTeam
+    from autogen_ext.models.openai import OpenAIChatCompletionClient
+    AUTOGEN_V2_AVAILABLE = True
+    OLLAMA_AVAILABLE = False
+    
+    # Tentar importar Ollama (pode falhar devido a conflitos de versão)
+    try:
+        from autogen_ext.models.ollama import OllamaChatCompletionClient
+        OLLAMA_AVAILABLE = True
+    except ImportError as e:
+        logger.warning(f"OllamaChatCompletionClient não disponível: {e}")
+        OLLAMA_AVAILABLE = False
+        # Criar classe dummy
+        class OllamaChatCompletionClient:
+            def __init__(self, *args, **kwargs):
+                raise ImportError("Ollama não disponível. Atualize: pip install --upgrade ollama")
+        
+except ImportError:
+    # Fallback para versão antiga se v2 não estiver disponível
+    try:
+        from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager
+        AUTOGEN_V2_AVAILABLE = False
+        OLLAMA_AVAILABLE = False
+        logger.warning("autogen-agentchat não está instalado. Usando pyautogen antigo. Execute: pip install autogen-agentchat autogen-ext[openai]")
+    except ImportError:
+        AUTOGEN_V2_AVAILABLE = False
+        OLLAMA_AVAILABLE = False
+        logger.error("AutoGen não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
 
 from ..agents.base_agent import BaseAgent
+from ..agents.base_agent_with_memory import AgentWithMemory
 from ..tools.code_execution import CodeExecutionTool
 from ..tools.web_browsing import WebBrowsingTool
 from ..tools.video_editing import VideoEditingTool
@@ -20,8 +55,6 @@ from ..tools.gui_automation import GUIAutomationTool
 from ..tools.multimodal_ai import MultimodalAITool
 from ..tools.memory_store import MemoryStoreTool
 from ..memory.chromadb_backend import ChromaDBBackend
-
-logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -102,9 +135,12 @@ class SuperAgentFramework:
         self.agents: Dict[str, Any] = {}
         self._create_autogen_agents()
         
-        # GroupChat
-        self.group_chat: Optional[GroupChat] = None
-        self.manager: Optional[GroupChatManager] = None
+        # GroupChat/Team (depende da versão)
+        if AUTOGEN_V2_AVAILABLE:
+            self.team: Optional[RoundRobinTeam] = None
+        else:
+            self.group_chat: Optional[GroupChat] = None
+            self.manager: Optional[GroupChatManager] = None
         self._setup_group_chat()
         
         # Marcar como inicializado
@@ -176,6 +212,185 @@ class SuperAgentFramework:
     def _create_autogen_agents(self):
         """Criar agentes AutoGen especializados"""
         logger.info("Criando agentes AutoGen...")
+        
+        if AUTOGEN_V2_AVAILABLE:
+            # AutoGen v2 - Nova API
+            self._create_autogen_v2_agents()
+        else:
+            # AutoGen v1 - API antiga (fallback)
+            self._create_autogen_v1_agents()
+    
+    def _create_model_client(self):
+        """Criar Model Client para AutoGen v2"""
+        if not AUTOGEN_V2_AVAILABLE:
+            return None
+        
+        if self.config.use_local:
+            # Usar Ollama
+            if not OLLAMA_AVAILABLE:
+                logger.warning("Ollama não disponível. Tentando usar OpenAI como fallback...")
+                api_key = self.config.api_key or os.getenv("OPENAI_API_KEY")
+                if api_key:
+                    return OpenAIChatCompletionClient(
+                        model=self.config.model,
+                        api_key=api_key,
+                        base_url=self.config.base_url,
+                    )
+                else:
+                    raise ValueError("Ollama não disponível e OPENAI_API_KEY não configurada. Atualize Ollama: pip install --upgrade ollama")
+            
+            try:
+                return OllamaChatCompletionClient(
+                    model=self.config.local_model,
+                    base_url=self.config.local_base_url,
+                )
+            except Exception as e:
+                logger.warning(f"Erro ao criar OllamaChatCompletionClient: {e}")
+                logger.warning("Tentando usar OpenAI como fallback...")
+                # Fallback para OpenAI se Ollama falhar
+                api_key = self.config.api_key or os.getenv("OPENAI_API_KEY")
+                if api_key:
+                    return OpenAIChatCompletionClient(
+                        model=self.config.model,
+                        api_key=api_key,
+                        base_url=self.config.base_url,
+                    )
+                else:
+                    raise ValueError(f"Ollama não disponível ({e}) e OPENAI_API_KEY não configurada")
+        else:
+            # Usar OpenAI
+            api_key = self.config.api_key or os.getenv("OPENAI_API_KEY")
+            if not api_key:
+                raise ValueError("OPENAI_API_KEY não configurada. Configure a chave ou use use_local=True")
+            
+            return OpenAIChatCompletionClient(
+                model=self.config.model,
+                api_key=api_key,
+                base_url=self.config.base_url,
+            )
+    
+    def _create_autogen_v2_agents(self):
+        """Criar agentes AutoGen v2 (nova API) com memória ChromaDB"""
+        logger.info("Criando agentes AutoGen v2 (autogen-agentchat) com memória ChromaDB...")
+        
+        # Model Client (AutoGen v2 usa Model Clients)
+        model_client = self._create_model_client()
+        
+        # Planner Agent (com memória)
+        self.agents["planner"] = AgentWithMemory(
+            name="planner",
+            model_client=model_client,
+            memory=self.memory,
+            system_message="""Você é um agente de planejamento especializado.
+            Sua função é quebrar tarefas complexas em subtarefas menores e criar um plano de execução.
+            Analise a tarefa, consulte a memória para contexto histórico e crie um plano detalhado com passos sequenciais ou paralelos.
+            Armazene planos importantes na memória para referência futura.""",
+        )
+        
+        # Generator Agent (com memória e ferramentas)
+        generator_tools = []
+        if "code_execution" in self.tools:
+            generator_tools.append(self.tools["code_execution"].get_function_schema())
+        
+        self.agents["generator"] = AgentWithMemory(
+            name="generator",
+            model_client=model_client,
+            memory=self.memory,
+            system_message="""Você é um agente gerador especializado em criar código e soluções.
+            Sua função é gerar código, planos e soluções baseadas nas especificações.
+            Use a memória para consultar soluções similares anteriores.
+            Use as ferramentas disponíveis para executar código quando necessário.
+            Armazene código e soluções importantes na memória para reutilização.""",
+            tools=generator_tools if generator_tools else None,
+        )
+        
+        # Critic Agent (com memória)
+        self.agents["critic"] = AgentWithMemory(
+            name="critic",
+            model_client=model_client,
+            memory=self.memory,
+            system_message="""Você é um agente crítico especializado em revisar e validar código.
+            Sua função é revisar código gerado, verificar segurança, qualidade e sugerir melhorias.
+            Consulte a memória para padrões de qualidade e problemas comuns.
+            Seja rigoroso mas construtivo em suas críticas.
+            Armazene críticas e melhorias na memória para aprendizado futuro.""",
+        )
+        
+        # Browser Agent (com memória)
+        if "web_browsing" in self.tools:
+            self.agents["browser"] = AgentWithMemory(
+                name="browser",
+                model_client=model_client,
+                memory=self.memory,
+                system_message="""Você é um agente navegador especializado em navegação web.
+                Sua função é navegar na web, buscar informações, preencher formulários e extrair dados.
+                Use a memória para lembrar sites visitados e informações extraídas.
+                Use a ferramenta de navegação web para realizar essas tarefas.
+                Armazene informações importantes extraídas da web na memória.""",
+                tools=[self.tools["web_browsing"].get_function_schema()],
+            )
+        
+        # Video Editor Agent (com memória)
+        if "video_editing" in self.tools:
+            self.agents["video_editor"] = AgentWithMemory(
+                name="video_editor",
+                model_client=model_client,
+                memory=self.memory,
+                system_message="""Você é um agente editor de vídeo especializado em After Effects.
+                Sua função é criar composições, adicionar camadas, animações e efeitos.
+                Use a memória para lembrar configurações e projetos anteriores.
+                Use a ferramenta de edição de vídeo para realizar essas tarefas.
+                Armazene configurações e técnicas na memória para reutilização.""",
+                tools=[self.tools["video_editing"].get_function_schema()],
+            )
+        
+        # UFO Agent (com memória)
+        if "gui_automation" in self.tools:
+            self.agents["ufo"] = AgentWithMemory(
+                name="ufo",
+                model_client=model_client,
+                memory=self.memory,
+                system_message="""Você é um agente de automação GUI especializado em controlar aplicativos Windows.
+                Sua função é interagir com interfaces gráficas, capturar screenshots e automatizar tarefas.
+                Use a memória para lembrar sequências de ações e padrões de interface.
+                Use a ferramenta de automação GUI para realizar essas tarefas.
+                Armazene sequências de automação na memória para reutilização.""",
+                tools=[self.tools["gui_automation"].get_function_schema()],
+            )
+        
+        # Multimodal Agent (com memória)
+        if "multimodal" in self.tools:
+            self.agents["multimodal"] = AgentWithMemory(
+                name="multimodal",
+                model_client=model_client,
+                memory=self.memory,
+                system_message="""Você é um agente multimodal especializado em processar imagens, vídeos e áudio.
+                Sua função é analisar conteúdo multimodal, gerar descrições e criar conteúdo visual.
+                Use a memória para lembrar análises anteriores e padrões identificados.
+                Use a ferramenta multimodal para realizar essas tarefas.
+                Armazene análises e descrições na memória para referência futura.""",
+                tools=[self.tools["multimodal"].get_function_schema()],
+            )
+        
+        # Memory Agent (gerencia memória explicitamente)
+        if "memory" in self.tools:
+            self.agents["memory"] = AgentWithMemory(
+                name="memory",
+                model_client=model_client,
+                memory=self.memory,
+                system_message="""Você é um agente de memória especializado em gerenciar memória persistente.
+                Sua função é armazenar, recuperar e buscar informações na memória vetorial.
+                Você tem acesso direto à memória ChromaDB e pode gerenciar o contexto de todos os agentes.
+                Use a ferramenta de memória para realizar essas tarefas.
+                Organize e mantenha a memória limpa e útil para todos os agentes.""",
+                tools=[self.tools["memory"].get_function_schema()],
+            )
+        
+        logger.info(f"{len(self.agents)} agentes AutoGen v2 criados")
+    
+    def _create_autogen_v1_agents(self):
+        """Criar agentes AutoGen v1 (API antiga - fallback)"""
+        logger.info("Criando agentes AutoGen v1 (pyautogen antigo)...")
         
         # Configuração LLM
         llm_config = self._get_llm_config()
@@ -295,7 +510,7 @@ class SuperAgentFramework:
                 },
             )
         
-        logger.info(f"{len(self.agents)} agentes AutoGen criados")
+        logger.info(f"{len(self.agents)} agentes AutoGen v1 criados")
     
     def _get_llm_config(self) -> Dict[str, Any]:
         """Obter configuração LLM"""
@@ -317,27 +532,36 @@ class SuperAgentFramework:
             return config
     
     def _setup_group_chat(self):
-        """Configurar GroupChat para colaboração"""
+        """Configurar GroupChat/Team para colaboração"""
         agent_list = list(self.agents.values())
         
         if not agent_list:
             logger.warning("Nenhum agente disponível")
             return
         
-        self.group_chat = GroupChat(
-            agents=agent_list,
-            messages=[],
-            max_round=50,
-        )
-        
-        llm_config = self._get_llm_config()
-        
-        self.manager = GroupChatManager(
-            groupchat=self.group_chat,
-            llm_config=llm_config,
-        )
-        
-        logger.info("GroupChat configurado")
+        if AUTOGEN_V2_AVAILABLE:
+            # AutoGen v2 - Usar RoundRobinTeam
+            self.team = RoundRobinTeam(
+                agents=agent_list,
+                max_turns=50,
+            )
+            logger.info("Team (RoundRobinTeam) configurado")
+        else:
+            # AutoGen v1 - Usar GroupChat
+            self.group_chat = GroupChat(
+                agents=agent_list,
+                messages=[],
+                max_round=50,
+            )
+            
+            llm_config = self._get_llm_config()
+            
+            self.manager = GroupChatManager(
+                groupchat=self.group_chat,
+                llm_config=llm_config,
+            )
+            
+            logger.info("GroupChat configurado")
     
     async def execute(
         self,
@@ -345,7 +569,7 @@ class SuperAgentFramework:
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Executar tarefa usando AutoGen
+        Executar tarefa usando AutoGen v2 com memória ChromaDB
         
         Args:
             task: Descrição da tarefa
@@ -356,55 +580,146 @@ class SuperAgentFramework:
         """
         logger.info(f"Executando tarefa: {task}")
         
-        # Salvar na memória
+        # Armazenar tarefa na memória
         if self.memory:
-            await self.memory.add_task(task, context or {})
+            try:
+                self.memory.store(
+                    f"Tarefa: {task}",
+                    {"type": "task", "context": context, "timestamp": self._get_timestamp()}
+                )
+            except Exception as e:
+                logger.warning(f"Erro ao armazenar tarefa na memória: {e}")
         
-        # Executar usando GroupChat
-        if self.manager:
-            # Criar mensagem inicial
-            initial_message = task
-            if context:
-                initial_message += f"\n\nContexto: {context}"
-            
-            # Executar usando AutoGen
-            result = await self.manager.a_initiate_chat(
-                message=initial_message,
-                recipient=self.agents.get("planner") or self.agents.get("generator"),
-            )
-            
-            # Extrair resultado
-            return {
-                "task": task,
-                "result": result,
-                "messages": self.group_chat.messages,
-                "success": True,
-            }
+        # Buscar contexto relevante na memória antes de executar
+        memory_context = []
+        if self.memory:
+            try:
+                memory_context = self.memory.search(task, n_results=5)
+                if memory_context:
+                    logger.info(f"Encontrados {len(memory_context)} resultados relevantes na memória")
+            except Exception as e:
+                logger.warning(f"Erro ao buscar contexto na memória: {e}")
         
-        return {"error": "Manager não inicializado"}
+        if AUTOGEN_V2_AVAILABLE:
+            # AutoGen v2 - Usar Team com memória
+            if self.team:
+                try:
+                    # Criar mensagem inicial com contexto da memória
+                    initial_message = task
+                    
+                    # Adicionar contexto da memória
+                    if memory_context:
+                        initial_message += "\n\n=== CONTEXTO DA MEMÓRIA ===\n"
+                        for i, item in enumerate(memory_context, 1):
+                            initial_message += f"{i}. {item.get('text', '')[:300]}...\n"
+                        initial_message += "========================\n"
+                    
+                    # Adicionar contexto adicional
+                    if context:
+                        initial_message += f"\n\n=== CONTEXTO ADICIONAL ===\n{context}\n=======================\n"
+                    
+                    # Executar usando Team (AutoGen v2)
+                    logger.info(f"Executando tarefa com {len(self.agents)} agentes e memória ChromaDB")
+                    result = await self.team.run(task=initial_message)
+                    
+                    # Armazenar resultado na memória
+                    if self.memory and result:
+                        try:
+                            result_text = str(result)[:1000]  # Limitar tamanho
+                            self.memory.store(
+                                f"Resultado da tarefa: {task}",
+                                {
+                                    "type": "task_result",
+                                    "task": task,
+                                    "result_preview": result_text,
+                                    "timestamp": self._get_timestamp()
+                                }
+                            )
+                        except Exception as e:
+                            logger.warning(f"Erro ao armazenar resultado na memória: {e}")
+                    
+                    # Extrair resultado
+                    return {
+                        "task": task,
+                        "result": result,
+                        "memory_context": memory_context,
+                        "success": True,
+                    }
+                except Exception as e:
+                    logger.error(f"Erro ao executar tarefa com AutoGen v2: {e}")
+                    return {
+                        "task": task,
+                        "error": str(e),
+                        "memory_context": memory_context,
+                        "success": False,
+                    }
+            return {"error": "Team não inicializado"}
+        else:
+            # AutoGen v1 - Usar GroupChat
+            if self.manager:
+                # Criar mensagem inicial
+                initial_message = task
+                if context:
+                    initial_message += f"\n\nContexto: {context}"
+                
+                # Executar usando AutoGen v1
+                result = await self.manager.a_initiate_chat(
+                    message=initial_message,
+                    recipient=self.agents.get("planner") or self.agents.get("generator"),
+                )
+                
+                # Extrair resultado
+                return {
+                    "task": task,
+                    "result": result,
+                    "messages": self.group_chat.messages if self.group_chat else [],
+                    "success": True,
+                }
+            
+            return {"error": "Manager não inicializado"}
     
     def get_status(self) -> Dict[str, Any]:
         """Obter status do framework"""
-        return {
+        status = {
             "initialized": self._initialized,
             "agents": list(self.agents.keys()),
             "tools": list(self.tools.keys()),
             "memory": self.memory is not None,
-            "group_chat": self.group_chat is not None,
+            "autogen_version": "v2" if AUTOGEN_V2_AVAILABLE else "v1",
         }
+        
+        if AUTOGEN_V2_AVAILABLE:
+            status["team"] = self.team is not None
+        else:
+            status["group_chat"] = self.group_chat is not None if hasattr(self, 'group_chat') else False
+            status["manager"] = self.manager is not None if hasattr(self, 'manager') else False
+        
+        return status
+    
+    def _get_timestamp(self) -> str:
+        """Obter timestamp atual"""
+        from datetime import datetime
+        return datetime.now().isoformat()
     
     async def cleanup(self):
         """Limpar recursos"""
         logger.info("Limpando recursos...")
         
+        # Limpar agentes (salvar contexto na memória)
+        for agent_name, agent in self.agents.items():
+            if hasattr(agent, "cleanup"):
+                try:
+                    await agent.cleanup()
+                except Exception as e:
+                    logger.warning(f"Erro ao limpar agente {agent_name}: {e}")
+        
         # Limpar ferramentas
         for tool in self.tools.values():
             if hasattr(tool, "cleanup"):
-                await tool.cleanup()
-        
-        # Limpar memória
-        if self.memory:
-            await self.memory.cleanup()
+                try:
+                    await tool.cleanup()
+                except Exception as e:
+                    logger.warning(f"Erro ao limpar ferramenta: {e}")
         
         logger.info("Recursos limpos")
 

@@ -431,18 +431,84 @@ export function useVoice(options: UseVoiceOptions = {}) {
         });
         return true;
       } catch (err: any) {
-        console.error('[STT] Erro ao acessar microfone:', err.name, err.message);
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          const errorMsg = 'Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.';
-          setError(errorMsg);
+        console.error('[STT] Erro ao acessar microfone (checkMicrophonePermission):', err.name, err.message, err);
+        const errorMessage = err.message || err.toString();
+        const errorName = err.name || '';
+        const errorStack = err.stack || '';
+        
+        // Detectar bloqueio do sistema operacional (Windows)
+        const isSystemBlock = errorMessage.includes('by system') || 
+                              errorMessage.includes('Permission denied by system') ||
+                              errorMessage.includes('system-level') ||
+                              (errorName === 'NotAllowedError' && errorMessage.toLowerCase().includes('system')) ||
+                              (errorName === 'NotAllowedError' && errorStack.includes('system'));
+        
+        if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
+          if (isSystemBlock) {
+            // Bloqueio do sistema operacional Windows
+            const systemErrorMsg = '🚫 Microfone bloqueado pelo sistema operacional Windows\n\n' +
+              '📋 INSTRUÇÕES PARA RESOLVER:\n\n' +
+              '1. Pressione Win + I para abrir Configurações do Windows\n' +
+              '2. Vá em "Privacidade e Segurança" > "Microfone"\n' +
+              '3. Ative "Acesso ao microfone para este dispositivo"\n' +
+              '4. Ative "Permitir que aplicativos acessem seu microfone"\n' +
+              '5. Ative "Permitir que aplicativos da área de trabalho acessem seu microfone"\n' +
+              '6. Verifique se o navegador (Chrome/Edge/Firefox) está na lista de aplicativos permitidos\n' +
+              '7. Se o navegador não estiver na lista, adicione manualmente ou reinicie o navegador\n' +
+              '8. Recarregue esta página (F5) após fazer as alterações\n\n' +
+              '💡 DICA: Se ainda não funcionar, tente reiniciar o navegador completamente.\n' +
+              '💡 DICA: Verifique também as configurações de privacidade do navegador.';
+            setError(systemErrorMsg);
+            console.error('[STT] ❌ Bloqueio do sistema operacional detectado (checkMicrophonePermission):', errorMessage);
+          } else {
+            // Bloqueio pelo navegador
+            const browserErrorMsg = '🚫 Permissão de microfone negada pelo navegador\n\n' +
+              '📋 INSTRUÇÕES PARA RESOLVER:\n\n' +
+              '1. Clique no ícone de cadeado (🔒) na barra de endereços (à esquerda da URL)\n' +
+              '2. Procure a opção "Microfone" ou "Microphone"\n' +
+              '3. Selecione "Permitir" ou "Allow"\n' +
+              '4. Se não houver opção de "Permitir", clique em "Redefinir permissões" e tente novamente\n' +
+              '5. Recarregue a página (F5)\n\n' +
+              '💡 DICA: Se ainda não funcionar, verifique as configurações do navegador:\n' +
+              '   - Chrome/Edge: Configurações > Privacidade e segurança > Configurações do site > Microfone\n' +
+              '   - Firefox: Configurações > Privacidade e Segurança > Permissões > Microfone';
+            setError(browserErrorMsg);
+            console.error('[STT] ❌ Bloqueio do navegador detectado (checkMicrophonePermission):', errorMessage);
+          }
           return false;
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          const errorMsg = 'Nenhum microfone encontrado. Verifique se o microfone está conectado.';
-          setError(errorMsg);
+        } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+          const notFoundMsg = '🎤 Nenhum microfone encontrado\n\n' +
+            '📋 VERIFICAÇÕES:\n\n' +
+            '1. Verifique se o microfone está conectado ao computador\n' +
+            '2. Verifique se o microfone está funcionando no Windows:\n' +
+            '   - Abra Configurações do Windows (Win + I)\n' +
+            '   - Vá em "Sistema" > "Som"\n' +
+            '   - Teste o microfone no painel de som\n' +
+            '3. Verifique se o microfone não está desabilitado:\n' +
+            '   - Clique com botão direito no ícone de som na barra de tarefas\n' +
+            '   - Selecione "Configurações de som"\n' +
+            '   - Verifique se o microfone está ativo\n' +
+            '4. Se estiver usando um headset USB, desconecte e reconecte\n' +
+            '5. Reinicie o navegador após conectar o microfone';
+          setError(notFoundMsg);
+          console.error('[STT] ❌ Microfone não encontrado (checkMicrophonePermission):', errorMessage);
           return false;
-        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          const errorMsg = 'Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.';
-          setError(errorMsg);
+        } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
+          const notReadableMsg = '⚠️ Erro ao acessar o microfone\n\n' +
+            '📋 POSSÍVEIS CAUSAS:\n\n' +
+            '1. O microfone está sendo usado por outro aplicativo:\n' +
+            '   - Feche outros aplicativos que usam o microfone (Teams, Zoom, Discord, etc.)\n' +
+            '   - Verifique se algum aplicativo está usando o microfone no Gerenciador de Tarefas\n' +
+            '2. O driver do microfone pode estar com problemas:\n' +
+            '   - Abra o Gerenciador de Dispositivos (Win + X > Gerenciador de Dispositivos)\n' +
+            '   - Verifique se há problemas com o dispositivo de áudio\n' +
+            '   - Tente atualizar o driver do microfone\n' +
+            '3. O microfone pode estar com problemas de hardware:\n' +
+            '   - Teste o microfone em outro aplicativo (Gravador de Voz do Windows)\n' +
+            '   - Se não funcionar em outros aplicativos, pode ser problema de hardware\n' +
+            '4. Reinicie o navegador e tente novamente';
+          setError(notReadableMsg);
+          console.error('[STT] ❌ Microfone não legível (checkMicrophonePermission):', errorMessage);
           return false;
         }
         throw err; // Re-lançar outros erros
@@ -512,8 +578,10 @@ export function useVoice(options: UseVoiceOptions = {}) {
       }
 
       // Solicitar acesso ao microfone
+      // IMPORTANTE: Tentar primeiro sem especificar dispositivo (método mais compatível)
       let stream: MediaStream;
       try {
+        console.log('[STT] Solicitando acesso ao microfone (método padrão)...');
         stream = await navigator.mediaDevices.getUserMedia({ 
           audio: {
             echoCancellation: true,
@@ -521,19 +589,123 @@ export function useVoice(options: UseVoiceOptions = {}) {
             autoGainControl: true,
           } 
         });
+        console.log('[STT] ✅ Acesso ao microfone concedido');
+        
+        // Listar dispositivos após obter permissão (para debug)
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const audioInputs = devices.filter(device => device.kind === 'audioinput');
+          const activeTracks = stream.getAudioTracks();
+          if (activeTracks.length > 0) {
+            console.log('[STT] Dispositivo ativo:', activeTracks[0].label);
+          }
+          console.log('[STT] Dispositivos de áudio disponíveis:', audioInputs.map(d => ({ label: d.label, kind: d.kind })));
+        } catch (enumErr) {
+          console.warn('[STT] Não foi possível listar dispositivos:', enumErr);
+        }
       } catch (err: any) {
-        // Tratar erros específicos de permissão
-        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-          setError('Permissão de microfone negada. Clique no ícone de cadeado na barra de endereços e permita o acesso ao microfone.');
+        console.error('[STT] Erro ao acessar microfone:', err.name, err.message, err);
+        const errorMessage = err.message || err.toString();
+        const errorName = err.name || '';
+        const errorStack = err.stack || '';
+        
+        // Detectar bloqueio do sistema operacional (Windows)
+        // O erro "Permission denied by system" geralmente indica bloqueio do Windows
+        const isSystemBlock = errorMessage.includes('by system') || 
+                              errorMessage.includes('Permission denied by system') ||
+                              errorMessage.includes('system-level') ||
+                              (errorName === 'NotAllowedError' && errorMessage.toLowerCase().includes('system')) ||
+                              (errorName === 'NotAllowedError' && errorStack.includes('system'));
+        
+        // Tratar erros específicos
+        if (errorName === 'NotAllowedError' || errorName === 'PermissionDeniedError') {
+          if (isSystemBlock) {
+            // Bloqueio do sistema operacional Windows
+            const systemErrorMsg = '🚫 Microfone bloqueado pelo sistema operacional Windows\n\n' +
+              '📋 INSTRUÇÕES PARA RESOLVER:\n\n' +
+              '1. Pressione Win + I para abrir Configurações do Windows\n' +
+              '2. Vá em "Privacidade e Segurança" > "Microfone"\n' +
+              '3. Ative "Acesso ao microfone para este dispositivo"\n' +
+              '4. Ative "Permitir que aplicativos acessem seu microfone"\n' +
+              '5. Ative "Permitir que aplicativos da área de trabalho acessem seu microfone"\n' +
+              '6. Verifique se o navegador (Chrome/Edge/Firefox) está na lista de aplicativos permitidos\n' +
+              '7. Se o navegador não estiver na lista, adicione manualmente ou reinicie o navegador\n' +
+              '8. Recarregue esta página (F5) após fazer as alterações\n\n' +
+              '💡 DICA: Se ainda não funcionar, tente reiniciar o navegador completamente.\n' +
+              '💡 DICA: Verifique também as configurações de privacidade do navegador.';
+            setError(systemErrorMsg);
+            console.error('[STT] ❌ Bloqueio do sistema operacional detectado:', errorMessage);
+          } else {
+            // Bloqueio pelo navegador
+            const browserErrorMsg = '🚫 Permissão de microfone negada pelo navegador\n\n' +
+              '📋 INSTRUÇÕES PARA RESOLVER:\n\n' +
+              '1. Clique no ícone de cadeado (🔒) na barra de endereços (à esquerda da URL)\n' +
+              '2. Procure a opção "Microfone" ou "Microphone"\n' +
+              '3. Selecione "Permitir" ou "Allow"\n' +
+              '4. Se não houver opção de "Permitir", clique em "Redefinir permissões" e tente novamente\n' +
+              '5. Recarregue a página (F5)\n\n' +
+              '💡 DICA: Se ainda não funcionar, verifique as configurações do navegador:\n' +
+              '   - Chrome/Edge: Configurações > Privacidade e segurança > Configurações do site > Microfone\n' +
+              '   - Firefox: Configurações > Privacidade e Segurança > Permissões > Microfone';
+            setError(browserErrorMsg);
+            console.error('[STT] ❌ Bloqueio do navegador detectado:', errorMessage);
+          }
           return;
-        } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-          setError('Nenhum microfone encontrado. Verifique se o microfone está conectado.');
+        } else if (errorName === 'NotFoundError' || errorName === 'DevicesNotFoundError') {
+          const notFoundMsg = '🎤 Nenhum microfone encontrado\n\n' +
+            '📋 VERIFICAÇÕES:\n\n' +
+            '1. Verifique se o microfone está conectado ao computador\n' +
+            '2. Verifique se o microfone está funcionando no Windows:\n' +
+            '   - Abra Configurações do Windows (Win + I)\n' +
+            '   - Vá em "Sistema" > "Som"\n' +
+            '   - Teste o microfone no painel de som\n' +
+            '3. Verifique se o microfone não está desabilitado:\n' +
+            '   - Clique com botão direito no ícone de som na barra de tarefas\n' +
+            '   - Selecione "Configurações de som"\n' +
+            '   - Verifique se o microfone está ativo\n' +
+            '4. Se estiver usando um headset USB, desconecte e reconecte\n' +
+            '5. Reinicie o navegador após conectar o microfone';
+          setError(notFoundMsg);
+          console.error('[STT] ❌ Microfone não encontrado:', errorMessage);
           return;
-        } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-          setError('Erro ao acessar o microfone. Verifique se não está sendo usado por outro aplicativo.');
+        } else if (errorName === 'NotReadableError' || errorName === 'TrackStartError') {
+          const notReadableMsg = '⚠️ Erro ao acessar o microfone\n\n' +
+            '📋 POSSÍVEIS CAUSAS:\n\n' +
+            '1. O microfone está sendo usado por outro aplicativo:\n' +
+            '   - Feche outros aplicativos que usam o microfone (Teams, Zoom, Discord, etc.)\n' +
+            '   - Verifique se algum aplicativo está usando o microfone no Gerenciador de Tarefas\n' +
+            '2. O driver do microfone pode estar com problemas:\n' +
+            '   - Abra o Gerenciador de Dispositivos (Win + X > Gerenciador de Dispositivos)\n' +
+            '   - Verifique se há problemas com o dispositivo de áudio\n' +
+            '   - Tente atualizar o driver do microfone\n' +
+            '3. O microfone pode estar com problemas de hardware:\n' +
+            '   - Teste o microfone em outro aplicativo (Gravador de Voz do Windows)\n' +
+            '   - Se não funcionar em outros aplicativos, pode ser problema de hardware\n' +
+            '4. Reinicie o navegador e tente novamente';
+          setError(notReadableMsg);
+          console.error('[STT] ❌ Microfone não legível:', errorMessage);
+          return;
+        } else if (errorName === 'OverconstrainedError' || errorMessage.includes('constraint')) {
+          setError('⚠️ Configurações de áudio não suportadas. Tentando com configurações mais simples...');
+          console.warn('[STT] ⚠️ Configurações não suportadas, tentando novamente com configurações padrão');
+          // Tentar novamente com configurações mais simples
+          setTimeout(() => {
+            startListening();
+          }, 500);
           return;
         } else {
-          throw err;
+          // Erro desconhecido - fornecer informações detalhadas
+          const unknownErrorMsg = `❌ Erro ao acessar microfone: ${errorName || 'Erro desconhecido'}\n\n` +
+            `💬 Detalhes: ${errorMessage}\n\n` +
+            '📋 TENTE:\n\n' +
+            '1. Recarregue a página (F5)\n' +
+            '2. Verifique se o microfone está funcionando no Windows\n' +
+            '3. Verifique as permissões do navegador e do Windows\n' +
+            '4. Reinicie o navegador\n' +
+            '5. Se o problema persistir, verifique os logs do console (F12)';
+          setError(unknownErrorMsg);
+          console.error('[STT] ❌ Erro desconhecido:', err);
+          return;
         }
       }
 

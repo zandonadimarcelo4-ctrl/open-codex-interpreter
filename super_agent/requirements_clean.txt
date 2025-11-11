@@ -1,0 +1,34 @@
+# Super Agent Framework - Dependências Limpas (sem conflitos)
+# Instale estas dependências em um ambiente virtual limpo
+
+# AutoGen v2 (autogen-agentchat) - OBRIGATÓRIO
+autogen-agentchat>=0.7.0
+autogen-ext[openai]>=0.7.0
+
+# ChromaDB - Memória Vetorial Persistente
+chromadb>=0.4.24,<0.5.0
+
+# Ollama - Atualizado para versão compatível
+ollama>=0.3.0
+
+# OpenAI - Compatível com autogen-ext
+openai>=2.0.0
+
+# NumPy
+numpy>=1.24.0,<2.0.0
+
+# Pillow - Compatível
+pillow>=11.0.0,<13.0.0
+
+# TikToken - Compatível
+tiktoken>=0.8.0
+
+# Pydantic - Compatível com autogen
+pydantic>=2.10.0,<3.0.0
+
+# Logging
+loguru>=0.7.0
+
+# Open Interpreter (opcional)
+# open-interpreter>=0.1.0
+

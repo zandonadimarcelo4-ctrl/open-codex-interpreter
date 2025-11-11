@@ -645,7 +645,13 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
       )}
 
       {/* Messages Container - Premium Style */}
-      <div className={`flex-1 overflow-y-auto ${isMobile ? 'p-4 space-y-4' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'} ${isMobile ? 'scroll-smooth' : ''}`}>
+      <div 
+        className={`flex-1 overflow-y-auto ${isMobile ? 'p-4 space-y-4' : 'p-2 sm:p-4 space-y-3 sm:space-y-4'} ${isMobile ? 'scroll-smooth' : ''}`}
+        style={{
+          touchAction: 'pan-y pinch-zoom',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
         {messages.map((message) => (
           <div
             key={message.id}
@@ -848,22 +854,19 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
         style={{
           position: 'relative',
           zIndex: 50,
+          touchAction: 'pan-y', // Permitir scroll vertical, mas manter toque responsivo nos botões
         }}
       >
         <div
           className={`flex ${isMobile ? 'flex-row gap-3 items-end' : 'flex-col sm:flex-row gap-2'}`}
           style={{
-            touchAction: 'manipulation',
+            touchAction: 'pan-y', // Permitir scroll vertical, mas manter toque nos botões
             position: 'relative',
             zIndex: 50,
             pointerEvents: 'auto',
           }}
-          onTouchStart={(e) => {
-            // Permitir que eventos de toque passem para os filhos
-            e.stopPropagation();
-          }}
         >
-          <div className={`flex ${isMobile ? 'gap-3' : 'gap-2'}`}>
+          <div className={`flex ${isMobile ? 'gap-4 items-center' : 'gap-2'}`}>
             <input
               ref={fileInputRef}
               type="file"
@@ -927,27 +930,14 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
             <Button
               variant={isRecording ? "default" : "ghost"}
               size="icon"
-              className={`${isMobile ? 'h-14 w-14 rounded-full min-w-[56px] flex-shrink-0 shadow-lg transition-all active:scale-95' : 'h-11 w-11'} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-xl shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
+              className={`${isMobile ? 'h-16 w-16 rounded-full min-w-[64px] min-h-[64px] flex-shrink-0 shadow-lg transition-transform active:scale-90 hover:scale-105' : 'h-11 w-11'} ${isRecording ? 'bg-red-500 hover:bg-red-600 shadow-xl shadow-red-500/30' : isMobile ? 'bg-primary/10 hover:bg-primary/20 text-primary border-2 border-primary/30' : 'text-muted-foreground hover:text-foreground'}`}
               title={isRecording ? "Parar gravação" : "Entrada de voz (STT)"}
               onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (isLoading) return;
+                if (isLoading) {
+                  e.preventDefault();
+                  return;
+                }
                 console.log('[Mic] onClick triggered');
-                triggerHaptic('medium');
-                sounds.playClick();
-                toggleListening();
-              }}
-              onTouchStart={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('[Mic] onTouchStart triggered');
-              }}
-              onTouchEnd={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (isLoading) return;
-                console.log('[Mic] onTouchEnd triggered');
                 triggerHaptic('medium');
                 sounds.playClick();
                 toggleListening();
@@ -956,13 +946,20 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               type="button"
               style={{
                 touchAction: 'manipulation',
-                WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
+                WebkitTapHighlightColor: 'rgba(0,0,0,0)',
                 cursor: 'pointer',
                 position: 'relative',
                 zIndex: 10,
                 pointerEvents: 'auto',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
+                WebkitTouchCallout: 'none',
+                // Área de toque maior no mobile
+                ...(isMobile && {
+                  minWidth: '64px',
+                  minHeight: '64px',
+                  padding: '12px',
+                }),
               }}
             >
               {isRecording ? (
@@ -972,15 +969,13 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               )}
             </Button>
           </div>
-          <div className="flex-1" style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto' }}>
+          <div className="flex-1" style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto', minWidth: 0 }}>
             <Input
               value={inputValue}
               onChange={(e) => {
-                e.stopPropagation();
                 setInputValue(e.target.value);
               }}
               onKeyDown={(e) => {
-                e.stopPropagation();
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
                   if (!isLoading && !isRecording && inputValue.trim()) {
@@ -988,25 +983,25 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                   }
                 }
               }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-                console.log('[Input] onTouchStart triggered');
-              }}
-              onTouchEnd={(e) => {
-                e.stopPropagation();
-                console.log('[Input] onTouchEnd triggered');
-              }}
               placeholder={isMobile ? (isRecording ? "Gravando..." : "Digite sua mensagem...") : (isRecording ? "Gravando... Clique no microfone para parar" : "Digite sua mensagem, anexe imagens ou use o microfone... (Shift+Enter para nova linha)")}
-              className={`flex-1 ${isMobile ? 'h-14 text-lg rounded-3xl bg-background/90 backdrop-blur-xl border-2 border-border/50 focus:border-primary focus:ring-4 focus:ring-primary/20 shadow-lg px-4 py-3 transition-all' : 'bg-background border-border text-sm sm:text-base'}`}
+              className={`flex-1 ${isMobile ? 'h-16 text-base rounded-2xl bg-background/90 backdrop-blur-xl border-2 border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/20 shadow-lg px-5 py-4 transition-all' : 'bg-background border-border text-sm sm:text-base h-11'}`}
               disabled={isLoading || isRecording || isProcessingImage}
               style={{
                 touchAction: 'manipulation',
                 WebkitAppearance: 'none',
-                WebkitTapHighlightColor: 'rgba(0,0,0,0.1)',
-                fontSize: isMobile ? '16px' : undefined, // Prevenir zoom no iOS
+                WebkitTapHighlightColor: 'rgba(0,0,0,0)',
+                fontSize: isMobile ? '16px' : undefined, // Prevenir zoom no iOS (mínimo 16px)
                 pointerEvents: 'auto',
                 userSelect: 'text',
                 WebkitUserSelect: 'text',
+                // Melhorar área de toque no mobile
+                ...(isMobile && {
+                  minHeight: '64px',
+                  paddingTop: '16px',
+                  paddingBottom: '16px',
+                  paddingLeft: '20px',
+                  paddingRight: '20px',
+                }),
               }}
             />
           </div>
@@ -1025,9 +1020,8 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
           <Button
             type="button"
             onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
               if (!inputValue.trim() || isLoading || isRecording || isProcessingImage) {
+                e.preventDefault();
                 return;
               }
               console.log('[Send] onClick triggered');
@@ -1035,34 +1029,25 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
               sounds.playClick();
               handleSendMessage();
             }}
-            onTouchStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              console.log('[Send] onTouchStart triggered');
-            }}
-            onTouchEnd={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (!inputValue.trim() || isLoading || isRecording || isProcessingImage) {
-                return;
-              }
-              console.log('[Send] onTouchEnd triggered');
-              triggerHaptic('light');
-              sounds.playClick();
-              handleSendMessage();
-            }}
             disabled={!inputValue.trim() || isLoading || isRecording || isProcessingImage}
-            className={`${isMobile ? 'h-14 w-14 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[56px] flex-shrink-0 transition-all active:scale-95' : 'h-12 w-12'} bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed`}
+            className={`${isMobile ? 'h-16 w-16 rounded-full shadow-xl shadow-primary/40 hover:shadow-primary/60 min-w-[64px] min-h-[64px] flex-shrink-0 transition-transform active:scale-90 hover:scale-105' : 'h-12 w-12'} bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed`}
             title={isLoading ? "Processando..." : isRecording ? "Gravando..." : "Enviar mensagem"}
             style={{
               touchAction: 'manipulation',
-              WebkitTapHighlightColor: 'rgba(255,255,255,0.2)',
+              WebkitTapHighlightColor: 'rgba(0,0,0,0)',
               cursor: 'pointer',
               position: 'relative',
               zIndex: 10,
               pointerEvents: 'auto',
               userSelect: 'none',
               WebkitUserSelect: 'none',
+              WebkitTouchCallout: 'none',
+              // Área de toque maior no mobile
+              ...(isMobile && {
+                minWidth: '64px',
+                minHeight: '64px',
+                padding: '12px',
+              }),
             }}
           >
             {isLoading ? (
@@ -1145,8 +1130,24 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
                     
                     // Tratar erros específicos
                     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                      // Permissão negada - mostrar mensagem clara
-                      setVoiceError('Permissão de microfone negada. Por favor, permita o acesso nas configurações do navegador (ícone de cadeado na barra de endereços) e recarregue a página.');
+                      // Detectar navegador para dar instruções específicas
+                      const isChrome = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
+                      const isFirefox = /Firefox/.test(navigator.userAgent);
+                      const isEdge = /Edge/.test(navigator.userAgent);
+                      const isSafari = /Safari/.test(navigator.userAgent) && !/Chrome/.test(navigator.userAgent);
+                      
+                      let instructions = '';
+                      if (isChrome || isEdge) {
+                        instructions = 'Clique no ícone de cadeado (🔒) na barra de endereços > "Permitir" para Microfone > Recarregue a página (F5)';
+                      } else if (isFirefox) {
+                        instructions = 'Clique no ícone de cadeado (🔒) > "Permissões" > "Usar o microfone" > "Permitir" > Recarregue a página (F5)';
+                      } else if (isSafari) {
+                        instructions = 'Safari > Configurações > Sites > Microfone > Permitir para este site > Recarregue a página (Cmd+R)';
+                      } else {
+                        instructions = 'Clique no ícone de cadeado (🔒) na barra de endereços > Permita o acesso ao microfone > Recarregue a página';
+                      }
+                      
+                      setVoiceError(`Permissão de microfone negada. ${instructions}`);
                       setPermissionRequested(true); // Marcar como solicitada para não tentar novamente
                     } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                       setVoiceError('Nenhum microfone encontrado. Verifique se há um microfone conectado.');

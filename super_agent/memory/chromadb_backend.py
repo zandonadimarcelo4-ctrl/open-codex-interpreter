@@ -176,4 +176,27 @@ class ChromaDBBackend:
         except Exception as e:
             logger.error(f"Falha ao obter documentos: {e}")
             return []
+    
+    async def add_task(self, task: str, context: Dict[str, Any]) -> str:
+        """
+        Adicionar tarefa à memória (método compatível com código existente)
+        
+        Args:
+            task: Descrição da tarefa
+            context: Contexto adicional
+            
+        Returns:
+            ID do documento armazenado
+        """
+        metadata = {
+            "type": "task",
+            "context": context,
+        }
+        return self.store(task, metadata)
+    
+    async def cleanup(self):
+        """Limpar recursos (método compatível)"""
+        # ChromaDB não precisa de limpeza explícita
+        # A persistência é automática
+        logger.info("ChromaDB: Limpeza não necessária (persistência automática)")
 

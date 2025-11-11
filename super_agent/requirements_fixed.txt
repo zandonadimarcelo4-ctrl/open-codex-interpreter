@@ -1,0 +1,52 @@
+# Super Agent Framework - Dependências Corrigidas (sem conflitos)
+
+# AutoGen v2 (autogen-agentchat) - Versão moderna (OBRIGATÓRIO)
+autogen-agentchat>=0.7.0
+autogen-ext[openai]>=0.7.0
+
+# ChromaDB - Memória Vetorial Persistente (compatível)
+chromadb>=0.4.24,<0.5.0
+
+# Open Interpreter
+open-interpreter>=0.1.0
+
+# OpenAI (versão compatível com autogen-ext)
+openai>=2.0.0
+
+# NumPy (compatível)
+numpy>=1.24.0,<2.0.0
+
+# Pillow (versão compatível)
+pillow>=11.0.0,<13.0.0
+
+# TikToken (versão compatível)
+tiktoken>=0.8.0
+
+# Voice (TTS) - Opcionais
+# elevenlabs>=1.0.0
+# aiohttp>=3.8.0
+# requests>=2.31.0
+# TTS>=0.22.0
+# edge-tts>=6.1.0
+# pyttsx3>=2.90
+# piper-tts>=1.0.0
+
+# Voice (STT) - Opcionais
+# openai-whisper>=20231117
+# SpeechRecognition>=3.10.0
+# pyaudio>=0.2.11
+
+# Audio Playback - Opcional
+# playsound>=1.3.0
+
+# WebSocket - Opcionais
+# fastapi>=0.104.0
+# websockets>=12.0
+# uvicorn>=0.24.0
+
+# Logging
+loguru>=0.7.0
+
+# Pydantic (compatível com autogen)
+pydantic>=2.10.0,<3.0.0
+

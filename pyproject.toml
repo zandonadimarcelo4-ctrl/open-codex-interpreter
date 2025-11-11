@@ -20,7 +20,8 @@ appdirs = "^1.4.4"
 six = "^1.16.0"
 ollama = "^0.2.0"
 chromadb = "^0.4.24"
-pyautogen = "^0.2.19"
+autogen-agentchat = "^0.4.0"
+autogen-ext = {extras = ["openai"], version = "^0.4.0"}
 
 # On non-windows systems, you can just `import readline`.
 # On windows, `pyreadline3` replaces that, so you can also just `import readline`.

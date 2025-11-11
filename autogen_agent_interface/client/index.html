@@ -38,11 +38,18 @@
         appleIcon.href = '/icon-192.png';
         head.appendChild(appleIcon);
         
-        // Manifest
-        const manifest = document.createElement('link');
-        manifest.rel = 'manifest';
-        manifest.href = '/manifest.json';
-        head.appendChild(manifest);
+        // Manifest - Adicionar apenas se não estiver em desenvolvimento direto no Parcel
+        // Em desenvolvimento, o Express serve o manifest.json corretamente
+        // Em produção, também funciona normalmente
+        try {
+          const manifest = document.createElement('link');
+          manifest.rel = 'manifest';
+          manifest.href = '/manifest.json';
+          head.appendChild(manifest);
+        } catch (e) {
+          // Ignorar erro se não conseguir adicionar
+          console.warn('[Manifest] Não foi possível adicionar manifest:', e);
+        }
       })();
     </script>
     <script type="module" src="./src/main.tsx"></script>

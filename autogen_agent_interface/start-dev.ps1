@@ -23,8 +23,8 @@ if (-not (Test-Path "node_modules")) {
 }
 
 Write-Host ""
-Write-Host "[1/2] Iniciando Parcel (Frontend) na porta 1234..." -ForegroundColor Green
-$parcelCmd = "cd '$PWD'; `$env:PARCEL_CACHE_DIR='.parcel-cache'; npx parcel serve client/index.html --dist-dir .parcel-dist --host 0.0.0.0 --port 1234"
+Write-Host "[1/2] Iniciando Parcel (Frontend) na porta 5173..." -ForegroundColor Green
+$parcelCmd = "cd '$PWD'; `$env:PARCEL_CACHE_DIR='.parcel-cache'; npx parcel serve client/index.html --dist-dir .parcel-dist --host 0.0.0.0 --port 5173"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $parcelCmd
 
 Write-Host ""

@@ -38,10 +38,21 @@ except ImportError:
     NATIVE_INTERPRETER_TOOL_AVAILABLE = False
     logger.warning("⚠️ NativeInterpreter Tool não disponível")
 
+# Opção: AutonomousInterpreterAgent (reutilização completa - autonomia total, performance máxima)
+try:
+    from ..agents.autonomous_interpreter_agent import create_autonomous_interpreter_agent
+    AUTONOMOUS_AGENT_AVAILABLE = True
+    logger.info("✅ AutonomousInterpreterAgent disponível (reutilização completa - autonomia total)")
+except ImportError:
+    AUTONOMOUS_AGENT_AVAILABLE = False
+    logger.warning("⚠️ AutonomousInterpreterAgent não disponível")
+
 
 def create_simple_commander(
     model: Optional[str] = None,
     api_base: Optional[str] = None,
+    use_autonomous_agent: bool = False,
+    workdir: Optional[str] = None,
 ) -> AssistantAgent:
     """
     Cria um comandante AutoGen simplificado.
@@ -53,6 +64,8 @@ def create_simple_commander(
     Args:
         model: Nome do modelo (padrão: do ambiente)
         api_base: URL base da API (padrão: Ollama localhost:11434)
+        use_autonomous_agent: Se True, usa AutonomousInterpreterAgent (reutilização completa, autonomia total)
+        workdir: Diretório de trabalho (sandbox) para agente autônomo
     
     Returns:
         AssistantAgent configurado como comandante
@@ -80,57 +93,111 @@ def create_simple_commander(
     logger.info(f"   Modelo: {model}")
     logger.info(f"   API URL: {api_url}")
     logger.info(f"   ✅ Mesmo modelo usado por todas as tools")
+    logger.info(f"   Modo: {'Autonomous Agent' if use_autonomous_agent else 'TOOL (recomendado)'}")
     
-    # Registrar tools (ferramentas)
-    tools: List[Dict[str, Any]] = []
-    
-    # DECISÃO TÉCNICA: Usar Open Interpreter Externo (projeto já existe, código testado, funcionalidades completas)
-    # Prioridade: Open Interpreter com protocolo (projeto estático no repositório)
-    if OPEN_INTERPRETER_TOOL_AVAILABLE:
+    # Opção 1: Usar AutonomousInterpreterAgent (reutilização completa, autonomia total)
+    if use_autonomous_agent and AUTONOMOUS_AGENT_AVAILABLE:
         try:
-            open_interpreter_tool = create_open_interpreter_protocol_tool(
-                model=model,  # Mesmo modelo do AutoGen
+            # Criar agente autônomo como tool
+            workdir = workdir or os.path.join(os.getcwd(), "workspace")
+            os.makedirs(workdir, exist_ok=True)
+            
+            autonomous_agent = create_autonomous_interpreter_agent(
+                model_client=llm_client,
+                workdir=workdir,
                 auto_run=True,
-                local=True,
-                session_id=None,  # Será gerado automaticamente
-                enable_logging=True,
+                max_retries=3,
             )
-            tools.append(open_interpreter_tool)
-            logger.info(f"✅ Tool registrada: open_interpreter_agent (OPEN INTERPRETER EXTERNO - projeto estático)")
-            logger.info(f"   ✅ Código testado, funcionalidades completas, baixo custo de manutenção")
-        except Exception as e:
-            logger.warning(f"⚠️ Falha ao registrar Open Interpreter tool: {e}")
-            # Fallback: NativeInterpreter (se Open Interpreter não disponível)
-            if NATIVE_INTERPRETER_TOOL_AVAILABLE:
+            
+            # Criar tool wrapper para o agente autônomo
+            async def autonomous_agent_tool(prompt: str) -> Dict[str, Any]:
+                """Tool wrapper para AutonomousInterpreterAgent"""
                 try:
-                    native_interpreter_tool = create_native_interpreter_tool(
-                        model=model,
-                        workspace=None,
-                        auto_run=True,
-                        session_id=None,
-                        enable_logging=True,
-                    )
-                    tools.append(native_interpreter_tool)
-                    logger.warning(f"⚠️ Tool registrada: native_code_interpreter (FALLBACK - reimplementação)")
-                except Exception as e2:
-                    logger.error(f"❌ Falha ao registrar NativeInterpreter tool: {e2}")
-    elif NATIVE_INTERPRETER_TOOL_AVAILABLE:
-        # Fallback: NativeInterpreter (se Open Interpreter não disponível)
-        try:
-            native_interpreter_tool = create_native_interpreter_tool(
-                model=model,
-                workspace=None,
-                auto_run=True,
-                session_id=None,
-                enable_logging=True,
-            )
-            tools.append(native_interpreter_tool)
-            logger.warning(f"⚠️ Tool registrada: native_code_interpreter (FALLBACK - reimplementação)")
-            logger.warning(f"   ⚠️ Funcionalidades parciais, código novo, maior risco de bugs")
+                    response = await autonomous_agent.process_message(prompt)
+                    return {
+                        "success": True,
+                        "output": response,
+                        "code_executed": "",
+                        "errors": []
+                    }
+                except Exception as e:
+                    logger.error(f"Erro no agente autônomo: {e}")
+                    return {
+                        "success": False,
+                        "output": "",
+                        "code_executed": "",
+                        "errors": [str(e)]
+                    }
+            
+            # Registrar como tool
+            tools: List[Dict[str, Any]] = [{
+                "name": "autonomous_interpreter_agent",
+                "description": "Agente autônomo que reutiliza 100% da lógica do Open Interpreter. Raciocina, executa e corrige código sozinho com autonomia total.",
+                "func": autonomous_agent_tool
+            }]
+            
+            logger.info(f"✅ AutonomousInterpreterAgent registrado como tool (REUTILIZAÇÃO COMPLETA)")
+            logger.info(f"   ✅ Autonomia total, auto-correção, loop de feedback")
+            logger.info(f"   ✅ Zero overhead (mesmo processo)")
+            logger.info(f"   ✅ Workdir: {workdir}")
+            
         except Exception as e:
-            logger.error(f"❌ Falha ao registrar NativeInterpreter tool: {e}")
-    else:
-        logger.error("❌ Nenhuma tool de execução de código disponível!")
+            logger.error(f"❌ Falha ao criar AutonomousInterpreterAgent: {e}")
+            logger.warning("⚠️ Fallback para TOOL approach")
+            use_autonomous_agent = False
+    
+    # Opção 2: Usar TOOL (recomendado para projeto estático)
+    if not use_autonomous_agent:
+        # Registrar tools (ferramentas)
+        tools: List[Dict[str, Any]] = []
+        
+        # DECISÃO TÉCNICA: Usar Open Interpreter Externo (projeto já existe, código testado, funcionalidades completas)
+        # Prioridade: Open Interpreter com protocolo (projeto estático no repositório)
+        if OPEN_INTERPRETER_TOOL_AVAILABLE:
+            try:
+                open_interpreter_tool = create_open_interpreter_protocol_tool(
+                    model=model,  # Mesmo modelo do AutoGen
+                    auto_run=True,
+                    local=True,
+                    session_id=None,  # Será gerado automaticamente
+                    enable_logging=True,
+                )
+                tools.append(open_interpreter_tool)
+                logger.info(f"✅ Tool registrada: open_interpreter_agent (OPEN INTERPRETER EXTERNO - projeto estático)")
+                logger.info(f"   ✅ Código testado, funcionalidades completas, baixo custo de manutenção")
+            except Exception as e:
+                logger.warning(f"⚠️ Falha ao registrar Open Interpreter tool: {e}")
+                # Fallback: NativeInterpreter (se Open Interpreter não disponível)
+                if NATIVE_INTERPRETER_TOOL_AVAILABLE:
+                    try:
+                        native_interpreter_tool = create_native_interpreter_tool(
+                            model=model,
+                            workspace=None,
+                            auto_run=True,
+                            session_id=None,
+                            enable_logging=True,
+                        )
+                        tools.append(native_interpreter_tool)
+                        logger.warning(f"⚠️ Tool registrada: native_code_interpreter (FALLBACK - reimplementação)")
+                    except Exception as e2:
+                        logger.error(f"❌ Falha ao registrar NativeInterpreter tool: {e2}")
+        elif NATIVE_INTERPRETER_TOOL_AVAILABLE:
+            # Fallback: NativeInterpreter (se Open Interpreter não disponível)
+            try:
+                native_interpreter_tool = create_native_interpreter_tool(
+                    model=model,
+                    workspace=None,
+                    auto_run=True,
+                    session_id=None,
+                    enable_logging=True,
+                )
+                tools.append(native_interpreter_tool)
+                logger.warning(f"⚠️ Tool registrada: native_code_interpreter (FALLBACK - reimplementação)")
+                logger.warning(f"   ⚠️ Funcionalidades parciais, código novo, maior risco de bugs")
+            except Exception as e:
+                logger.error(f"❌ Falha ao registrar NativeInterpreter tool: {e}")
+        else:
+            logger.error("❌ Nenhuma tool de execução de código disponível!")
     
     # TODO: Adicionar outras tools aqui (WebSearch, FileManager, etc.)
     # tools.append(web_search_tool)
@@ -155,8 +222,16 @@ FERRAMENTAS DISPONÍVEIS:
 """
     
     # Adicionar descrição das tools
-    # DECISÃO TÉCNICA: Priorizar Open Interpreter Externo (código testado, funcionalidades completas)
-    if OPEN_INTERPRETER_TOOL_AVAILABLE:
+    if use_autonomous_agent and AUTONOMOUS_AGENT_AVAILABLE:
+        system_message += """
+- autonomous_interpreter_agent: Agente autônomo que reutiliza 100% da lógica do Open Interpreter
+  Raciocina, executa e corrige código sozinho com autonomia total.
+  Funcionalidades: Python interativo, active line tracking, output truncation, auto-correção, loop de feedback.
+  Use quando precisar: executar código, criar scripts, processar dados, etc.
+  Retorna: JSON com "success", "output", "code_executed", "errors"
+  Exemplo: {"success": true, "output": "Resultado da execução", "code_executed": "print('Hello')", "errors": []}
+"""
+    elif OPEN_INTERPRETER_TOOL_AVAILABLE:
         system_message += """
 - open_interpreter_agent: Gera e executa código localmente (Python, Shell, JavaScript, HTML, etc.)
   Código testado com funcionalidades completas: Python interativo, active line tracking, output truncation, etc.

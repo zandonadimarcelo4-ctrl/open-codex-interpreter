@@ -21,6 +21,11 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 // Modelo quantizado otimizado para RTX NVIDIA (Q4_K_M)
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx";
 
+// Timeouts para diferentes tipos de operações
+const conversationTimeoutMs = parseInt(process.env.OLLAMA_CONVERSATION_TIMEOUT_MS || "120000", 10); // 2 minutos para conversas
+const actionTimeoutMs = parseInt(process.env.OLLAMA_ACTION_TIMEOUT_MS || "180000", 10); // 3 minutos para ações/comandos
+const defaultTimeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || "120000", 10); // 2 minutos padrão
+
 let autogenFramework: any = null;
 
 /**

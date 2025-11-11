@@ -119,10 +119,28 @@ After generating code, the system will automatically execute it and return the r
     def _get_code_interpreter(self, language: str) -> CodeInterpreter:
         """Obtém ou cria CodeInterpreter para linguagem"""
         if language not in self.code_interpreters:
-            self.code_interpreters[language] = CodeInterpreter(
+            code_interpreter = CodeInterpreter(
                 language=language,
                 debug_mode=self.debug_mode
             )
+            # Criar active_block mínimo (sem display Rich, apenas para armazenar código/output)
+            try:
+                from .code_block import CodeBlock
+                code_interpreter.active_block = CodeBlock()
+            except ImportError:
+                # Se CodeBlock não estiver disponível, criar objeto mínimo
+                class DummyBlock:
+                    def __init__(self):
+                        self.code = ""
+                        self.language = language
+                        self.output = ""
+                        self.active_line = None
+                    def refresh(self):
+                        # Não faz nada (sem display)
+                        pass
+                code_interpreter.active_block = DummyBlock()
+            
+            self.code_interpreters[language] = code_interpreter
         return self.code_interpreters[language]
     
     def _extract_code_blocks(self, text: str) -> List[Dict[str, str]]:
@@ -145,14 +163,33 @@ After generating code, the system will automatically execute it and return the r
         try:
             os.chdir(self.workdir)
             
+            # Obter CodeInterpreter (já tem active_block criado no _get_code_interpreter)
             code_interpreter = self._get_code_interpreter(language)
+            
+            # Garantir que o código está configurado
             code_interpreter.code = code
             code_interpreter.language = language
             
+            # Garantir que active_block existe e tem o código
+            if code_interpreter.active_block:
+                code_interpreter.active_block.code = code
+                code_interpreter.active_block.language = language
+            
             # Executar código (reutiliza 100% da lógica do OI)
+            # CodeInterpreter.run() vai:
+            # 1. Ler código de active_block.code ou self.code
+            # 2. Executar código usando subprocess
+            # 3. Capturar output em self.output
+            # 4. Atualizar active_block.output
+            # 5. Retornar self.output
             output = code_interpreter.run()
             
             return output
+        except Exception as e:
+            logger.error(f"Erro ao executar código: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            raise
         finally:
             os.chdir(original_cwd)
     

@@ -7,7 +7,9 @@ import json
 import requests
 from typing import List, Dict, Optional, Any
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+# IMPORTANTE: Usar a mesma URL base que o AutoGen (llm_client.py)
+# OLLAMA_BASE_URL deve ser "http://localhost:11434" (sem /v1 ou /api)
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/").rstrip("/v1").rstrip("/api")
 DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
 
 
@@ -18,8 +20,17 @@ class OllamaAdapter:
     
     def __init__(self, model: str = None, base_url: str = None):
         self.model = model or DEFAULT_MODEL
-        self.base_url = (base_url or OLLAMA_BASE_URL).rstrip('/')
+        self.base_url = (base_url or OLLAMA_BASE_URL).rstrip('/').rstrip("/v1").rstrip("/api")
         self.api_url = f"{self.base_url}/api"
+        
+        # Log de confirmação (apenas se logging estiver configurado)
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"✅ OllamaAdapter inicializado")
+        logger.info(f"   Modelo: {self.model}")
+        logger.info(f"   Base URL: {self.base_url}")
+        logger.info(f"   API URL: {self.api_url}")
+        logger.info(f"   ✅ Mesma instância que AutoGen (llm_client.py)")
         
     def chat_completion(self, messages: List[Dict[str, str]], functions: Optional[List[Dict]] = None, **kwargs) -> Dict[str, Any]:
         """

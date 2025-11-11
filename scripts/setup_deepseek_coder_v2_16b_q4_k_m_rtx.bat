@@ -20,18 +20,6 @@ if %ERRORLEVEL% NEQ 0 (
 echo [OK] Ollama encontrado
 echo.
 
-REM Verificar se NVIDIA GPU está disponível
-echo Verificando GPU NVIDIA...
-nvidia-smi >nul 2>&1
-if %ERRORLEVEL% EQU 0 (
-    echo [OK] GPU NVIDIA detectada!
-    for /f "tokens=*" %%i in ('nvidia-smi --query-gpu^=name^,memory.total --format^=csv^,noheader 2^>nul') do echo %%i
-    echo.
-) else (
-    echo [AVISO] GPU NVIDIA nao detectada. O modelo funcionara em CPU (mais lento).
-    echo.
-)
-
 REM Verificar se modelo já está instalado
 echo Verificando se modelo ja esta instalado...
 ollama list | findstr /C:"deepseek-coder-v2:16b" >nul 2>&1

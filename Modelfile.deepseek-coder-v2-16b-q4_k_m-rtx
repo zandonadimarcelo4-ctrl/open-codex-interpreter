@@ -57,8 +57,8 @@ PARAMETER num_predict 16384
 # Repeat penalty: 1.1 (evitar repetição)
 PARAMETER repeat_penalty 1.1
 
-# Repeat last N tokens: 128 (mais contexto para RTX 4080 Super)
-PARAMETER repeat_last_n 128
+# Repeat last N tokens: 64 (padrão, suficiente para boa qualidade)
+PARAMETER repeat_last_n 64
 
 # Stop sequences (padrão DeepSeek-Coder-V2)
 PARAMETER stop "<|start_header_id|>"

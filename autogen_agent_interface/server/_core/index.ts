@@ -470,8 +470,8 @@ async function startServer() {
   console.log('[tRPC] 🔧 Configurando middleware do tRPC em /api/trpc');
   
   const trpcHandler = createExpressMiddleware({
-    router: appRouter,
-    createContext,
+      router: appRouter,
+      createContext,
     onError: ({ error, path: errorPath, type }) => {
       // Logar erros do tRPC para debug
       console.error(`[tRPC] ❌ Erro em ${errorPath || 'unknown'}:`, error.message);

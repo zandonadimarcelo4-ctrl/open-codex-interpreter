@@ -61,6 +61,18 @@ except ImportError:
     OpenInterpreterIntegration = None
 
 try:
+    from ..tools.open_interpreter_tool import (
+        create_open_interpreter_tool,
+        execute_code_tool,
+        open_interpreter_agent_tool,  # Renomeado de interpreter_chat_tool
+        OpenInterpreterTool,
+    )
+    OPEN_INTERPRETER_TOOL_AVAILABLE = True
+except ImportError:
+    OPEN_INTERPRETER_TOOL_AVAILABLE = False
+    logger.warning("Open Interpreter Tool não disponível")
+
+try:
     from ..integrations.ufo import UFOIntegration
 except ImportError:
     UFOIntegration = None
@@ -194,9 +206,13 @@ class SuperAgentOrchestrator:
         if self.config.open_interpreter_enabled:
             try:
                 self.integrations["open_interpreter"] = OpenInterpreterIntegration(
-                    auto_run=self.config.open_interpreter_auto_run
+                    auto_run=self.config.open_interpreter_auto_run,
+                    local=True,  # Sempre usar modo local com Ollama
+                    model=self.config.autogen_model,  # Usar o mesmo modelo do AutoGen
+                    use_ollama=True,
+                    autogen_model=self.config.autogen_model,  # Passar modelo do AutoGen
                 )
-                logger.info("Open Interpreter integrado")
+                logger.info(f"Open Interpreter integrado com modelo: {self.config.autogen_model}")
             except Exception as e:
                 logger.warning(f"Falha ao integrar Open Interpreter: {e}")
         

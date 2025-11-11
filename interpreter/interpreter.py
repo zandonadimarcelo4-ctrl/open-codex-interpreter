@@ -9,7 +9,6 @@ import os
 import time
 import json
 import platform
-import openai
 import getpass
 import requests
 import readline
@@ -18,6 +17,14 @@ import tokentrim as tt
 from rich import print
 from rich.markdown import Markdown
 from rich.rule import Rule
+
+# OpenAI é opcional - só importar se necessário
+try:
+    import openai
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    openai = None
 
 # Tentar importar adaptador Ollama
 try:
@@ -67,16 +74,26 @@ Press `CTRL-C` to exit.
 
 class Interpreter:
 
-  def __init__(self):
+  def __init__(self, auto_run=False, local=False, model=None, debug_mode=False, use_ollama=None):
+    """
+    Inicializa o Interpreter.
+    
+    Args:
+      auto_run (bool): Se True, executa código automaticamente sem pedir confirmação (equivalente a -y)
+      local (bool): Se True, usa Code-Llama local (equivalente a --local). Se False e use_ollama=True, usa Ollama
+      model (str): Nome do modelo a usar (padrão: gpt-4 ou modelo do Ollama)
+      debug_mode (bool): Se True, imprime informações de debug
+      use_ollama (bool): Se True, força uso de Ollama. Se None, detecta automaticamente
+    """
     self.messages = []
     self.temperature = 0.001
     self.api_key = None
-    self.auto_run = False
-    self.local = False
-    self.model = "gpt-4"
-    self.debug_mode = False
-    self.use_ollama = False  # Novo: flag para usar Ollama
-    self.ollama_adapter = None  # Novo: adaptador Ollama
+    self.auto_run = auto_run  # Parâmetro -y (auto_run)
+    self.local = local  # Parâmetro --local (Code-Llama)
+    self.model = model or "gpt-4"
+    self.debug_mode = debug_mode
+    self.use_ollama = False  # Flag para usar Ollama
+    self.ollama_adapter = None  # Adaptador Ollama
 
     # Get default system message
     here = os.path.abspath(os.path.dirname(__file__))
@@ -95,15 +112,39 @@ class Interpreter:
     # This makes gpt-4 better aligned with Open Interpreters priority to be easy to use.
     self.llama_instance = None
     
-    # Verificar se deve usar Ollama (se não há OPENAI_API_KEY e Ollama está disponível)
-    if OLLAMA_AVAILABLE and not os.getenv("OPENAI_API_KEY"):
+    # Configurar uso de Ollama
+    # Se local=True, SEMPRE usar Ollama via adaptador (não Code-Llama)
+    # Se use_ollama foi especificado explicitamente, usar esse valor
+    # Se não, detectar automaticamente: usar Ollama se não há OPENAI_API_KEY e Ollama está disponível
+    if self.local:
+      # Quando local=True, usar Ollama via adaptador (não Code-Llama)
+      use_ollama = True
+      # Se não foi especificado um modelo, usar o padrão do ambiente
+      if not self.model or self.model == "gpt-4" or self.model == "code-llama":
+        self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+    elif use_ollama is None:
+      # Detecção automática: usar Ollama se não há OPENAI_API_KEY
+      use_ollama = not os.getenv("OPENAI_API_KEY") and OLLAMA_AVAILABLE
+    
+    # Se use_ollama=True, inicializar adaptador Ollama
+    if use_ollama and OLLAMA_AVAILABLE:
       try:
-        self.ollama_adapter = OllamaAdapter()
+        # Se não foi especificado um modelo, usar o padrão do ambiente
+        if not self.model or self.model == "gpt-4":
+          self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+        self.ollama_adapter = OllamaAdapter(model=self.model)
         if self.ollama_adapter.verify_connection():
           self.use_ollama = True
-          self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
-          print(Markdown(f"> Usando Ollama com modelo: `{self.model}`"))
-      except:
+          if not self.auto_run:  # Só imprimir se não estiver em modo auto_run
+            print(Markdown(f"> Usando Ollama (local) com modelo: `{self.model}`"))
+        else:
+          raise Exception("Ollama não está disponível ou não conseguiu conectar")
+      except Exception as e:
+        if self.debug_mode:
+          print(Markdown(f"> Erro ao inicializar Ollama: {e}"))
+        if self.local:
+          # Se local=True e Ollama falhou, levantar erro (não tentar OpenAI)
+          raise Exception(f"Erro ao inicializar Ollama em modo local: {e}. Certifique-se de que Ollama está rodando.")
         pass
 
   def cli(self):
@@ -171,35 +212,28 @@ class Interpreter:
   def chat(self, message=None, return_messages=False):
 
     # Connect to an LLM (an large language model)
-    if not self.local:
-      # gpt-4
-      self.verify_api_key()
-
-    # ^ verify_api_key may set self.local to True, so we run this as an 'if', not 'elif':
-    if self.local:
-      self.model = "code-llama"
-      
-      # Code-Llama
-      if self.llama_instance == None:
-        
-        # Find or install Code-Llama
-        try:
-          self.llama_instance = get_llama_2_instance()
-        except:
-          # If it didn't work, apologize and switch to GPT-4
-          
-          print(Markdown("".join([
-            "> Failed to install `Code-LLama`.",
-            "\n\n**We have likely not built the proper `Code-Llama` support for your system.**",
-            "\n\n*( Running language models locally is a difficult task!* If you have insight into the best way to implement this across platforms/architectures, please join the Open Interpreter community Discord and consider contributing the project's development. )",
-            "\n\nPlease press enter to switch to `GPT-4` (recommended)."
-          ])))
-          input()
-
-          # Switch to GPT-4
-          self.local = False
-          self.model = "gpt-4"
-          self.verify_api_key()
+    # Se local=True, usar Ollama (já configurado no __init__)
+    # Se não usar Ollama e não for local, tentar OpenAI
+    if not self.use_ollama and not self.local:
+      # gpt-4 (só se OpenAI estiver disponível)
+      if OPENAI_AVAILABLE:
+        self.verify_api_key()
+      else:
+        # Se OpenAI não está disponível, tentar usar Ollama
+        if OLLAMA_AVAILABLE:
+          try:
+            self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+            self.ollama_adapter = OllamaAdapter(model=self.model)
+            if self.ollama_adapter.verify_connection():
+              self.use_ollama = True
+              if not self.auto_run:
+                print(Markdown(f"> OpenAI não disponível. Usando Ollama com modelo: `{self.model}`"))
+            else:
+              raise Exception("Ollama não está disponível")
+          except Exception as e:
+            raise Exception(f"OpenAI não está disponível e Ollama falhou: {e}")
+        else:
+          raise Exception("OpenAI não está disponível e Ollama não está instalado. Instale: pip install openai ou pip install ollama")
 
     # Display welcome message
     welcome_message = ""
@@ -210,12 +244,12 @@ class Interpreter:
     # If self.local or self.use_ollama, we actually don't use self.model the same way
     # (self.auto_run is like advanced usage, we display no messages)
     if self.use_ollama and not self.auto_run:
-      welcome_message += f"\n> Model set to `{self.model}` (Ollama)\n\n**Tip:** To use OpenAI, set `OPENAI_API_KEY` environment variable"
-    elif not self.local and not self.auto_run:
-      welcome_message += f"\n> Model set to `{self.model.upper()}`\n\n**Tip:** To run locally, use `interpreter --local`"
-    
-    if self.local:
-      welcome_message += f"\n> Model set to `Code-Llama`"
+      if self.local:
+        welcome_message += f"\n> Model set to `{self.model}` (Ollama - Local Mode)\n\n**Tip:** Using Ollama via adapter for local execution"
+      else:
+        welcome_message += f"\n> Model set to `{self.model}` (Ollama)\n\n**Tip:** To use OpenAI, set `OPENAI_API_KEY` environment variable"
+    elif not self.local and not self.use_ollama and not self.auto_run and OPENAI_AVAILABLE:
+      welcome_message += f"\n> Model set to `{self.model.upper()}`\n\n**Tip:** To run locally with Ollama, use `interpreter --local`"
     
     # If not auto_run, tell the user we'll ask permission to run code
     # We also tell them here how to exit Open Interpreter
@@ -277,8 +311,10 @@ class Interpreter:
 
   def verify_api_key(self):
     """
-    Makes sure we have an OPENAI_API_KEY.
+    Makes sure we have an OPENAI_API_KEY (só se OpenAI estiver disponível).
     """
+    if not OPENAI_AVAILABLE:
+      raise Exception("OpenAI não está disponível. Use Ollama com --local ou instale: pip install openai")
 
     if self.api_key == None:
 
@@ -295,13 +331,23 @@ class Interpreter:
         response = input("OpenAI API key: ")
     
         if response == "":
-            # User pressed `enter`, requesting Code-Llama
+            # User pressed `enter`, usar Ollama (local)
             self.local = True
-            
-            print(Markdown("> Switching to `Code-Llama`...\n\n**Tip:** Run `interpreter --local` to automatically use `Code-Llama`."), '')
-            time.sleep(2)
-            print(Rule(style="white"))
-            return
+            self.use_ollama = True
+            # Reconfigurar Ollama
+            try:
+              self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+              self.ollama_adapter = OllamaAdapter(model=self.model)
+              if self.ollama_adapter.verify_connection():
+                if not self.auto_run:
+                  print(Markdown("> Switching to Ollama (local mode)...\n\n**Tip:** Run `interpreter --local` to automatically use Ollama."), '')
+                  time.sleep(2)
+                  print(Rule(style="white"))
+                return
+              else:
+                raise Exception("Ollama não está disponível")
+            except Exception as e:
+              raise Exception(f"Erro ao inicializar Ollama: {e}. Certifique-se de que Ollama está rodando.")
           
         else:
             self.api_key = response
@@ -309,7 +355,8 @@ class Interpreter:
             time.sleep(2)
             print(Rule(style="white"))
             
-    openai.api_key = self.api_key
+    if openai:
+      openai.api_key = self.api_key
 
   def end_active_block(self):
     if self.active_block:
@@ -342,11 +389,32 @@ class Interpreter:
         # Simular streaming convertendo resposta única em chunks
         response = self._ollama_response_to_stream(response_data)
       except Exception as e:
-        print(Markdown(f"> Erro ao usar Ollama: {e}\n> Tentando usar OpenAI..."))
-        # Fallback para OpenAI se Ollama falhar
-        self.use_ollama = False
-        if not self.api_key:
-          self.verify_api_key()
+        # Se Ollama falhar e estamos em modo local, levantar erro
+        if self.local:
+          raise Exception(f"Erro ao usar Ollama em modo local: {e}. Certifique-se de que Ollama está rodando.")
+        # Se não estamos em modo local, tentar OpenAI (se disponível)
+        if OPENAI_AVAILABLE:
+          print(Markdown(f"> Erro ao usar Ollama: {e}\n> Tentando usar OpenAI..."))
+          self.use_ollama = False
+          if not self.api_key:
+            self.verify_api_key()
+          if openai:
+            response = openai.ChatCompletion.create(
+              model=self.model,
+              messages=messages,
+              functions=[function_schema],
+              stream=True,
+              temperature=self.temperature,
+            )
+          else:
+            raise Exception(f"OpenAI não está disponível e Ollama falhou: {e}")
+        else:
+          raise Exception(f"Ollama falhou e OpenAI não está disponível: {e}")
+    elif not self.local and not self.use_ollama:
+      # gpt-4 (só se OpenAI estiver disponível)
+      if not OPENAI_AVAILABLE:
+        raise Exception("OpenAI não está disponível. Use Ollama com --local ou instale: pip install openai")
+      if openai:
         response = openai.ChatCompletion.create(
           model=self.model,
           messages=messages,
@@ -354,29 +422,11 @@ class Interpreter:
           stream=True,
           temperature=self.temperature,
         )
-    elif not self.local:
-      # gpt-4
-      response = openai.ChatCompletion.create(
-        model=self.model,
-        messages=messages,
-        functions=[function_schema],
-        stream=True,
-        temperature=self.temperature,
-      )
-    elif self.local:
-      # Code-Llama
-      
-      # Turn function messages -> system messages for llama compatability
-      messages = self.messages
-      for message in messages:
-        if message['role'] == 'function':
-            message['role'] = 'system'
-          
-      response = self.llama_instance.create_chat_completion(
-        messages=messages,
-        stream=True,
-        temperature=self.temperature,
-      )
+      else:
+        raise Exception("OpenAI não está disponível")
+    elif self.local and not self.use_ollama:
+      # Isso não deveria acontecer (local sempre usa Ollama agora), mas manter compatibilidade
+      raise Exception("Modo local requer Ollama. Certifique-se de que Ollama está instalado e rodando.")
 
     # Initialize message, function call trackers, and active block
     self.messages.append({})

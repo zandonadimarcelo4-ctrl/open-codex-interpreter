@@ -113,6 +113,14 @@ def create_simple_commander(
         hybrid_manager = None
     
     # Fallback: ModelManager (Local apenas, modo alternado)
+    MODEL_MANAGEMENT_AVAILABLE = False
+    try:
+        from .model_manager import get_model_manager
+        from .intelligent_router import get_router
+        MODEL_MANAGEMENT_AVAILABLE = True
+    except ImportError:
+        MODEL_MANAGEMENT_AVAILABLE = False
+    
     if not hybrid_manager and MODEL_MANAGEMENT_AVAILABLE:
         try:
             model_manager = get_model_manager()
@@ -160,9 +168,25 @@ def create_simple_commander(
                 """
                 Tool wrapper para AutonomousInterpreterAgent
                 AutoGen v2 chama esta função com a tarefa em linguagem natural
+                Garante retorno JSON válido
                 """
                 import asyncio
+                import json
+                
                 try:
+                    # Validar task
+                    if not isinstance(task, str):
+                        task = str(task) if task else ""
+                    
+                    if not task or not task.strip():
+                        logger.warning("⚠️ Task vazia no autonomous_agent_tool")
+                        return json.dumps({
+                            "success": False,
+                            "output": "",
+                            "code_executed": "",
+                            "errors": ["Task vazia ou inválida"],
+                        }, ensure_ascii=False)
+                    
                     # Executar de forma síncrona (usando asyncio.run se necessário)
                     try:
                         loop = asyncio.get_event_loop()
@@ -178,26 +202,48 @@ def create_simple_commander(
                         # Não há loop, criar um novo
                         response = asyncio.run(autonomous_agent.process_message(task))
                     
-                    # Retornar JSON estruturado
-                    import json
+                    # Garantir que response é string válida
+                    if response is None:
+                        response = "Execução concluída sem resposta"
+                    elif not isinstance(response, str):
+                        response = str(response)
+                    
+                    # Retornar JSON estruturado - validar antes
                     result = {
                         "success": True,
                         "output": response,
                         "code_executed": "",
                         "errors": []
                     }
-                    return json.dumps(result, ensure_ascii=False)
+                    json_str = json.dumps(result, ensure_ascii=False)
+                    # Validar JSON
+                    json.loads(json_str)
+                    return json_str
+                    
                 except Exception as e:
-                    logger.error(f"Erro no agente autônomo: {e}")
+                    logger.error(f"❌ Erro no agente autônomo: {e}", exc_info=True)
                     import json
                     import traceback
-                    result = {
-                        "success": False,
-                        "output": "",
-                        "code_executed": "",
-                        "errors": [str(e), traceback.format_exc()]
-                    }
-                    return json.dumps(result, ensure_ascii=False)
+                    try:
+                        result = {
+                            "success": False,
+                            "output": "",
+                            "code_executed": "",
+                            "errors": [str(e), str(traceback.format_exc())]
+                        }
+                        json_str = json.dumps(result, ensure_ascii=False)
+                        # Validar JSON
+                        json.loads(json_str)
+                        return json_str
+                    except Exception as json_error:
+                        # Se até isso falhar, retornar JSON mínimo
+                        logger.error(f"❌ Erro crítico ao criar JSON de erro: {json_error}")
+                        return json.dumps({
+                            "success": False,
+                            "output": "",
+                            "code_executed": "",
+                            "errors": [str(e), "Erro ao criar JSON de erro"],
+                        }, ensure_ascii=False)
             
             # Registrar como tool no formato AutoGen v2 (OpenAI function calling)
             tools: List[Dict[str, Any]] = [{

@@ -221,16 +221,42 @@ class OpenInterpreterProtocolTool:
             command: Comando original (para contexto)
         
         Returns:
-            ResultMessage estruturada
+            ResultMessage estruturada (sempre válida)
         """
         try:
+            # Validar prompt
+            if not prompt or not isinstance(prompt, str) or not prompt.strip():
+                logger.warning("⚠️ Prompt vazio ou inválido")
+                return self.protocol.create_result(
+                    success=False,
+                    output="",
+                    errors=["Prompt vazio ou inválido"],
+                )
+            
             # Limpar mensagens anteriores
             self.interpreter.messages = []
             
-            # Executar no Open Interpreter
-            self.interpreter.chat(prompt, return_messages=False)
+            # Executar no Open Interpreter com tratamento de erro
+            try:
+                self.interpreter.chat(prompt, return_messages=False)
+            except Exception as chat_error:
+                logger.error(f"❌ Erro ao executar chat no Interpreter: {chat_error}", exc_info=True)
+                return self.protocol.create_result(
+                    success=False,
+                    output="",
+                    errors=[f"Erro ao executar no Interpreter: {str(chat_error)}"],
+                )
             
-            # Extrair resultado das mensagens
+            # Verificar se há mensagens
+            if not self.interpreter.messages:
+                logger.warning("⚠️ Nenhuma mensagem retornada do Interpreter")
+                return self.protocol.create_result(
+                    success=False,
+                    output="",
+                    errors=["Nenhuma mensagem retornada do Interpreter"],
+                )
+            
+            # Extrair resultado das mensagens - garantir que são strings válidas
             output = ""
             code_executed = ""
             errors = []
@@ -238,9 +264,20 @@ class OpenInterpreterProtocolTool:
             
             # Processar mensagens do Interpreter
             for msg in self.interpreter.messages:
+                if not isinstance(msg, dict):
+                    logger.warning(f"⚠️ Mensagem inválida (não é dict): {type(msg)}")
+                    continue
+                
                 role = msg.get("role", "")
                 content = msg.get("content", "")
                 name = msg.get("name", "")
+                
+                # Garantir que content é string válida
+                if content and not isinstance(content, str):
+                    try:
+                        content = json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else str(content)
+                    except Exception:
+                        content = str(content)
                 
                 if role == "assistant" and content:
                     # Resposta do assistente
@@ -249,33 +286,42 @@ class OpenInterpreterProtocolTool:
                 elif role == "function" and name == "run_code":
                     # Código executado
                     if isinstance(content, dict):
-                        code_executed = content.get("code", "")
+                        code_executed = str(content.get("code", ""))
                         if "error" in content:
-                            errors.append(content["error"])
+                            error_val = content["error"]
+                            errors.append(str(error_val) if error_val else "Erro desconhecido")
                     elif isinstance(content, str):
                         code_executed = content
+                    else:
+                        # Tentar converter para string
+                        code_executed = str(content) if content else ""
+            
+            # Garantir que output não está vazio (mesmo que não tenha código executado)
+            if not output or not output.strip():
+                output = "Execução concluída sem saída de texto" if code_executed else "Nenhuma saída gerada"
             
             # Verificar se houve erro
-            success = len(errors) == 0 and output != ""
+            success = len(errors) == 0
             
-            # Criar resultado estruturado
+            # Criar resultado estruturado - garantir que todos os campos são strings válidas
             result = self.protocol.create_result(
                 success=success,
-                output=output.strip(),
-                code_executed=code_executed if code_executed else None,
-                errors=errors if errors else None,
-                warnings=warnings if warnings else None,
+                output=str(output).strip() if output else "Execução concluída",
+                code_executed=str(code_executed) if code_executed else None,
+                errors=[str(e) for e in errors] if errors else None,
+                warnings=[str(w) for w in warnings] if warnings else None,
                 metadata={
-                    "tool": command.tool,
-                    "objective": command.objective,
-                    "steps_count": len(command.steps),
+                    "tool": str(command.tool) if command.tool else "open_interpreter_agent",
+                    "objective": str(command.objective) if command.objective else "",
+                    "steps_count": int(len(command.steps)) if command.steps else 0,
                 },
             )
             
             return result
         
         except Exception as e:
-            error_msg = str(e)
+            error_msg = str(e) if e else "Erro desconhecido"
+            logger.error(f"❌ Erro crítico ao executar no Interpreter: {error_msg}", exc_info=True)
             self.protocol._log(f"❌ Erro ao executar no Interpreter: {error_msg}")
             
             return self.protocol.create_result(
@@ -346,26 +392,78 @@ def create_open_interpreter_protocol_tool(
         Função chamada pelo AutoGen
         
         Args:
-            task: Tarefa em linguagem natural
+            task: Tarefa em linguagem natural (deve ser string válida)
         
         Returns:
-            Resposta em formato JSON estruturado
+            Resposta em formato JSON estruturado (sempre string JSON válida)
         """
         try:
+            # Validar que task é string válida
+            if not isinstance(task, str):
+                logger.warning(f"⚠️ Task não é string: {type(task)}, convertendo...")
+                task = str(task) if task is not None else ""
+            
+            if not task or not task.strip():
+                logger.warning("⚠️ Task vazia, retornando erro")
+                error_result = ResultMessage(
+                    success=False,
+                    output="",
+                    errors=["Task vazia ou inválida"],
+                )
+                return error_result.to_json()
+            
             # Executar tarefa
+            logger.info(f"🚀 Executando tarefa: {task[:100]}...")
             result = tool_instance.execute_from_task(task)
             
-            # Retornar JSON estruturado
-            return result.to_json()
+            # Garantir que result é um ResultMessage válido
+            if not isinstance(result, ResultMessage):
+                logger.error(f"❌ Result não é ResultMessage: {type(result)}")
+                error_result = ResultMessage(
+                    success=False,
+                    output="",
+                    errors=[f"Resultado inválido: {type(result)}"],
+                )
+                return error_result.to_json()
+            
+            # Retornar JSON estruturado - validar antes
+            try:
+                json_str = result.to_json()
+                # Validar que é JSON válido parseando novamente
+                json.loads(json_str)
+                logger.info(f"✅ Resultado válido: {len(json_str)} chars")
+                return json_str
+            except (TypeError, ValueError) as json_error:
+                logger.error(f"❌ Erro ao serializar resultado: {json_error}")
+                # Criar resultado de erro válido
+                error_result = ResultMessage(
+                    success=False,
+                    output=str(result.output) if hasattr(result, 'output') else "",
+                    errors=[f"Erro ao serializar resultado: {json_error}"],
+                )
+                return error_result.to_json()
         
         except Exception as e:
-            # Retornar erro em formato JSON
-            error_result = ResultMessage(
-                success=False,
-                output="",
-                errors=[str(e)],
-            )
-            return error_result.to_json()
+            # Retornar erro em formato JSON válido
+            logger.error(f"❌ Erro na tool_function: {e}", exc_info=True)
+            try:
+                error_result = ResultMessage(
+                    success=False,
+                    output="",
+                    errors=[str(e)],
+                )
+                json_str = error_result.to_json()
+                # Validar JSON
+                json.loads(json_str)
+                return json_str
+            except Exception as json_error:
+                # Se até isso falhar, retornar JSON manual mínimo
+                logger.error(f"❌ Erro crítico ao criar JSON de erro: {json_error}")
+                return json.dumps({
+                    "success": False,
+                    "output": "",
+                    "errors": [str(e), f"Erro ao criar JSON: {json_error}"],
+                }, ensure_ascii=False)
     
     # Schema da tool para AutoGen
     return {

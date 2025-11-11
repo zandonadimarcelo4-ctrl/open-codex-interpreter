@@ -124,8 +124,46 @@ class ResultMessage:
         return asdict(self)
     
     def to_json(self) -> str:
-        """Converte para JSON"""
-        return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
+        """Converte para JSON - garante serialização válida"""
+        try:
+            # Garantir que todos os campos são serializáveis
+            data = {
+                "type": str(self.type),
+                "success": bool(self.success),
+                "output": str(self.output) if self.output is not None else "",
+                "code_executed": str(self.code_executed) if self.code_executed is not None else None,
+                "errors": [str(e) for e in (self.errors or [])],
+                "warnings": [str(w) for w in (self.warnings or [])],
+                "execution_time": float(self.execution_time) if self.execution_time is not None else None,
+                "metadata": {}
+            }
+            
+            # Validar que metadata é dict serializável
+            if self.metadata:
+                for k, v in self.metadata.items():
+                    try:
+                        json.dumps(v)  # Testar se é serializável
+                        data["metadata"][str(k)] = v
+                    except (TypeError, ValueError):
+                        data["metadata"][str(k)] = str(v)
+            
+            json_str = json.dumps(data, ensure_ascii=False, indent=2)
+            # Validar que é JSON válido
+            json.loads(json_str)
+            return json_str
+        except Exception as e:
+            logger.error(f"❌ Erro ao serializar ResultMessage para JSON: {e}", exc_info=True)
+            # Retornar JSON mínimo válido em caso de erro
+            return json.dumps({
+                "type": str(self.type),
+                "success": bool(self.success),
+                "output": str(self.output) if self.output else "",
+                "code_executed": str(self.code_executed) if self.code_executed else None,
+                "errors": [str(e) for e in (self.errors or [])],
+                "warnings": [str(w) for w in (self.warnings or [])],
+                "execution_time": float(self.execution_time) if self.execution_time else None,
+                "metadata": {},
+            }, ensure_ascii=False)
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ResultMessage":

@@ -90,13 +90,34 @@ def create_simple_commander(
     api_url = f"{api_base}/v1"
     
     # Inicializar gerenciador de modelos e roteador (se disponível)
+    # PRIORIDADE: HybridModelManager (Cloud + Local com fallback)
+    # FALLBACK: ModelManager (Local apenas, modo alternado)
     model_manager = None
     router = None
-    if MODEL_MANAGEMENT_AVAILABLE:
+    hybrid_manager = None
+    
+    # Tentar usar HybridModelManager (Cloud + Local)
+    try:
+        from .hybrid_model_manager import get_hybrid_model_manager
+        hybrid_manager = get_hybrid_model_manager()
+        if hybrid_manager and hybrid_manager.cloud_enabled:
+            logger.info(f"✅ Gerenciamento híbrido habilitado (Cloud + Local com fallback)")
+            logger.info(f"   Cloud: {hybrid_manager.cloud_model}")
+            logger.info(f"   Local Brain: {hybrid_manager.local_brain_model}")
+            logger.info(f"   Local Executor: {hybrid_manager.local_executor_model}")
+            logger.info(f"   ✅ Fallback automático: Cloud → Local")
+        else:
+            hybrid_manager = None
+    except Exception as e:
+        logger.warning(f"⚠️ Erro ao inicializar gerenciador híbrido: {e}")
+        hybrid_manager = None
+    
+    # Fallback: ModelManager (Local apenas, modo alternado)
+    if not hybrid_manager and MODEL_MANAGEMENT_AVAILABLE:
         try:
             model_manager = get_model_manager()
             router = get_router()
-            logger.info(f"✅ Gerenciamento de modelos habilitado (modo alternado)")
+            logger.info(f"✅ Gerenciamento de modelos habilitado (modo alternado - Local apenas)")
             logger.info(f"   Brain: {brain_model}")
             logger.info(f"   Executor: {executor_model}")
             logger.info(f"   ✅ Alternância automática para caber em 16GB VRAM")

@@ -1,6 +1,17 @@
 /**
- * Utilitários para integração com AutoGen
- * AutoGen controla tudo - orquestra todos os agentes
+ * Utilitários para integração com AutoGen v2
+ * 
+ * ⚠️ IMPORTANTE: AutoGen v2 (Python) comanda TUDO - sem conflitos
+ * 
+ * Este módulo é uma ponte para o AutoGen v2 Python que orquestra:
+ * - Todos os agentes (Planner, Generator, Critic, Executor, etc.)
+ * - Todas as ferramentas (Open Interpreter, UFO, Browser-Use, etc.)
+ * - Todas as execuções (código, comandos, arquivos, etc.)
+ * - Memória ChromaDB
+ * - Sistema cognitivo ANIMA
+ * 
+ * NÃO execute código ou ferramentas diretamente aqui!
+ * Tudo deve passar pelo AutoGen v2 Python via autogen_v2_bridge.ts
  */
 
 import * as fs from "fs";
@@ -9,6 +20,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 import { selectAgent, estimateComplexity, generateAgentPrompt, AgentType } from "./intelligent_router";
 import { generatePlan, getNextTask, updatePlan, ExecutionPlan } from "./planner_agent";
+import { executeWithAutoGenV2, checkAutoGenV2Available, AutoGenV2TaskRequest } from "./autogen_v2_bridge";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -808,7 +820,8 @@ Sugira comandos diretos como:
     }
 
     // Para perguntas/conversas, usar Ollama diretamente (muito mais rápido)
-    // Pular Open Interpreter completamente para conversas/perguntas
+    // ⚠️ REMOVIDO: Open Interpreter não é mais chamado diretamente
+    // Tudo passa pelo AutoGen v2 Python que orquestra Open Interpreter, UFO, Browser-Use, etc.
     const modelUsed = (framework as any)?.model || DEFAULT_MODEL;
     console.log(`[AutoGen] Usando modelo: ${modelUsed}, intent: ${intent.type}, prompt length: ${systemPrompt.length}`);
     
@@ -905,7 +918,8 @@ async function callOllamaWithAutoGenPrompt(
       });
     }
 
-    // Function calling para execução automática de código (estilo Open Interpreter)
+    // ⚠️ REMOVIDO: Function calling direto não é mais usado
+    // AutoGen v2 Python gerencia function calling através dos agentes
     // IMPORTANTE: NÃO fornecer tools para conversas/perguntas - apenas para ações/comandos
     // Isso evita que o modelo execute código indevidamente para saudações
     const tools = (intent.type === "action" || intent.type === "command") ? [

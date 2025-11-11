@@ -19,6 +19,14 @@ from rich import print
 from rich.markdown import Markdown
 from rich.rule import Rule
 
+# Tentar importar adaptador Ollama
+try:
+    from .ollama_adapter import OllamaAdapter
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+    OllamaAdapter = None
+
 # Function schema for gpt-4
 function_schema = {
   "name": "run_code",
@@ -67,6 +75,8 @@ class Interpreter:
     self.local = False
     self.model = "gpt-4"
     self.debug_mode = False
+    self.use_ollama = False  # Novo: flag para usar Ollama
+    self.ollama_adapter = None  # Novo: adaptador Ollama
 
     # Get default system message
     here = os.path.abspath(os.path.dirname(__file__))
@@ -84,6 +94,17 @@ class Interpreter:
     # gpt-4 is faster, smarter, can call functions, and is all-around easier to use.
     # This makes gpt-4 better aligned with Open Interpreters priority to be easy to use.
     self.llama_instance = None
+    
+    # Verificar se deve usar Ollama (se não há OPENAI_API_KEY e Ollama está disponível)
+    if OLLAMA_AVAILABLE and not os.getenv("OPENAI_API_KEY"):
+      try:
+        self.ollama_adapter = OllamaAdapter()
+        if self.ollama_adapter.verify_connection():
+          self.use_ollama = True
+          self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+          print(Markdown(f"> Usando Ollama com modelo: `{self.model}`"))
+      except:
+        pass
 
   def cli(self):
     # The cli takes the current instance of Interpreter,
@@ -186,9 +207,11 @@ class Interpreter:
     if self.debug_mode:
       welcome_message += "> Entered debug mode"
 
-    # If self.local, we actually don't use self.model
+    # If self.local or self.use_ollama, we actually don't use self.model the same way
     # (self.auto_run is like advanced usage, we display no messages)
-    if not self.local and not self.auto_run:
+    if self.use_ollama and not self.auto_run:
+      welcome_message += f"\n> Model set to `{self.model}` (Ollama)\n\n**Tip:** To use OpenAI, set `OPENAI_API_KEY` environment variable"
+    elif not self.local and not self.auto_run:
       welcome_message += f"\n> Model set to `{self.model.upper()}`\n\n**Tip:** To run locally, use `interpreter --local`"
     
     if self.local:
@@ -307,7 +330,31 @@ class Interpreter:
       print()
 
     # Make LLM call
-    if not self.local:
+    if self.use_ollama and self.ollama_adapter:
+      # Ollama (via adaptador)
+      # Ollama não suporta streaming nativo da mesma forma, então vamos fazer uma chamada única
+      try:
+        response_data = self.ollama_adapter.chat_completion(
+          messages=messages,
+          functions=[function_schema],
+          temperature=self.temperature,
+        )
+        # Simular streaming convertendo resposta única em chunks
+        response = self._ollama_response_to_stream(response_data)
+      except Exception as e:
+        print(Markdown(f"> Erro ao usar Ollama: {e}\n> Tentando usar OpenAI..."))
+        # Fallback para OpenAI se Ollama falhar
+        self.use_ollama = False
+        if not self.api_key:
+          self.verify_api_key()
+        response = openai.ChatCompletion.create(
+          model=self.model,
+          messages=messages,
+          functions=[function_schema],
+          stream=True,
+          temperature=self.temperature,
+        )
+    elif not self.local:
       # gpt-4
       response = openai.ChatCompletion.create(
         model=self.model,
@@ -345,7 +392,13 @@ class Interpreter:
       self.messages[-1] = merge_deltas(self.messages[-1], delta)
 
       # Check if we're in a function call
-      if not self.local:
+      if self.use_ollama:
+        # Para Ollama, verificar se há function_call ou código em blocos markdown
+        condition = "function_call" in self.messages[-1] or (
+          "content" in self.messages[-1] and 
+          self.messages[-1]["content"].count("```") % 2 == 1
+        )
+      elif not self.local:
         condition = "function_call" in self.messages[-1]
       elif self.local:
         # Since Code-Llama can't call functions, we just check if we're in a code block.
@@ -379,7 +432,29 @@ class Interpreter:
 
         # Now let's parse the function's arguments:
 
-        if not self.local:
+        if self.use_ollama:
+          # Ollama: tentar parsear function_call ou código de blocos markdown
+          if "function_call" in self.messages[-1] and "arguments" in self.messages[-1]["function_call"]:
+            # Já temos function_call do adaptador
+            arguments = self.messages[-1]["function_call"]["arguments"]
+            new_parsed_arguments = parse_partial_json(arguments)
+            if new_parsed_arguments:
+              self.messages[-1]["function_call"]["parsed_arguments"] = new_parsed_arguments
+          elif "content" in self.messages[-1]:
+            # Tentar extrair código de blocos markdown
+            content = self.messages[-1]["content"]
+            code_blocks = content.split("```")
+            if len(code_blocks) >= 3:
+              language = code_blocks[1].strip().split("\n")[0] or "python"
+              code = "\n".join(code_blocks[1].strip().split("\n")[1:]).strip("` \n")
+              if code:
+                if "function_call" not in self.messages[-1]:
+                  self.messages[-1]["function_call"] = {}
+                self.messages[-1]["function_call"]["parsed_arguments"] = {
+                  "language": language,
+                  "code": code
+                }
+        elif not self.local:
           # gpt-4
           # Parse arguments and save to parsed_arguments, under function_call
           if "arguments" in self.messages[-1]["function_call"]:

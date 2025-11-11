@@ -72,7 +72,7 @@ class OpenInterpreterProtocolTool:
         if not PROTOCOL_AVAILABLE:
             raise ImportError("Protocolo de comunicação não disponível")
         
-        self.model = model or os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+        self.model = model or os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
         self.auto_run = auto_run
         self.local = local
         

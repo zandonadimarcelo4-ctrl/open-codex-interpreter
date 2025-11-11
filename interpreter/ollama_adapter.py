@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Any
 # IMPORTANTE: Usar a mesma URL base que o AutoGen (llm_client.py)
 # OLLAMA_BASE_URL deve ser "http://localhost:11434" (sem /v1 ou /api)
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/").rstrip("/v1").rstrip("/api")
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
 
 
 class OllamaAdapter:

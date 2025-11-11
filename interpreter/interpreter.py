@@ -121,7 +121,7 @@ class Interpreter:
       use_ollama = True
       # Se não foi especificado um modelo, usar o padrão do ambiente
       if not self.model or self.model == "gpt-4" or self.model == "code-llama":
-        self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+        self.model = os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
     elif use_ollama is None:
       # Detecção automática: usar Ollama se não há OPENAI_API_KEY
       use_ollama = not os.getenv("OPENAI_API_KEY") and OLLAMA_AVAILABLE
@@ -131,7 +131,7 @@ class Interpreter:
       try:
         # Se não foi especificado um modelo, usar o padrão do ambiente
         if not self.model or self.model == "gpt-4":
-          self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+          self.model = os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
         self.ollama_adapter = OllamaAdapter(model=self.model)
         if self.ollama_adapter.verify_connection():
           self.use_ollama = True
@@ -222,7 +222,7 @@ class Interpreter:
         # Se OpenAI não está disponível, tentar usar Ollama
         if OLLAMA_AVAILABLE:
           try:
-            self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+            self.model = os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
             self.ollama_adapter = OllamaAdapter(model=self.model)
             if self.ollama_adapter.verify_connection():
               self.use_ollama = True
@@ -336,7 +336,7 @@ class Interpreter:
             self.use_ollama = True
             # Reconfigurar Ollama
             try:
-              self.model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+              self.model = os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
               self.ollama_adapter = OllamaAdapter(model=self.model)
               if self.ollama_adapter.verify_connection():
                 if not self.auto_run:

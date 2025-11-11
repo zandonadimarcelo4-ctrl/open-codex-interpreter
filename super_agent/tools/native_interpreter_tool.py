@@ -60,7 +60,7 @@ def create_native_interpreter_tool(
     
     # Inicializar interpretador nativo
     interpreter = NativeInterpreter(
-        model=model or os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx"),
+        model=model or os.getenv("DEFAULT_MODEL", "qwen2.5:14b"),
         workspace=workspace or os.getcwd(),
         auto_run=auto_run,
     )

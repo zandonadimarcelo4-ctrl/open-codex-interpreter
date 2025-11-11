@@ -44,7 +44,7 @@ except ImportError:
         import requests
         class OllamaAdapter:
             def __init__(self, model: str = None, base_url: str = None):
-                self.model = model or os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+                self.model = model or os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
                 self.base_url = (base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
                 self.api_url = f"{self.base_url}/api"
             
@@ -229,7 +229,7 @@ class OpenInterpreterAgent(AssistantAgent):
         # Usar model_client do AutoGen (mesmo modelo DeepSeek)
         if model_client is None:
             # Criar cliente LLM padrão (mesmo que o AutoGen usa)
-            model = os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+            model = os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
             api_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
             api_base = api_base.rstrip("/").rstrip("/v1").rstrip("/api")
             api_url = f"{api_base}/v1"
@@ -287,7 +287,7 @@ After generating code, the system will automatically execute it and return the r
         self.ollama_adapter = None
         if OLLAMA_ADAPTER_AVAILABLE:
             # Obter modelo do model_client
-            model_name = getattr(model_client, 'model', None) or os.getenv("DEFAULT_MODEL", "deepseek-coder-v2-16b-q4_k_m-rtx")
+            model_name = getattr(model_client, 'model', None) or os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
             # Remover prefixo "ollama/" se houver
             if model_name.startswith("ollama/"):
                 model_name = model_name.replace("ollama/", "")

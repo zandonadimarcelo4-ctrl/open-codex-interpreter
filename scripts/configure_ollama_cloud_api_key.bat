@@ -34,8 +34,7 @@ if not exist "autogen_agent_interface\.env" (
 )
 
 echo Configurando API Key...
-powershell -Command "(Get-Content 'autogen_agent_interface\.env') -replace 'OLLAMA_API_KEY=', 'OLLAMA_API_KEY=%API_KEY%' | Set-Content 'autogen_agent_interface\.env'"
-powershell -Command "(Get-Content 'autogen_agent_interface\.env') -replace 'OLLAMA_CLOUD_ENABLED=false', 'OLLAMA_CLOUD_ENABLED=true' | Set-Content 'autogen_agent_interface\.env'"
+powershell -Command "$content = Get-Content 'autogen_agent_interface\.env'; $content = $content -replace 'OLLAMA_API_KEY=.*', 'OLLAMA_API_KEY=%API_KEY%'; $content = $content -replace 'OLLAMA_CLOUD_ENABLED=false', 'OLLAMA_CLOUD_ENABLED=true'; $content | Set-Content 'autogen_agent_interface\.env'"
 
 echo ✅ API Key configurada no autogen_agent_interface/.env
 echo.
@@ -48,8 +47,7 @@ if exist ".env" (
     echo.
     
     echo Configurando API Key...
-    powershell -Command "(Get-Content '.env') -replace 'OLLAMA_API_KEY=', 'OLLAMA_API_KEY=%API_KEY%' | Set-Content '.env'"
-    powershell -Command "(Get-Content '.env') -replace 'OLLAMA_CLOUD_ENABLED=false', 'OLLAMA_CLOUD_ENABLED=true' | Set-Content '.env'"
+    powershell -Command "$content = Get-Content '.env'; $content = $content -replace 'OLLAMA_API_KEY=.*', 'OLLAMA_API_KEY=%API_KEY%'; $content = $content -replace 'OLLAMA_CLOUD_ENABLED=false', 'OLLAMA_CLOUD_ENABLED=true'; $content | Set-Content '.env'"
     
     echo ✅ API Key configurada no .env
     echo.

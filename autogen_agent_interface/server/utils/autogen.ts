@@ -14,16 +14,8 @@
  * Tudo deve passar pelo AutoGen v2 Python via autogen_v2_bridge.ts
  */
 
-import * as fs from "fs";
-import * as path from "path";
-import { fileURLToPath } from "url";
-import { dirname } from "path";
-import { selectAgent, estimateComplexity, generateAgentPrompt, AgentType } from "./intelligent_router";
-import { generatePlan, getNextTask, updatePlan, ExecutionPlan } from "./planner_agent";
-import { executeWithAutoGenV2, checkAutoGenV2Available, AutoGenV2TaskRequest } from "./autogen_v2_bridge";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { selectAgent, estimateComplexity, generateAgentPrompt } from "./intelligent_router";
+import { executeWithAutoGenV2, checkAutoGenV2Available } from "./autogen_v2_bridge";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 // Modelo quantizado otimizado para RTX NVIDIA (Q4_K_M)
@@ -924,10 +916,7 @@ async function callOllamaWithAutoGenPrompt(
     ] : undefined;
 
     // Configurações otimizadas para performance e velocidade
-    // Ler timeout da variável de ambiente ou usar padrão aumentado
-    const defaultTimeoutMs = parseInt(process.env.OLLAMA_TIMEOUT_MS || '120000', 10); // 120 segundos padrão
-    const conversationTimeoutMs = parseInt(process.env.OLLAMA_CONVERSATION_TIMEOUT_MS || '120000', 10); // 120 segundos para conversas
-    const actionTimeoutMs = parseInt(process.env.OLLAMA_ACTION_TIMEOUT_MS || '60000', 10); // 60 segundos para ações
+    // Timeout configurado via variáveis de ambiente (usado nas opções do Ollama)
     
     const requestBody: any = {
       model,

@@ -36,7 +36,6 @@ export interface VerificationOptions {
   strictMode?: boolean;
 }
 
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 // Modelo quantizado otimizado para RTX NVIDIA (Q4_K_M)
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx";
 

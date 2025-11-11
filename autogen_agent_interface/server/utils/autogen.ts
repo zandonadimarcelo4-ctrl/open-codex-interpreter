@@ -899,6 +899,40 @@ async function callOllamaWithAutoGenPrompt(
 }
 
 /**
+ * Detectar linguagem de programação da tarefa
+ */
+function detectLanguage(task: string): string {
+  const languageKeywords: Record<string, string[]> = {
+    'python': ['python', 'py', 'pytest', 'django', 'flask', 'pandas', 'numpy'],
+    'javascript': ['javascript', 'js', 'node', 'react', 'vue', 'angular', 'typescript', 'ts'],
+    'typescript': ['typescript', 'ts', 'angular', 'nest'],
+    'go': ['go', 'golang'],
+    'rust': ['rust', 'rs', 'cargo'],
+    'java': ['java', 'spring', 'maven', 'gradle'],
+    'csharp': ['c#', 'csharp', 'dotnet', '.net', 'asp.net'],
+    'cpp': ['c++', 'cpp', 'cplusplus'],
+    'c': ['c programming', 'c language'],
+    'php': ['php', 'laravel', 'symfony'],
+    'ruby': ['ruby', 'rails', 'ruby on rails'],
+    'shell': ['bash', 'shell', 'sh', 'zsh', 'script'],
+    'sql': ['sql', 'database', 'query', 'mysql', 'postgresql'],
+    'html': ['html', 'css', 'web', 'frontend'],
+    'css': ['css', 'stylesheet', 'styling'],
+  };
+  
+  const lowerTask = task.toLowerCase();
+  
+  for (const [language, keywords] of Object.entries(languageKeywords)) {
+    if (keywords.some(keyword => lowerTask.includes(keyword))) {
+      return language;
+    }
+  }
+  
+  // Default: Python (mais comum)
+  return 'python';
+}
+
+/**
  * Verificar se Ollama está disponível
  */
 export async function checkOllamaAvailable(): Promise<boolean> {

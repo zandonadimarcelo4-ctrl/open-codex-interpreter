@@ -6,15 +6,33 @@
  * - Tipo de código (simples, médio, complexo)
  * - Disponibilidade de modelos
  * - Custo e performance
+ * 
+ * @module code_router
+ * @author ANIMA Project
+ * @since 1.0.0
  */
 
 import { callOllamaChat } from "../ollama";
+import { ValidationError, ExecutionError, withErrorHandling } from "./error_handler";
+import {
+  validateNonEmptyString,
+  validateProgrammingLanguage,
+  validateRequiredFields,
+} from "./validators";
 
-// Fallback se callOllamaChat não estiver disponível
+/**
+ * Fallback para chamar Ollama diretamente se callOllamaChat não estiver disponível
+ * 
+ * @param messages - Array de mensagens para enviar ao modelo
+ * @param options - Opções de configuração do modelo
+ * @returns Resposta do modelo como string
+ * @throws {ExecutionError} Se houver erro ao chamar a API do Ollama
+ * @internal
+ */
 async function callOllamaChatFallback(messages: any[], options: any): Promise<string> {
-  const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-  
-  try {
+  return withErrorHandling(async () => {
+    const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+    
     const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -31,15 +49,15 @@ async function callOllamaChatFallback(messages: any[], options: any): Promise<st
     });
 
     if (!response.ok) {
-      throw new Error(`Ollama API error: ${response.statusText}`);
+      throw new ExecutionError(
+        `Ollama API error: ${response.statusText}`,
+        { status: response.status, statusText: response.statusText }
+      );
     }
 
     const data = await response.json();
     return data.message?.content || "";
-  } catch (error: any) {
-    console.error(`[CodeRouter] Erro ao chamar Ollama:`, error);
-    throw error;
-  }
+  }, { context: "callOllamaChatFallback" });
 }
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
@@ -65,42 +83,69 @@ interface CodeGenerationResult {
 }
 
 /**
- * Estimar complexidade da tarefa de código
+ * Estima a complexidade de uma tarefa de código baseado em palavras-chave
+ * 
+ * @param description - Descrição da tarefa de código
+ * @returns Nível de complexidade: 'simple', 'medium' ou 'complex'
+ * @throws {ValidationError} Se a descrição estiver vazia
+ * 
+ * @example
+ * ```typescript
+ * const complexity = estimateCodeComplexity("Criar função para calcular média");
+ * // Retorna: 'simple'
+ * 
+ * const complexity2 = estimateCodeComplexity("Refatorar toda a arquitetura do projeto");
+ * // Retorna: 'complex'
+ * ```
  */
 export function estimateCodeComplexity(description: string): 'simple' | 'medium' | 'complex' {
-  const descLower = description.toLowerCase();
-  
-  // Keywords para tarefas complexas
-  const complexKeywords = [
-    'refactor', 'migrate', 'restructure', 'optimize',
-    'entire project', 'multiple files', 'large codebase',
-    'architecture', 'design pattern', 'framework',
-    'whole application', 'complete system', 'full stack',
-    'database migration', 'api redesign', 'system overhaul'
-  ];
-  
-  // Keywords para tarefas médias
-  const mediumKeywords = [
-    'function', 'class', 'module', 'component',
-    'API', 'endpoint', 'service', 'database',
-    'script', 'program', 'application', 'tool',
-    'library', 'package', 'plugin', 'extension'
-  ];
-  
-  // Verificar complexidade
-  if (complexKeywords.some(keyword => descLower.includes(keyword))) {
-    return 'complex';
-  }
-  
-  if (mediumKeywords.some(keyword => descLower.includes(keyword))) {
-    return 'medium';
-  }
-  
-  return 'simple';
+  return withErrorHandlingSync(() => {
+    // Validar input
+    const desc = validateNonEmptyString(description, "description");
+    const descLower = desc.toLowerCase();
+    
+    // Keywords para tarefas complexas
+    const complexKeywords = [
+      'refactor', 'migrate', 'restructure', 'optimize',
+      'entire project', 'multiple files', 'large codebase',
+      'architecture', 'design pattern', 'framework',
+      'whole application', 'complete system', 'full stack',
+      'database migration', 'api redesign', 'system overhaul'
+    ];
+    
+    // Keywords para tarefas médias
+    const mediumKeywords = [
+      'function', 'class', 'module', 'component',
+      'API', 'endpoint', 'service', 'database',
+      'script', 'program', 'application', 'tool',
+      'library', 'package', 'plugin', 'extension'
+    ];
+    
+    // Verificar complexidade
+    if (complexKeywords.some(keyword => descLower.includes(keyword))) {
+      return 'complex';
+    }
+    
+    if (mediumKeywords.some(keyword => descLower.includes(keyword))) {
+      return 'medium';
+    }
+    
+    return 'simple';
+  }, { context: "estimateCodeComplexity" });
 }
 
 /**
- * Selecionar modelo apropriado para geração de código
+ * Seleciona o modelo apropriado para geração de código baseado na complexidade
+ * 
+ * @param complexity - Nível de complexidade da tarefa ('simple', 'medium', 'complex')
+ * @param useGPT5Codex - Se deve tentar usar GPT-5 Codex para tarefas complexas (opcional)
+ * @returns Nome do modelo a ser usado
+ * 
+ * @example
+ * ```typescript
+ * const model = selectCodeModel('complex', true);
+ * // Retorna: 'gpt-5-codex' se disponível, senão 'deepseek-coder-v2-16b-q4_k_m'
+ * ```
  */
 export function selectCodeModel(
   complexity: 'simple' | 'medium' | 'complex',
@@ -116,33 +161,56 @@ export function selectCodeModel(
 }
 
 /**
- * Gerar código usando o modelo selecionado
+ * Gera código usando o modelo apropriado baseado na complexidade da tarefa
+ * 
+ * @param request - Requisição de geração de código contendo descrição, linguagem, contexto, etc.
+ * @returns Resultado da geração de código com código gerado, modelo usado, linguagem, complexidade e tempo de execução
+ * @throws {ValidationError} Se a requisição estiver inválida
+ * @throws {ExecutionError} Se houver erro ao gerar código
+ * 
+ * @example
+ * ```typescript
+ * const result = await generateCode({
+ *   description: "Criar função para calcular média de números",
+ *   language: "python",
+ *   context: "Usar numpy se necessário",
+ *   complexity: "simple"
+ * });
+ * // Retorna: { code: "...", model: "deepseek-coder-v2-16b-q4_k_m", ... }
+ * ```
  */
 export async function generateCode(
   request: CodeGenerationRequest
 ): Promise<CodeGenerationResult> {
-  const startTime = Date.now();
-  
-  // Estimar complexidade se não fornecida
-  const complexity = request.complexity || estimateCodeComplexity(request.description);
-  
-  // Selecionar modelo
-  const model = selectCodeModel(complexity, request.useGPT5Codex);
-  
-  console.log(`[CodeRouter] Gerando código: complexidade=${complexity}, modelo=${model}, linguagem=${request.language}`);
-  
-  // Gerar código usando Ollama (GPT-5 Codex será adicionado depois)
-  const code = await generateCodeWithOllama(request, model);
-  
-  const executionTime = Date.now() - startTime;
-  
-  return {
-    code,
-    model,
-    language: request.language,
-    complexity,
-    executionTime
-  };
+  return withErrorHandling(async () => {
+    // Validar requisição
+    validateRequiredFields(request, "request", ["description", "language"]);
+    const description = validateNonEmptyString(request.description, "description");
+    const language = validateProgrammingLanguage(request.language, "language");
+    
+    const startTime = Date.now();
+    
+    // Estimar complexidade se não fornecida
+    const complexity = request.complexity || estimateCodeComplexity(description);
+    
+    // Selecionar modelo
+    const model = selectCodeModel(complexity, request.useGPT5Codex);
+    
+    console.log(`[CodeRouter] Gerando código: complexidade=${complexity}, modelo=${model}, linguagem=${language}`);
+    
+    // Gerar código usando Ollama (GPT-5 Codex será adicionado depois)
+    const code = await generateCodeWithOllama({ ...request, description, language }, model);
+    
+    const executionTime = Date.now() - startTime;
+    
+    return {
+      code,
+      model,
+      language,
+      complexity,
+      executionTime
+    };
+  }, { context: "generateCode", request });
 }
 
 /**
@@ -218,7 +286,11 @@ async function generateCodeWithOllama(
 }
 
 /**
- * Criar prompt para geração de código
+ * Cria prompt otimizado para geração de código (função interna)
+ * 
+ * @param request - Requisição de geração de código
+ * @returns Prompt formatado para o modelo
+ * @internal
  */
 function createCodeGenerationPrompt(request: CodeGenerationRequest): string {
   let prompt = `Generate ${request.language} code for the following task:\n\n`;
@@ -247,7 +319,12 @@ function createCodeGenerationPrompt(request: CodeGenerationRequest): string {
 }
 
 /**
- * Extrair código da resposta do modelo
+ * Extrai código da resposta do modelo, removendo markdown e texto explicativo (função interna)
+ * 
+ * @param response - Resposta completa do modelo
+ * @param language - Linguagem de programação esperada
+ * @returns Código extraído como string
+ * @internal
  */
 function extractCode(response: string, language: string): string {
   // Procurar por blocos de código
@@ -320,6 +397,19 @@ export async function checkModelAvailability(model: string): Promise<boolean> {
 
 /**
  * Obter melhor modelo disponível para código
+ */
+/**
+ * Obtém o melhor modelo de código disponível no Ollama
+ * Tenta usar o modelo padrão, se não disponível, tenta fallback
+ * 
+ * @returns Nome do melhor modelo disponível
+ * @throws {ExecutionError} Se nenhum modelo estiver disponível
+ * 
+ * @example
+ * ```typescript
+ * const model = await getBestAvailableCodeModel();
+ * // Retorna: "deepseek-coder-v2-16b-q4_k_m" ou modelo de fallback
+ * ```
  */
 export async function getBestAvailableCodeModel(): Promise<string> {
   // Verificar modelos em ordem de preferência

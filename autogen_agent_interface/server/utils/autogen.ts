@@ -1029,6 +1029,45 @@ async function callOllamaWithAutoGenPrompt(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`[AutoGen] ❌ Ollama API error: ${response.status} - ${errorText}`);
+      
+      // Detectar erro de modelo não encontrado (404)
+      if (response.status === 404 || (errorText && errorText.toLowerCase().includes("model") && errorText.toLowerCase().includes("not found"))) {
+        // Tentar encontrar modelo alternativo
+        try {
+          const { findBestAvailableModel, listAvailableModels } = await import("./ollama");
+          const availableModels = await listAvailableModels();
+          const alternativeModel = await findBestAvailableModel();
+          
+          if (alternativeModel && alternativeModel !== model) {
+            console.log(`[AutoGen] 🔄 Modelo '${model}' não encontrado, tentando com '${alternativeModel}'...`);
+            // Retentar com modelo alternativo
+            return callOllamaWithAutoGenPrompt(
+              systemPrompt,
+              userMessage,
+              alternativeModel,
+              intent,
+              images
+            );
+          }
+          
+          // Se não há modelo alternativo, lançar erro claro
+          throw new Error(
+            `Modelo '${model}' não encontrado no Ollama.\n\n` +
+            `Modelos disponíveis: ${availableModels.length > 0 ? availableModels.join(", ") : "nenhum"}\n\n` +
+            `Para instalar o modelo, execute:\n` +
+            `  ollama pull ${model}\n\n` +
+            `Ou use um dos modelos disponíveis configurando a variável DEFAULT_MODEL no .env`
+          );
+        } catch (importError) {
+          // Se não conseguiu importar funções de fallback, lançar erro básico
+          throw new Error(
+            `Modelo '${model}' não encontrado no Ollama.\n\n` +
+            `Execute 'ollama pull ${model}' para instalar o modelo, ou 'ollama list' para ver modelos instalados.`
+          );
+        }
+      }
+      
+      // Outros erros
       throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
     }
 

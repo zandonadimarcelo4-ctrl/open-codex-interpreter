@@ -1,0 +1,74 @@
+# Modelfile para Qwen2.5-32B-Instruct-MoE (Q4_K_M)
+# Otimizado para RTX 4080 Super (16GB VRAM)
+# Arquitetura MoE: apenas 2-4 especialistas ativam por token
+# Consumo efetivo: ~12-14GB VRAM (cabe perfeitamente em 16GB)
+
+FROM qwen2.5:32b-instruct
+
+# Configurações de contexto e geração
+# Contexto grande para raciocínio longo e planejamento estratégico
+PARAMETER num_ctx 8192
+PARAMETER num_predict 4096
+
+# Configurações de quantização e performance
+# Q4_K_M: balanceamento perfeito entre qualidade e velocidade
+# MoE: apenas especialistas necessários são ativados (economia de VRAM)
+
+# Configurações de batch e threading
+# Batch menor para economizar VRAM, mas manter throughput
+PARAMETER num_batch 512
+PARAMETER num_thread 16
+
+# Configurações de GPU
+# Usar toda a VRAM disponível (16GB)
+# Ollama gerencia automaticamente o offload
+PARAMETER num_gpu 99
+
+# Configurações de memória
+# Memory mapping: reduz uso de RAM, usa VRAM
+PARAMETER use_mmap true
+PARAMETER use_mlock false
+
+# Configurações de sampling
+PARAMETER temperature 0.7
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.1
+PARAMETER repeat_last_n 64
+
+# Configurações de NUMA (desabilitado para melhor performance)
+PARAMETER numa false
+
+# Configurações de semente (aleatória para criatividade)
+PARAMETER seed -1
+
+# System message para otimizar comportamento
+# Enfatiza raciocínio, tool-calling, e auto-reflexão
+SYSTEM """You are an advanced AI agent with exceptional reasoning capabilities, code generation, and tool usage.
+
+Your capabilities:
+- Deep reasoning and strategic planning
+- Code generation and execution
+- Tool calling and function execution
+- Self-reflection and error correction
+- Multi-step problem solving
+
+Always think step-by-step, plan before executing, and reflect on your actions.
+Use tools when necessary to complete tasks efficiently.
+"""
+
+# Template para instruções
+TEMPLATE """{{ .System }}
+
+{{ .Prompt }}"""
+
+# Adapter (se necessário para quantização customizada)
+# O Ollama gerencia automaticamente a quantização Q4_K_M
+
+# Notas:
+# - MoE (Mixture of Experts): apenas 2-4 especialistas ativam por token
+# - Consumo efetivo: ~12-14GB VRAM (cabe em 16GB)
+# - Performance: similar a GPT-4-turbo em raciocínio e código
+# - Tool calling: suporte nativo via JSON/function-calling
+# - Velocidade: média (devido ao tamanho, mas compensa com inteligência)
+

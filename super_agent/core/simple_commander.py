@@ -53,6 +53,7 @@ def create_simple_commander(
     api_base: Optional[str] = None,
     use_autonomous_agent: bool = False,
     workdir: Optional[str] = None,
+    executor_model: Optional[str] = None,
 ) -> AssistantAgent:
     """
     Cria um comandante AutoGen simplificado.
@@ -62,10 +63,11 @@ def create_simple_commander(
     Todas usam o mesmo modelo DeepSeek via Ollama
     
     Args:
-        model: Nome do modelo (padrão: do ambiente)
+        model: Nome do modelo cérebro (padrão: qwen2.5-32b-instruct-moe-rtx - mais inteligente)
         api_base: URL base da API (padrão: Ollama localhost:11434)
         use_autonomous_agent: Se True, usa AutonomousInterpreterAgent (reutilização completa, autonomia total)
         workdir: Diretório de trabalho (sandbox) para agente autônomo
+        executor_model: Nome do modelo executor (padrão: deepseek-coder-v2-lite:instruct - mais rápido)
     
     Returns:
         AssistantAgent configurado como comandante
@@ -73,8 +75,12 @@ def create_simple_commander(
     if not AUTOGEN_V2_AVAILABLE:
         raise ImportError("autogen-agentchat não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
     
-    # Obter modelo do ambiente ou usar padrão (qwen2.5:14b suporta function calling)
-    model = model or os.getenv("DEFAULT_MODEL", "qwen2.5:14b")
+    # Obter modelo cérebro do ambiente ou usar padrão (Qwen32B-MoE - mais inteligente)
+    # Arquitetura híbrida: Qwen32B-MoE (cérebro) + DeepSeek-Lite (executor)
+    model = model or os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx")
+    
+    # Obter modelo executor (para tarefas de código)
+    executor_model = executor_model or os.getenv("EXECUTOR_MODEL", "deepseek-coder-v2-lite:instruct")
     
     # Obter API base do ambiente
     api_base = api_base or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")

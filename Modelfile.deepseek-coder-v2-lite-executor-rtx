@@ -1,0 +1,64 @@
+# Modelfile para DeepSeek-Coder-V2-Lite-Instruct (Q4_K_M)
+# Otimizado para RTX 4080 Super (16GB VRAM)
+# Executor rápido e eficiente para código
+# Consumo: ~8.5GB VRAM (deixa espaço para cache e múltiplos agentes)
+
+FROM deepseek-coder-v2-lite:instruct
+
+# Configurações de contexto e geração
+# Contexto menor para execução rápida
+PARAMETER num_ctx 4096
+PARAMETER num_predict 2048
+
+# Configurações de batch e threading
+# Batch maior para throughput máximo em código
+PARAMETER num_batch 1024
+PARAMETER num_thread 16
+
+# Configurações de GPU
+# Usar toda a VRAM disponível
+PARAMETER num_gpu 99
+
+# Configurações de memória
+PARAMETER use_mmap true
+PARAMETER use_mlock false
+
+# Configurações de sampling (mais determinístico para código)
+PARAMETER temperature 0.3
+PARAMETER top_p 0.95
+PARAMETER top_k 40
+PARAMETER repeat_penalty 1.1
+PARAMETER repeat_last_n 64
+
+# Configurações de NUMA
+PARAMETER numa false
+
+# Configurações de semente
+PARAMETER seed -1
+
+# System message para executor de código
+SYSTEM """You are an expert code executor and generator.
+
+Your capabilities:
+- Generate clean, efficient code
+- Execute code with precision
+- Debug and fix errors
+- Refactor and optimize code
+- Explain code clearly
+
+Focus on correctness, efficiency, and clarity.
+Always test your code and handle errors gracefully.
+"""
+
+# Template para instruções
+TEMPLATE """{{ .System }}
+
+{{ .Prompt }}"""
+
+# Notas:
+# - Executor rápido e eficiente
+# - Consumo: ~8.5GB VRAM
+# - Velocidade: rápida (devido ao tamanho menor)
+# - Tool calling: suporta (mas precisa de prompt tuning)
+# - Ideal para: execução de código, refatoração, debugging
+

@@ -18,8 +18,13 @@ import { selectAgent, estimateComplexity, generateAgentPrompt } from "./intellig
 import { executeWithAutoGenV2, checkAutoGenV2Available } from "./autogen_v2_bridge";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-// Modelo quantizado otimizado para RTX NVIDIA (Q4_K_M)
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx";
+// Modelo cérebro estratégico (Qwen2.5-32B-Instruct-MoE) - Mais inteligente, raciocínio tipo GPT-4-turbo
+// VRAM: ~12-14GB (cabe perfeitamente em 16GB RTX 4080 Super)
+// Arquitetura MoE: apenas 2-4 especialistas ativam por token (economia de VRAM)
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "qwen2.5-32b-instruct-moe-rtx";
+// Modelo executor (DeepSeek-Coder-V2-Lite) - Executor rápido para código
+// VRAM: ~8.5GB (carregado sob demanda)
+const EXECUTOR_MODEL = process.env.EXECUTOR_MODEL || "deepseek-coder-v2-lite:instruct";
 
 // Timeouts para diferentes tipos de operações
 const conversationTimeoutMs = parseInt(process.env.OLLAMA_CONVERSATION_TIMEOUT_MS || "120000", 10); // 2 minutos para conversas

@@ -15,18 +15,16 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-# Tentar importar CodeInterpreter (pode estar no mesmo diretório ou em interpreter/)
+# Importar CodeInterpreter do mesmo diretório (módulos copiados)
 try:
     from .code_interpreter import CodeInterpreter
     from .utils import parse_partial_json
-except ImportError:
-    try:
-        from interpreter.code_interpreter import CodeInterpreter
-        from interpreter.utils import parse_partial_json
-    except ImportError:
-        logger.error("CodeInterpreter não disponível. Execute a Fase 1 do roteiro primeiro.")
-        CodeInterpreter = None
-        parse_partial_json = None
+    CODE_INTERPRETER_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"CodeInterpreter não disponível: {e}")
+    CODE_INTERPRETER_AVAILABLE = False
+    CodeInterpreter = None
+    parse_partial_json = None
 
 
 class OICore:
@@ -58,8 +56,8 @@ class OICore:
             max_retries: Número máximo de tentativas de correção
             debug_mode: Modo debug
         """
-        if CodeInterpreter is None:
-            raise ImportError("CodeInterpreter não disponível. Execute a Fase 1 do roteiro primeiro.")
+        if not CODE_INTERPRETER_AVAILABLE or CodeInterpreter is None:
+            raise ImportError("CodeInterpreter não disponível. Verifique se os módulos foram copiados corretamente.")
         
         self.model_client = model_client
         self.workdir = workdir or os.getcwd()

@@ -13,32 +13,37 @@ const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 // Priorizar modelo otimizado para RTX, depois otimizado, depois oficial, depois fallback
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx";
 
-// Modelos de fallback em ordem de preferência
-// PRIORIDADE: Modelos otimizados RTX primeiro, depois oficiais, depois quantizados manuais
+// Modelos de fallback em ordem de preferência OTIMIZADA
+// PRIORIDADE: Melhor qualidade primeiro, depois estáveis, depois alternativos, depois emergenciais
 const FALLBACK_MODELS = [
-  // Modelos otimizados para RTX NVIDIA (melhor performance)
-  "deepseek-coder-v2-16b-q4_k_m-rtx", // Modelo otimizado Q4_K_M para RTX (RECOMENDADO)
-  "deepseek-coder-v2-16b-optimized",  // Modelo otimizado genérico
+  // PRIORIDADE 1: Melhor qualidade (híbrido, 128K contexto, VS Code integration)
+  "nuibang/Cline_FuseO1-DeepSeekR1-Qwen2.5-Coder-32B-Preview:q4_k_m",
   
-  // Modelos oficiais do Ollama (já quantizados, mais confiáveis)
+  // PRIORIDADE 2: Estável e oficial (32K contexto, GPT-4o level)
+  "MHKetbi/Qwen2.5-Coder-32B-Instruct-Roo:q4_K_S",
+  
+  // PRIORIDADE 3: Experimental (256K contexto, Tools + Thinking)
+  "lucifers/qwen3-30B-coder-tools.Q4_0:latest",
+  
+  // PRIORIDADE 4: Modelos oficiais Qwen (menores, estáveis)
+  "qwen2.5-coder:14b",
+  "qwen2.5-coder:7b",
+  "qwen2.5:14b",
+  "qwen2.5:7b",
+  
+  // PRIORIDADE 5: Modelos DeepSeek (alternativa, contexto longo)
   "deepseek-coder-v2:16b",            // Modelo oficial (8.9GB, 160K context)
   "deepseek-coder-v2:latest",         // Latest version
   "deepseek-coder:latest",            // Versão anterior
-  "deepseek-coder",                   // Versão anterior (sem tag)
-  "deepseek-coder:6.7b",              // Versão menor
-  "deepseek-coder:1.3b",              // Versão muito menor
   
-  // Modelos quantizados manuais (fallback se oficiais não disponíveis)
-  "deepseek-coder-v2-16b-q4_k_m",     // Quantização manual Q4_K_M
-  "deepseek-coder-v2-16b-q3_k_m",     // Quantização manual Q3_K_M
+  // PRIORIDADE 6: Modelos otimizados RTX (se disponíveis)
+  "deepseek-coder-v2-16b-q4_k_m-rtx", // Modelo otimizado Q4_K_M para RTX
+  "deepseek-coder-v2-16b-optimized",  // Modelo otimizado genérico
   
-  // Modelos alternativos genéricos
-  "codellama:latest",
+  // PRIORIDADE 7: Modelos pequenos (emergencial)
+  "llama3.2:3b",
   "codellama:7b",
-  "codellama:13b",
   "mistral:latest",
-  "llama3.2:latest",
-  "qwen2.5-coder:latest",
 ];
 
 export interface OllamaChatMessage {

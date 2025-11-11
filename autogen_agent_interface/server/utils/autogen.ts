@@ -17,14 +17,66 @@
 import { selectAgent, estimateComplexity, generateAgentPrompt } from "./intelligent_router";
 import { executeWithAutoGenV2, checkAutoGenV2Available } from "./autogen_v2_bridge";
 
+// Configuração Ollama Cloud + Local com Fallback
+const OLLAMA_CLOUD_ENABLED = process.env.OLLAMA_CLOUD_ENABLED === "true";
+const OLLAMA_CLOUD_BASE_URL = process.env.OLLAMA_CLOUD_BASE_URL || "https://ollama.com";
+const OLLAMA_CLOUD_MODEL = process.env.OLLAMA_CLOUD_MODEL || "qwen3-coder:480b-cloud";
+const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY || "";
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+
 // Modelo cérebro estratégico (Qwen2.5-32B-Instruct-MoE) - Mais inteligente, raciocínio tipo GPT-4-turbo
 // VRAM: ~12-14GB (cabe perfeitamente em 16GB RTX 4080 Super)
 // Arquitetura MoE: apenas 2-4 especialistas ativam por token (economia de VRAM)
 const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "qwen2.5-32b-instruct-moe-rtx";
-// Modelo executor (DeepSeek-Coder-V2-Lite) - Executor rápido para código
-// VRAM: ~8.5GB (carregado sob demanda)
-const EXECUTOR_MODEL = process.env.EXECUTOR_MODEL || "deepseek-coder-v2-lite:instruct";
+
+// Modelos de fallback para Brain (raciocínio estratégico)
+const BRAIN_FALLBACK_MODELS = [
+  // PRIORIDADE 1: Qwen2.5-32B-MoE (cérebro principal)
+  "qwen2.5-32b-instruct-moe-rtx",
+  "qwen2.5-32b-instruct-moe",
+  
+  // PRIORIDADE 2: Qwen2.5-32B (denso, sem MoE)
+  "qwen2.5:32b",
+  "qwen2.5:14b",
+  
+  // PRIORIDADE 3: Qwen3-30B (experimental)
+  "lucifers/qwen3-30B-coder-tools.Q4_0:latest",
+  
+  // PRIORIDADE 4: Modelos oficiais Qwen (menores)
+  "qwen2.5:14b",
+  "qwen2.5:7b",
+];
+
+// Modelo executor (Cline_FuseO1) - Híbrido DeepSeekR1 + Qwen2.5, 128K contexto
+// VRAM: ~14-16GB (com offload)
+const EXECUTOR_MODEL = process.env.EXECUTOR_MODEL || "nuibang/Cline_FuseO1-DeepSeekR1-Qwen2.5-Coder-32B-Preview:q4_k_m";
+
+// Modelos de fallback para Executor (execução de código)
+const EXECUTOR_FALLBACK_MODELS = [
+  // PRIORIDADE 1: Melhor qualidade (híbrido, 128K contexto, VS Code integration)
+  "nuibang/Cline_FuseO1-DeepSeekR1-Qwen2.5-Coder-32B-Preview:q4_k_m",
+  
+  // PRIORIDADE 2: Estável e oficial (32K contexto, GPT-4o level)
+  "MHKetbi/Qwen2.5-Coder-32B-Instruct-Roo:q4_K_S",
+  
+  // PRIORIDADE 3: Experimental (256K contexto, Tools + Thinking)
+  "lucifers/qwen3-30B-coder-tools.Q4_0:latest",
+  
+  // PRIORIDADE 4: Modelos oficiais Qwen (menores, estáveis)
+  "qwen2.5-coder:14b",
+  "qwen2.5-coder:7b",
+  "qwen2.5:14b",
+  "qwen2.5:7b",
+  
+  // PRIORIDADE 5: Modelos DeepSeek (alternativa, contexto longo)
+  "deepseek-coder-v2:16b",
+  "deepseek-coder-v2:latest",
+  "deepseek-coder:latest",
+  
+  // PRIORIDADE 6: Modelos pequenos (emergencial)
+  "llama3.2:3b",
+  "codellama:7b",
+];
 
 // Timeouts para diferentes tipos de operações
 const conversationTimeoutMs = parseInt(process.env.OLLAMA_CONVERSATION_TIMEOUT_MS || "120000", 10); // 2 minutos para conversas
@@ -861,8 +913,23 @@ async function callOllamaWithAutoGenPrompt(
 ): Promise<string> {
   try {
     console.log(`[AutoGen] callOllamaWithAutoGenPrompt: model=${model}, intent=${intent.type}, prompt length=${systemPrompt.length}`);
-    console.log(`[AutoGen] OLLAMA_BASE_URL: ${OLLAMA_BASE_URL}`);
-    const url = `${OLLAMA_BASE_URL}/api/chat`;
+    
+    // Verificar se deve usar Ollama Cloud ou Local
+    const useCloud = OLLAMA_CLOUD_ENABLED && OLLAMA_API_KEY && (
+      intent.type === "reasoning" || 
+      intent.type === "planning" || 
+      intent.type === "complex_task"
+    );
+    
+    const baseUrl = useCloud ? OLLAMA_CLOUD_BASE_URL : OLLAMA_BASE_URL;
+    const cloudModel = useCloud ? OLLAMA_CLOUD_MODEL : model;
+    const finalModel = useCloud ? cloudModel : model;
+    
+    console.log(`[AutoGen] ${useCloud ? "🌐 Usando Ollama Cloud" : "💻 Usando Ollama Local"}`);
+    console.log(`[AutoGen] Base URL: ${baseUrl}`);
+    console.log(`[AutoGen] Modelo: ${finalModel}`);
+    
+    const url = `${baseUrl}/api/chat`;
     console.log(`[AutoGen] URL completa: ${url}`);
     
     // Construir mensagens com suporte a imagens
@@ -929,7 +996,7 @@ async function callOllamaWithAutoGenPrompt(
     // Timeout configurado via variáveis de ambiente (usado nas opções do Ollama)
     
     const requestBody: any = {
-      model,
+      model: finalModel, // Usar modelo Cloud ou Local
       messages,
       stream: false, // Não usar streaming por enquanto (requer mudanças no frontend)
       options: {
@@ -983,6 +1050,15 @@ async function callOllamaWithAutoGenPrompt(
       controller.abort();
     }, timeoutMs);
     
+    // Preparar headers (adicionar API key se usar Cloud)
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (useCloud && OLLAMA_API_KEY) {
+      headers["Authorization"] = `Bearer ${OLLAMA_API_KEY}`;
+      console.log(`[AutoGen] 🔑 Autenticação Cloud habilitada`);
+    }
+    
     let response: Response;
     try {
       console.log(`[AutoGen] 🚀 Iniciando fetch para: ${url}`);
@@ -990,9 +1066,7 @@ async function callOllamaWithAutoGenPrompt(
       const fetchStartTime = Date.now();
       response = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
@@ -1022,15 +1096,35 @@ async function callOllamaWithAutoGenPrompt(
       
       // Detectar erro de modelo não encontrado (404)
       if (response.status === 404 || (errorText && errorText.toLowerCase().includes("model") && errorText.toLowerCase().includes("not found"))) {
-        // Tentar encontrar modelo alternativo
+        // Determinar lista de fallback baseado no tipo de modelo
+        const isExecutorModel = model.includes("Cline_FuseO1") || 
+                                model.includes("Qwen2.5-Coder") || 
+                                model.includes("coder") ||
+                                model === EXECUTOR_MODEL;
+        
+        const fallbackModels = isExecutorModel ? EXECUTOR_FALLBACK_MODELS : BRAIN_FALLBACK_MODELS;
+        
+        console.log(`[AutoGen] 🔄 Modelo '${model}' não encontrado, tentando fallback...`);
+        console.log(`[AutoGen] 📋 Lista de fallback (${fallbackModels.length} modelos): ${fallbackModels.slice(0, 3).join(", ")}...`);
+        
+        // Tentar encontrar modelo alternativo na lista de fallback
         try {
-          const { findBestAvailableModel, listAvailableModels } = await import("./ollama");
+          const { listAvailableModels } = await import("./ollama");
           const availableModels = await listAvailableModels();
-          const alternativeModel = await findBestAvailableModel();
           
-          if (alternativeModel && alternativeModel !== model) {
-            console.log(`[AutoGen] 🔄 Modelo '${model}' não encontrado, tentando com '${alternativeModel}'...`);
-            // Retentar com modelo alternativo
+          // Procurar primeiro modelo disponível na lista de fallback
+          let alternativeModel: string | null = null;
+          for (const fallbackModel of fallbackModels) {
+            if (availableModels.includes(fallbackModel) && fallbackModel !== model) {
+              alternativeModel = fallbackModel;
+              console.log(`[AutoGen] ✅ Modelo de fallback encontrado: '${alternativeModel}'`);
+              break;
+            }
+          }
+          
+          // Se encontrou modelo alternativo, retentar
+          if (alternativeModel) {
+            console.log(`[AutoGen] 🔄 Retentando com modelo de fallback: '${alternativeModel}'...`);
             return callOllamaWithAutoGenPrompt(
               systemPrompt,
               userMessage,
@@ -1040,13 +1134,29 @@ async function callOllamaWithAutoGenPrompt(
             );
           }
           
+          // Se não encontrou na lista de fallback, tentar função genérica
+          const { findBestAvailableModel } = await import("./ollama");
+          const genericAlternative = await findBestAvailableModel(fallbackModels);
+          
+          if (genericAlternative && genericAlternative !== model) {
+            console.log(`[AutoGen] ✅ Modelo genérico encontrado: '${genericAlternative}'`);
+            return callOllamaWithAutoGenPrompt(
+              systemPrompt,
+              userMessage,
+              genericAlternative,
+              intent,
+              images
+            );
+          }
+          
           // Se não há modelo alternativo, lançar erro claro
           throw new Error(
             `Modelo '${model}' não encontrado no Ollama.\n\n` +
             `Modelos disponíveis: ${availableModels.length > 0 ? availableModels.join(", ") : "nenhum"}\n\n` +
+            `Modelos de fallback tentados: ${fallbackModels.slice(0, 5).join(", ")}...\n\n` +
             `Para instalar o modelo, execute:\n` +
             `  ollama pull ${model}\n\n` +
-            `Ou use um dos modelos disponíveis configurando a variável DEFAULT_MODEL no .env`
+            `Ou use um dos modelos disponíveis configurando a variável ${isExecutorModel ? "EXECUTOR_MODEL" : "DEFAULT_MODEL"} no .env`
           );
         } catch (importError) {
           // Se não conseguiu importar funções de fallback, lançar erro básico

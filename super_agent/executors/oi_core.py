@@ -161,7 +161,7 @@ After generating code, the system will automatically execute it and return the r
         Gera código usando model_client do AutoGen
         
         Args:
-            prompt: Prompt do usuário
+            prompt: Prompt do usuário (ou None se já estiver em messages)
         
         Returns:
             Resposta do LLM com código
@@ -176,27 +176,71 @@ After generating code, the system will automatically execute it and return the r
         if not has_system:
             messages.insert(0, {"role": "system", "content": self.system_message})
         
-        # Adicionar prompt do usuário
-        messages.append({"role": "user", "content": prompt})
+        # Adicionar prompt do usuário se fornecido (pode ser None se já estiver em messages)
+        if prompt:
+            messages.append({"role": "user", "content": prompt})
         
         # Chamar model_client do AutoGen
         try:
-            if asyncio.iscoroutinefunction(self.model_client.create):
-                response = await self.model_client.create(messages=messages)
-            else:
-                response = self.model_client.create(messages=messages)
+            # Tentar diferentes interfaces do model_client
+            response = None
             
-            # Extrair conteúdo
+            # Interface 1: model_client.create (assíncrono ou síncrono)
+            if hasattr(self.model_client, 'create'):
+                if asyncio.iscoroutinefunction(self.model_client.create):
+                    response = await self.model_client.create(messages=messages)
+                else:
+                    response = self.model_client.create(messages=messages)
+            # Interface 2: model_client.chat (assíncrono ou síncrono)
+            elif hasattr(self.model_client, 'chat'):
+                if asyncio.iscoroutinefunction(self.model_client.chat):
+                    response = await self.model_client.chat(messages=messages)
+                else:
+                    response = self.model_client.chat(messages=messages)
+            # Interface 3: model_client é callable diretamente
+            elif callable(self.model_client):
+                if asyncio.iscoroutinefunction(self.model_client):
+                    response = await self.model_client(messages=messages)
+                else:
+                    response = self.model_client(messages=messages)
+            else:
+                raise Exception("Model client não suportado: não possui métodos 'create', 'chat' ou não é callable")
+            
+            # Extrair conteúdo da resposta
+            content = None
+            
+            # Formato 1: Response com atributo choices (OpenAI-style)
             if hasattr(response, 'choices'):
                 content = response.choices[0].message.content
+            # Formato 2: Dict com choices
             elif isinstance(response, dict):
-                content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+                if "choices" in response:
+                    content = response["choices"][0].get("message", {}).get("content", "")
+                elif "message" in response:
+                    content = response["message"].get("content", "")
+                elif "content" in response:
+                    content = response["content"]
+                else:
+                    # Tentar extrair de qualquer campo que pareça conter texto
+                    for key, value in response.items():
+                        if isinstance(value, str) and len(value) > 10:
+                            content = value
+                            break
+            # Formato 3: String direta
+            elif isinstance(response, str):
+                content = response
+            # Formato 4: Outro tipo (tentar converter para string)
             else:
                 content = str(response)
+            
+            if content is None:
+                raise Exception(f"Não foi possível extrair conteúdo da resposta: {response}")
             
             return content
         except Exception as e:
             logger.error(f"Erro ao gerar código: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             raise
     
     def _analyze_execution_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
@@ -266,9 +310,10 @@ After generating code, the system will automatically execute it and return the r
             try:
                 # Gerar código usando model_client do AutoGen
                 if attempt == 0:
+                    # Primeira tentativa: usar prompt original
                     response = await self._generate_code(prompt)
                 else:
-                    # Criar prompt de correção com contexto
+                    # Tentativas subsequentes: criar prompt de correção
                     error_context = "\n".join([f"- {e}" for e in previous_errors[-3:]])  # Últimos 3 erros
                     correction_prompt = f"""
 Erros anteriores encontrados:
@@ -276,6 +321,7 @@ Erros anteriores encontrados:
 
 Por favor, corrija o código e tente novamente. Analise os erros e forneça uma solução que os resolva.
 """
+                    # Adicionar prompt de correção às mensagens (não substituir, adicionar)
                     response = await self._generate_code(correction_prompt)
                 
                 # Adicionar resposta às mensagens

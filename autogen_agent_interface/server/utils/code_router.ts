@@ -170,8 +170,8 @@ async function generateCodeWithOllama(
             content: prompt
           }
         ],
+        model, // Modelo como segundo parâmetro
         {
-          model,
           temperature: 0.3, // Baixa temperatura para código mais determinístico
           top_p: 0.9,
           top_k: 40,

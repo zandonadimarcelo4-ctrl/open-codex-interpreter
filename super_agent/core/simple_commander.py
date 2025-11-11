@@ -76,11 +76,11 @@ def create_simple_commander(
         raise ImportError("autogen-agentchat não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
     
     # Obter modelo cérebro do ambiente ou usar padrão (Qwen32B-MoE - mais inteligente)
-    # Arquitetura híbrida: Qwen32B-MoE (cérebro) + DeepSeek-Lite (executor)
-    model = model or os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx")
+    # Arquitetura híbrida: Qwen32B-MoE (cérebro) + Qwen14B-Coder ou DeepSeek-Lite (executor)
+    brain_model = model or os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx")
     
     # Obter modelo executor (para tarefas de código)
-    executor_model = executor_model or os.getenv("EXECUTOR_MODEL", "deepseek-coder-v2-lite:instruct")
+    executor_model = executor_model or os.getenv("EXECUTOR_MODEL", "qwen2.5-coder:14b")
     
     # Obter API base do ambiente
     api_base = api_base or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -89,17 +89,35 @@ def create_simple_commander(
     api_base = api_base.rstrip("/").rstrip("/v1").rstrip("/api")
     api_url = f"{api_base}/v1"
     
-    # Criar cliente LLM (mesmo modelo que todas as tools)
+    # Inicializar gerenciador de modelos e roteador (se disponível)
+    model_manager = None
+    router = None
+    if MODEL_MANAGEMENT_AVAILABLE:
+        try:
+            model_manager = get_model_manager()
+            router = get_router()
+            logger.info(f"✅ Gerenciamento de modelos habilitado (modo alternado)")
+            logger.info(f"   Brain: {brain_model}")
+            logger.info(f"   Executor: {executor_model}")
+            logger.info(f"   ✅ Alternância automática para caber em 16GB VRAM")
+        except Exception as e:
+            logger.warning(f"⚠️ Erro ao inicializar gerenciador de modelos: {e}")
+            model_manager = None
+            router = None
+    
+    # Criar cliente LLM dinâmico (será alternado conforme necessidade)
+    # Inicialmente usa Brain (mais inteligente)
     llm_client = OpenAIChatCompletionClient(
-        model=f"ollama/{model}",  # Formato: ollama/nome-do-modelo
+        model=f"ollama/{brain_model}",  # Formato: ollama/nome-do-modelo
         api_base=api_url,
     )
     
     logger.info(f"✅ AutoGen Commander criado")
-    logger.info(f"   Modelo: {model}")
+    logger.info(f"   Modelo Brain: {brain_model}")
+    logger.info(f"   Modelo Executor: {executor_model}")
     logger.info(f"   API URL: {api_url}")
-    logger.info(f"   ✅ Mesmo modelo usado por todas as tools")
     logger.info(f"   Modo: {'Autonomous Agent' if use_autonomous_agent else 'TOOL (recomendado)'}")
+    logger.info(f"   Orquestração: {'Inteligente (alternância automática)' if model_manager else 'Fixo (modelo único)'}")
     
     # Opção 1: Usar AutonomousInterpreterAgent (reutilização completa, autonomia total)
     if use_autonomous_agent and AUTONOMOUS_AGENT_AVAILABLE:

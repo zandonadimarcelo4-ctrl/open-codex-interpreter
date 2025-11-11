@@ -237,8 +237,30 @@ class SuperAgentOrchestrator:
                 logger.warning(f"Falha ao integrar Multimodal: {e}")
     
     def _initialize_agents(self):
-        """Inicializar agentes AutoGen v2 com memória ChromaDB"""
-        # Generator Agent (com memória)
+        """Inicializar agentes AutoGen v2 com memória ChromaDB e tools do Open Interpreter"""
+        # Criar tool do Open Interpreter (se disponível)
+        # AutoGen comanda tudo - Open Interpreter pensa e executa localmente
+        open_interpreter_tool = None
+        open_interpreter_tool_instance = None
+        if OPEN_INTERPRETER_TOOL_AVAILABLE and self.config.open_interpreter_enabled:
+            try:
+                open_interpreter_tool_instance = create_open_interpreter_tool(
+                    model=self.config.autogen_model,  # Usar o mesmo modelo do AutoGen
+                    use_websocket=False,  # Por enquanto usar instância direta (mais simples)
+                    auto_run=self.config.open_interpreter_auto_run,
+                    local=True,  # Sempre usar modo local com Ollama
+                )
+                # Schema das tools para AutoGen v2
+                # AutoGen comanda tudo - Open Interpreter pensa e executa localmente
+                open_interpreter_tool = [
+                    open_interpreter_tool_instance.get_tool_schema(),
+                    open_interpreter_tool_instance.get_chat_tool_schema(),  # open_interpreter_agent
+                ]
+                logger.info("Open Interpreter Tool registrada para AutoGen v2 - AutoGen comanda, Open Interpreter pensa e executa")
+            except Exception as e:
+                logger.warning(f"Falha ao criar Open Interpreter Tool: {e}")
+        
+        # Generator Agent (com memória e tools)
         if self.config.enable_generator and GeneratorAgent:
             try:
                 self.agents["generator"] = GeneratorAgent(
@@ -249,14 +271,17 @@ class SuperAgentOrchestrator:
                 )
             except Exception as e:
                 logger.warning(f"Falha ao criar GeneratorAgent: {e}")
-                # Criar agente básico com memória se GeneratorAgent não funcionar
+                # Criar agente básico com memória e tools do Open Interpreter
+                generator_tools = open_interpreter_tool if open_interpreter_tool else None
                 self.agents["generator"] = AgentWithMemory(
                     name="generator",
                     model_client=self.model_client,
                     memory=self.memory,
                     system_message="""Você é um agente gerador especializado em criar código e soluções.
                     Use a memória para consultar soluções similares anteriores.
+                    Quando precisar executar código, use a tool 'open_interpreter_agent' - o AutoGen comanda, o Open Interpreter pensa e executa.
                     Armazene código e soluções importantes na memória para reutilização.""",
+                    tools=generator_tools,  # Registrar tools do Open Interpreter
                 )
         
         # Critic Agent (com memória)
@@ -309,15 +334,22 @@ class SuperAgentOrchestrator:
                 )
             except Exception as e:
                 logger.warning(f"Falha ao criar ExecutorAgent: {e}")
-                # Criar agente executor básico com memória
+                # Criar agente executor AutoGen v2 com tools do Open Interpreter
+                # AutoGen v2 comanda quando e como executar código
+                executor_tools = open_interpreter_tool if open_interpreter_tool else None
                 self.agents["executor"] = AgentWithMemory(
                     name="executor",
                     model_client=self.model_client,
                     memory=self.memory,
                     system_message="""Você é um agente executor especializado em executar código e comandos.
+                    O AutoGen comanda tudo - você decide quando executar código usando a tool 'open_interpreter_agent'.
                     Use a memória para lembrar comandos e resultados anteriores.
+                    Quando precisar executar código Python, Shell ou outras linguagens, use a tool 'open_interpreter_agent'.
+                    O Open Interpreter pensa e executa localmente usando seu modelo interno.
                     Armazene resultados de execução na memória para referência futura.""",
+                    tools=executor_tools,  # Registrar tools do Open Interpreter - AutoGen comanda
                 )
+                logger.info("Executor Agent criado com Open Interpreter Tool - AutoGen comanda tudo")
         
         # UFO Agent (com memória)
         if self.config.enable_ufo and "ufo" in self.integrations and UFOAgent:

@@ -1,328 +1,227 @@
-# ⚠️ IMPORTANTE: AutoGen v2 (Python) Comanda TUDO - Sem Conflitos
+# 🧠 AutoGen v2 Comanda Tudo - Arquitetura Híbrida
 
-## 🎯 Princípio Fundamental
+## 📋 Visão Geral
 
-**AutoGen v2 (Python) é o ÚNICO orquestrador do sistema.**
+Esta é a **arquitetura híbrida ideal** onde:
 
-Todas as execuções, ferramentas, agentes e operações devem passar pelo AutoGen v2 Python.
+- **AutoGen v2** = Cérebro principal (planeja, decide QUANDO e PORQUÊ)
+- **Open Interpreter** = Executor inteligente (pensa e executa localmente, decide COMO)
 
-## 🏗️ Arquitetura
+O AutoGen comanda tudo através de tools, e o Open Interpreter mantém toda sua inteligência local (modelo interno, raciocínio, execução, correção de erros).
+
+## 🔄 Fluxo de Execução
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    TypeScript (Frontend)                 │
-│  - Interface do usuário                                 │
-│  - Comunicação WebSocket                                │
-│  - Roteamento de mensagens                              │
-└────────────────────┬────────────────────────────────────┘
-                     │
-                     │ Chama
-                     ↓
-┌─────────────────────────────────────────────────────────┐
-│              autogen_v2_bridge.ts (TypeScript)          │
-│  - Ponte TypeScript → Python                            │
-│  - Serializa requisições                                │
-│  - Deserializa respostas                                │
-└────────────────────┬────────────────────────────────────┘
-                     │
-                     │ spawn("python", ["autogen_v2_orchestrator.py"])
-                     ↓
-┌─────────────────────────────────────────────────────────┐
-│         AutoGen v2 Python (SuperAgentOrchestrator)      │
-│  ⚠️ ÚNICO ORQUESTRADOR - COMANDO TUDO                   │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Agentes AutoGen v2:                             │  │
-│  │  - Generator Agent (geração de código)           │  │
-│  │  - Critic Agent (revisão e validação)            │  │
-│  │  - Planner Agent (planejamento de tarefas)       │  │
-│  │  - Executor Agent (execução de código)           │  │
-│  │  - UFO Agent (automação GUI)                     │  │
-│  │  - Multimodal Agent (análise visual)             │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Ferramentas (via Agent Tools):                  │  │
-│  │  - Open Interpreter (execução de código)         │  │
-│  │  - UFO (automação GUI)                           │  │
-│  │  - Browser-Use (navegação web)                   │  │
-│  │  - After Effects MCP (edição de vídeo)           │  │
-│  │  - ChromaDB (memória)                            │  │
-│  │  - Sistema Cognitivo ANIMA                       │  │
-│  └──────────────────────────────────────────────────┘  │
-│                                                          │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  Memória ChromaDB:                               │  │
-│  │  - Armazenamento persistente                     │  │
-│  │  - Busca semântica                               │  │
-│  │  - Contexto de conversas                         │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+Usuário → AutoGen v2 (planeja) 
+    ↓
+AutoGen decide: "Preciso executar código"
+    ↓
+AutoGen chama tool: open_interpreter_agent("Crie um script Python que...")
+    ↓
+Open Interpreter (pensa localmente com seu modelo Ollama)
+    ├─ Interpreta a tarefa
+    ├─ Gera código
+    ├─ Executa código
+    └─ Retorna resultado
+    ↓
+AutoGen recebe resultado e decide próximo passo
 ```
 
-## ✅ O Que AutoGen v2 Controla
+## ⚙️ Componentes
 
-### 1. **Agentes**
-- ✅ Generator Agent (geração de código)
-- ✅ Critic Agent (revisão e validação)
-- ✅ Planner Agent (planejamento de tarefas)
-- ✅ Executor Agent (execução de código)
-- ✅ UFO Agent (automação GUI)
-- ✅ Multimodal Agent (análise visual)
+### 1. Open Interpreter Server (WebSocket)
 
-### 2. **Ferramentas**
-- ✅ Open Interpreter (execução de código Python/JavaScript/Shell)
-- ✅ UFO (automação GUI Windows)
-- ✅ Browser-Use (navegação web com Playwright)
-- ✅ After Effects MCP (edição de vídeo)
-- ✅ ChromaDB (memória persistente)
-- ✅ Sistema Cognitivo ANIMA (emoções, memória, raciocínio)
+Servidor WebSocket que permite que o Open Interpreter:
+- Pense e execute localmente usando seu modelo interno (Ollama)
+- Aceite comandos do AutoGen via WebSocket
+- Mantenha toda sua inteligência (raciocínio, correção de erros, etc.)
 
-### 3. **Execuções**
-- ✅ Execução de código (Python, JavaScript, Shell, etc.)
-- ✅ Comandos do sistema (abrir apps, executar comandos)
-- ✅ Operações de arquivos (ler, escrever, editar, deletar)
-- ✅ Navegação web (buscar, preencher formulários, extrair dados)
-- ✅ Automação GUI (clicar, digitar, navegar interfaces)
-- ✅ Edição de vídeo (After Effects)
+**Iniciar servidor:**
+```bash
+# Windows
+scripts\start_open_interpreter_server.bat
 
-## ❌ O Que NÃO Deve Ser Feito Diretamente no TypeScript
+# Linux/Mac
+bash scripts/start_open_interpreter_server.sh
 
-### ❌ **NÃO execute código diretamente**
-```typescript
-// ❌ ERRADO - Não faça isso!
-const { executeCode } = await import("./code_executor");
-await executeCode(code, "python");
+# Ou manualmente
+cd interpreter
+python -m interpreter.server --host localhost --port 8000 --local --auto-run --model deepseek-coder-v2-16b-q4_k_m-rtx
 ```
 
-### ❌ **NÃO chame ferramentas diretamente**
-```typescript
-// ❌ ERRADO - Não faça isso!
-const { executeShell } = await import("./code_executor");
-await executeShell("notepad");
+### 2. Open Interpreter Tool (AutoGen v2)
+
+Tool registrada no AutoGen v2 que permite:
+- Enviar comandos ao Open Interpreter
+- Receber respostas completas (pensamento + execução)
+- AutoGen decide quando usar
+
+**Tool disponível:**
+- `open_interpreter_agent(command: str)` - Envia comando ao Open Interpreter
+
+### 3. Integração no Orchestrator
+
+O orchestrator do AutoGen v2:
+- Cria a tool do Open Interpreter automaticamente
+- Registra nos agentes (Executor, Generator)
+- Usa o mesmo modelo do AutoGen
+
+## 🚀 Como Usar
+
+### Passo 1: Iniciar Open Interpreter Server
+
+```bash
+# Windows
+scripts\start_open_interpreter_server.bat
+
+# O servidor vai rodar em ws://localhost:8000
+# O Open Interpreter pensa e executa localmente
 ```
 
-### ❌ **NÃO use Open Interpreter diretamente**
-```typescript
-// ❌ ERRADO - Não faça isso!
-import interpreter from "open-interpreter";
-interpreter.chat("Write code");
+### Passo 2: Usar AutoGen v2
+
+O AutoGen v2 já está configurado para usar o Open Interpreter automaticamente.
+
+Quando o AutoGen precisa executar código, ele:
+1. Decide usar a tool `open_interpreter_agent`
+2. Envia comando em linguagem natural
+3. Open Interpreter pensa e executa localmente
+4. Retorna resultado ao AutoGen
+5. AutoGen analisa e decide próximo passo
+
+### Exemplo de Uso
+
+```python
+from super_agent.core.orchestrator import SuperAgentOrchestrator, SuperAgentConfig
+
+# Configurar
+config = SuperAgentConfig(
+    autogen_model="deepseek-coder-v2-16b-q4_k_m-rtx",
+    open_interpreter_enabled=True,
+    open_interpreter_auto_run=True,
+)
+
+# Criar orchestrator
+orchestrator = SuperAgentOrchestrator(config)
+
+# Executar tarefa
+# O AutoGen vai decidir quando usar o Open Interpreter
+result = await orchestrator.execute(
+    task="Crie um script Python que calcula a soma de 1 até 100 e exibe o resultado"
+)
 ```
 
-## ✅ Como Fazer Corretamente
+## 🧩 Arquitetura Detalhada
 
-### ✅ **Use AutoGen v2 Python para TUDO**
-```typescript
-// ✅ CORRETO - Use AutoGen v2
-import { executeWithAutoGenV2 } from "./autogen_v2_bridge";
+### AutoGen v2 (Comandante)
 
-const result = await executeWithAutoGenV2({
-  task: "Write a Python function to calculate fibonacci",
-  intent: { type: "action", confidence: 0.9 },
-  context: {},
-  model: "deepseek-coder-v2-16b-q4_k_m-rtx",
-});
+- **Função**: Planejar, decidir QUANDO e PORQUÊ
+- **Responsabilidades**:
+  - Entender contexto global
+  - Criar planos de execução
+  - Decidir quando executar código
+  - Analisar resultados
+  - Decidir próximos passos
 
-// AutoGen v2 Python:
-// 1. Roteia para o agente apropriado (Generator Agent)
-// 2. Gera código usando Ollama
-// 3. Executa código usando Executor Agent + Open Interpreter
-// 4. Valida resultado usando Critic Agent
-// 5. Armazena na memória ChromaDB
-// 6. Retorna resultado
-```
+### Open Interpreter (Executor Inteligente)
 
-## 📋 Fluxo de Execução
+- **Função**: Pensar e executar localmente, decidir COMO
+- **Responsabilidades**:
+  - Interpretar comandos do AutoGen
+  - Raciocinar sobre a tarefa (usando modelo interno)
+  - Gerar código
+  - Executar código
+  - Corrigir erros
+  - Retornar resultados
 
-### 1. **Requisição do Usuário**
-```
-Usuário → TypeScript → autogen_v2_bridge.ts
-```
+## 📊 Benefícios
 
-### 2. **Ponte TypeScript → Python**
-```
-autogen_v2_bridge.ts → spawn("python", ["autogen_v2_orchestrator.py"])
-```
-
-### 3. **AutoGen v2 Python Orquestra TUDO**
-```
-SuperAgentOrchestrator:
-  1. Analisa tarefa
-  2. Seleciona agentes apropriados
-  3. Cria plano (se necessário)
-  4. Executa usando Team (RoundRobinTeam)
-  5. Agentes usam ferramentas (Open Interpreter, UFO, etc.)
-  6. Armazena na memória ChromaDB
-  7. Retorna resultado
-```
-
-### 4. **Resposta ao Usuário**
-```
-AutoGen v2 Python → autogen_v2_bridge.ts → TypeScript → Usuário
-```
+| Aspecto | Benefício |
+|---------|-----------|
+| **Controle** | AutoGen mantém controle total do fluxo |
+| **Inteligência** | Open Interpreter mantém toda sua inteligência local |
+| **Flexibilidade** | AutoGen decide quando usar Open Interpreter |
+| **Escalabilidade** | Pode ter múltiplos executores Open Interpreter |
+| **Local-first** | Tudo roda localmente com Ollama |
 
 ## 🔧 Configuração
 
 ### Variáveis de Ambiente
 
 ```bash
-# Ollama
-OLLAMA_BASE_URL=http://localhost:11434
+# Modelo a usar (mesmo para AutoGen e Open Interpreter)
 DEFAULT_MODEL=deepseek-coder-v2-16b-q4_k_m-rtx
 
-# AutoGen v2
-AUTOGEN_V2_ENABLED=true
-AUTOGEN_V2_MEMORY_ENABLED=true
-AUTOGEN_V2_OPEN_INTERPRETER_ENABLED=true
-AUTOGEN_V2_UFO_ENABLED=false  # Desabilitado por enquanto (sem sandbox)
+# Ollama
+OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-### Dependências Python
+### Configuração do Orchestrator
+
+```python
+config = SuperAgentConfig(
+    # Modelo (usado por AutoGen e Open Interpreter)
+    autogen_model="deepseek-coder-v2-16b-q4_k_m-rtx",
+    
+    # Open Interpreter
+    open_interpreter_enabled=True,
+    open_interpreter_auto_run=True,  # Executa sem pedir confirmação
+    
+    # Outros...
+)
+```
+
+## 🎯 Exemplos de Comandos
+
+O AutoGen pode enviar comandos como:
+
+- `"Crie um script Python que soma 5 + 7 e exibe o resultado"`
+- `"Execute ls -la no diretório atual"`
+- `"Analise o arquivo data.csv e gere um relatório"`
+- `"Crie uma função que calcula o fatorial de um número"`
+
+O Open Interpreter vai:
+1. Pensar sobre o comando (usando seu modelo interno)
+2. Gerar código apropriado
+3. Executar
+4. Retornar resultado
+
+## ⚠️ Importante
+
+- **AutoGen comanda tudo** - decide quando usar o Open Interpreter
+- **Open Interpreter pensa localmente** - usa seu modelo interno para raciocinar
+- **Mesmo modelo** - AutoGen e Open Interpreter usam o mesmo modelo (configurável)
+- **Local-first** - tudo roda localmente com Ollama
+
+## 🔍 Troubleshooting
+
+### Servidor não inicia
 
 ```bash
-pip install autogen-agentchat autogen-ext[ollama] chromadb
+# Verificar se Ollama está rodando
+ollama list
+
+# Verificar se o modelo existe
+ollama list | grep deepseek-coder-v2-16b-q4_k_m-rtx
 ```
 
-## 🚨 Regras Críticas
+### AutoGen não encontra a tool
 
-### 1. **Nunca Execute Código Diretamente no TypeScript**
-- ❌ Não use `code_executor.ts` diretamente
-- ❌ Não use `executeCode()`, `executeShell()`, etc. diretamente
-- ✅ Use AutoGen v2 Python via `autogen_v2_bridge.ts`
-
-### 2. **Nunca Chame Ferramentas Diretamente**
-- ❌ Não use Open Interpreter diretamente
-- ❌ Não use UFO diretamente
-- ❌ Não use Browser-Use diretamente
-- ✅ Use AutoGen v2 Python que orquestra todas as ferramentas
-
-### 3. **Nunca Gerencie Memória Diretamente**
-- ❌ Não use ChromaDB diretamente do TypeScript
-- ✅ Use AutoGen v2 Python que gerencia memória através dos agentes
-
-### 4. **Fallback Apenas para Conversas Simples**
-- ✅ Fallback TypeScript é permitido APENAS para conversas/perguntas simples
-- ❌ Ações/comandos DEVEM usar AutoGen v2 Python (obrigatório)
-
-## 📝 Exemplos
-
-### Exemplo 1: Gerar e Executar Código
-
-```typescript
-// ✅ CORRETO
-const result = await executeWithAutoGenV2({
-  task: "Write a Python function to calculate fibonacci numbers and test it",
-  intent: { type: "action", actionType: "code", confidence: 0.9 },
-  context: {},
-  model: "deepseek-coder-v2-16b-q4_k_m-rtx",
-});
-
-// AutoGen v2 Python:
-// 1. Planner Agent cria plano
-// 2. Generator Agent gera código
-// 3. Executor Agent executa código (via Open Interpreter)
-// 4. Critic Agent valida resultado
-// 5. Armazena na memória ChromaDB
-// 6. Retorna resultado completo
+```bash
+# Verificar se a tool está registrada
+# Deve aparecer nos logs: "Open Interpreter Tool registrada para AutoGen v2"
 ```
 
-### Exemplo 2: Abrir Aplicativo
+### Erro de conexão WebSocket
 
-```typescript
-// ✅ CORRETO
-const result = await executeWithAutoGenV2({
-  task: "Open Notepad",
-  intent: { type: "action", actionType: "system", confidence: 0.9 },
-  context: {},
-  model: "deepseek-coder-v2-16b-q4_k_m-rtx",
-});
-
-// AutoGen v2 Python:
-// 1. Planner Agent identifica ação
-// 2. Executor Agent executa comando (via Open Interpreter)
-// 3. Retorna resultado
+```bash
+# Verificar se o servidor está rodando
+# Testar conexão: ws://localhost:8000
 ```
 
-### Exemplo 3: Conversa Simples (Fallback Permitido)
+## 📝 Notas
 
-```typescript
-// ✅ CORRETO (Fallback permitido para conversas)
-if (intent.type === "conversation" || intent.type === "question") {
-  // Usar fallback TypeScript (mais rápido para conversas)
-  const response = await callOllamaChat(messages, model);
-  return response;
-} else {
-  // Usar AutoGen v2 Python (obrigatório para ações)
-  const result = await executeWithAutoGenV2({ task, intent, context });
-  return result.result;
-}
-```
-
-## 🐛 Troubleshooting
-
-### Erro: "AutoGen v2 não disponível"
-
-1. **Verificar dependências Python**:
-   ```bash
-   pip install autogen-agentchat autogen-ext[ollama] chromadb
-   ```
-
-2. **Verificar se o script existe**:
-   ```bash
-   ls super_agent/core/autogen_v2_orchestrator.py
-   ```
-
-3. **Verificar se Python está no PATH**:
-   ```bash
-   python --version
-   ```
-
-### Erro: "ImportError: cannot import name 'AssistantAgent'"
-
-1. **Instalar AutoGen v2**:
-   ```bash
-   pip install autogen-agentchat autogen-ext[ollama]
-   ```
-
-2. **Verificar versão**:
-   ```bash
-   pip show autogen-agentchat
-   ```
-
-### Erro: "AutoGen v2 timeout"
-
-1. **Aumentar timeout** (em `autogen_v2_bridge.ts`):
-   ```typescript
-   const timeout = 10 * 60 * 1000; // 10 minutos
-   ```
-
-2. **Verificar se Ollama está respondendo**:
-   ```bash
-   curl http://localhost:11434/api/tags
-   ```
-
-## ✅ Checklist
-
-- [x] AutoGen v2 Python é o único orquestrador
-- [x] TypeScript não executa código diretamente
-- [x] TypeScript não chama ferramentas diretamente
-- [x] Tudo passa pelo AutoGen v2 Python
-- [x] Fallback TypeScript apenas para conversas simples
-- [x] Ações/comandos obrigatoriamente usam AutoGen v2 Python
-- [x] Memória ChromaDB gerenciada pelo AutoGen v2 Python
-- [x] Open Interpreter controlado pelo AutoGen v2 Python
-- [x] UFO controlado pelo AutoGen v2 Python
-- [x] Browser-Use controlado pelo AutoGen v2 Python
-
-## 📚 Referências
-
-- **AutoGen v2 Documentation**: https://microsoft.github.io/autogen/docs/
-- **SuperAgentOrchestrator**: `super_agent/core/orchestrator.py`
-- **AutoGen v2 Bridge**: `autogen_agent_interface/server/utils/autogen_v2_bridge.ts`
-- **AutoGen v2 Orchestrator Script**: `super_agent/core/autogen_v2_orchestrator.py`
-
----
-
-**Última atualização**: Janeiro 2025  
-**Status**: ✅ **AUTOGEN V2 COMANDA TUDO - SEM CONFLITOS**
-
+- O Open Interpreter mantém toda sua inteligência (raciocínio, correção de erros, etc.)
+- O AutoGen apenas comanda quando usar o Open Interpreter
+- Tudo roda localmente com Ollama
+- Pode usar WebSocket ou instância direta (configurável)

@@ -32,26 +32,35 @@ def cli(interpreter):
   parser.add_argument('--server',
                       action='store_true',
                       help='start WebSocket server instead of interactive chat')
+  parser.add_argument('--ws',
+                      action='store_true',
+                      help='alias for --server (start WebSocket server)')
   parser.add_argument('--host',
                       default='localhost',
                       help='host for WebSocket server (default: localhost)')
   parser.add_argument('--port',
                       type=int,
-                      default=8000,
-                      help='port for WebSocket server (default: 8000)')
+                      default=4000,
+                      help='port for WebSocket server (default: 4000)')
+  parser.add_argument('--workdir',
+                      help='working directory (sandbox) for WebSocket server')
+  parser.add_argument('--allow-remote',
+                      action='store_true',
+                      help='allow remote connections (not recommended)')
   args = parser.parse_args()
 
-  # Se --server, iniciar servidor WebSocket
-  if args.server:
+  # Se --server ou --ws, iniciar servidor WebSocket
+  if args.server or args.ws:
     from .server import OpenInterpreterServer
     server = OpenInterpreterServer(
-      host=args.host,
+      host=args.host if args.allow_remote else "localhost",
       port=args.port,
-      auto_run=args.yes,
-      local=args.local,
+      auto_run=args.yes if args.yes else True,  # Default True para servidor
+      local=args.local if args.local else True,  # Default True para servidor
       model=args.model,
       debug_mode=args.debug,
       use_ollama=True,
+      workdir=args.workdir,
     )
     server.run()
     return

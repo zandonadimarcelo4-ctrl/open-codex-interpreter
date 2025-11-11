@@ -379,6 +379,7 @@ pensa e executa localmente usando o modelo especificado.
         model=args.model,
         debug_mode=args.debug,
         use_ollama=True,
+        workdir=args.workdir,
     )
     
     logger.info("=" * 60)

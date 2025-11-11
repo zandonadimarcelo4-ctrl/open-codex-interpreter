@@ -11,6 +11,16 @@
 - ✅ Guia completo de instalação do DeepSeek-Coder-V2-16B-Q4_K_M
 - ✅ Análise completa do GPT-5 Codex e plano de integração
 - ✅ Scripts de instalação automatizada
+- ✅ Refactoring Agent com análise de código e geração de planos
+- ✅ Bug Detection Agent com detecção estática de bugs
+- ✅ Visual Code Agent para geração de código a partir de imagens
+- ✅ Integração de Refactoring Agent com autogen.ts
+- ✅ Integração de Bug Detection Agent com autogen.ts
+- ✅ Suporte para modelos de visão (LLaVA, GPT-4 Vision)
+- ✅ Geração de relatórios de bugs
+- ✅ Suporte para múltiplos tipos de refatoração
+- ✅ Classificação de bugs por severidade
+- ✅ Fallback para callOllamaChat no Code Router
 
 ### Melhorado
 - ✅ Geração de código agora usa modelo especializado (DeepSeek-Coder-V2)

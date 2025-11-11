@@ -85,7 +85,11 @@ class HybridModelManager:
         
         # Local configuration
         self.local_brain_model = local_brain_model or os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx")
-        self.local_executor_model = local_executor_model or os.getenv("EXECUTOR_MODEL", "networkjohnny/deepseek-coder-v2-lite-base-q4_k_m-gguf")
+        # Executor: Cline_FuseO1 (híbrido DeepSeekR1 + Qwen2.5, 128K contexto, VS Code integration)
+        self.local_executor_model = local_executor_model or os.getenv(
+            "EXECUTOR_MODEL",
+            "nuibang/Cline_FuseO1-DeepSeekR1-Qwen2.5-Coder-32B-Preview:q4_k_m"
+        )
         self.local_ui_model = local_ui_model or os.getenv("EXECUTOR_UI_MODEL", "MHKetbi/UIGEN-T1-Qwen-14:q4_K_S")
         self.local_base_url = local_base_url.rstrip("/")
         
@@ -388,7 +392,10 @@ def get_hybrid_model_manager() -> HybridModelManager:
             cloud_base_url=os.getenv("OLLAMA_CLOUD_BASE_URL", "https://ollama.com"),  # URL oficial da Ollama Cloud
             cloud_enabled=os.getenv("OLLAMA_CLOUD_ENABLED", "true").lower() == "true",
             local_brain_model=os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx"),
-            local_executor_model=os.getenv("EXECUTOR_MODEL", "networkjohnny/deepseek-coder-v2-lite-base-q4_k_m-gguf"),
+            local_executor_model=os.getenv(
+                "EXECUTOR_MODEL",
+                "nuibang/Cline_FuseO1-DeepSeekR1-Qwen2.5-Coder-32B-Preview:q4_k_m"
+            ),
             local_ui_model=os.getenv("EXECUTOR_UI_MODEL", "MHKetbi/UIGEN-T1-Qwen-14:q4_K_S"),
             local_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             fallback_enabled=os.getenv("FALLBACK_ENABLED", "true").lower() == "true",

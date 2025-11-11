@@ -18,25 +18,6 @@ if %ERRORLEVEL% NEQ 0 (
 
 echo ✅ Ollama encontrado
 echo.
-
-REM Verificar se está logado no Ollama Cloud
-echo ========================================
-echo Verificando Login Ollama Cloud
-echo ========================================
-echo.
-echo ⚠️ ATENÇÃO: Você precisa estar logado no Ollama Cloud!
-echo    Execute: ollama signin
-echo.
-pause
-
-ollama signin
-if %ERRORLEVEL% NEQ 0 (
-    echo ❌ Erro ao fazer login no Ollama Cloud
-    echo    Verifique sua conta em: https://ollama.com
-    pause
-    exit /b 1
-)
-
 echo ✅ Login no Ollama Cloud bem-sucedido!
 echo.
 

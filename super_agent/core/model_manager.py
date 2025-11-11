@@ -29,7 +29,8 @@ class ModelManager:
     def __init__(
         self,
         brain_model: str = "qwen2.5-32b-instruct-moe-rtx",
-        executor_model: str = "qwen2.5-coder:14b",
+        executor_model: str = "networkjohnny/deepseek-coder-v2-lite-base-q4_k_m-gguf",
+        executor_ui_model: Optional[str] = None,
         ollama_base_url: str = "http://localhost:11434",
     ):
         """
@@ -37,11 +38,13 @@ class ModelManager:
         
         Args:
             brain_model: Modelo cérebro estratégico (Qwen32B-MoE)
-            executor_model: Modelo executor de código (Qwen14B-Coder ou DeepSeek-Lite)
+            executor_model: Modelo executor de código geral (DeepSeek-Lite ou Qwen14B-Coder)
+            executor_ui_model: Modelo executor especializado em UI (UIGEN-T1-Qwen-14, opcional)
             ollama_base_url: URL base do Ollama
         """
         self.brain_model = brain_model
         self.executor_model = executor_model
+        self.executor_ui_model = executor_ui_model or os.getenv("EXECUTOR_UI_MODEL", "MHKetbi/UIGEN-T1-Qwen-14:q4_K_S")
         self.ollama_base_url = ollama_base_url.rstrip("/")
         
         # Estado atual
@@ -54,7 +57,8 @@ class ModelManager:
         
         logger.info(f"✅ ModelManager inicializado")
         logger.info(f"   Brain: {brain_model}")
-        logger.info(f"   Executor: {executor_model}")
+        logger.info(f"   Executor (código): {executor_model}")
+        logger.info(f"   Executor (UI): {executor_ui_model}")
     
     def _run_ollama_command(self, command: str) -> tuple[bool, str]:
         """
@@ -211,9 +215,24 @@ class ModelManager:
         """Retorna modelo cérebro estratégico"""
         return self.brain_model
     
-    def get_executor_model(self) -> str:
-        """Retorna modelo executor de código"""
+    def get_executor_model(self, task_type: Optional[str] = None) -> str:
+        """
+        Retorna modelo executor apropriado
+        
+        Args:
+            task_type: Tipo de tarefa (opcional, para selecionar executor UI)
+        
+        Returns:
+            Nome do modelo executor
+        """
+        # Se tarefa é de UI, usar executor UI especializado
+        if task_type and "ui" in task_type.lower():
+            return self.executor_ui_model
         return self.executor_model
+    
+    def get_executor_ui_model(self) -> str:
+        """Retorna modelo executor especializado em UI"""
+        return self.executor_ui_model
     
     def ensure_brain_loaded(self) -> bool:
         """
@@ -227,24 +246,30 @@ class ModelManager:
         
         return self._load_model(self.brain_model, ModelRole.BRAIN)
     
-    def ensure_executor_loaded(self) -> bool:
+    def ensure_executor_loaded(self, task_type: Optional[str] = None) -> bool:
         """
         Garante que modelo executor está carregado
+        
+        Args:
+            task_type: Tipo de tarefa (opcional, para selecionar executor UI)
         
         Returns:
             True se modelo executor está carregado
         """
-        if self.current_model == self.executor_model and self.current_role == ModelRole.EXECUTOR:
+        # Selecionar executor apropriado
+        executor_model = self.get_executor_model(task_type)
+        
+        if self.current_model == executor_model and self.current_role == ModelRole.EXECUTOR:
             return True  # Já está carregado
         
-        return self._load_model(self.executor_model, ModelRole.EXECUTOR)
+        return self._load_model(executor_model, ModelRole.EXECUTOR)
     
     def get_model_for_task(self, task_type: str) -> str:
         """
         Retorna modelo apropriado para tipo de tarefa
         
         Args:
-            task_type: Tipo de tarefa ("planning", "reasoning", "code", "execution")
+            task_type: Tipo de tarefa ("planning", "reasoning", "code", "execution", "ui_generation")
         
         Returns:
             Nome do modelo apropriado
@@ -254,9 +279,14 @@ class ModelManager:
             self.ensure_brain_loaded()
             return self.brain_model
         
-        # Tarefas de código → Executor
+        # Tarefas de UI → Executor UI especializado
+        elif task_type in ["ui_generation", "ui", "html", "css", "frontend"]:
+            self.ensure_executor_loaded(task_type)
+            return self.executor_ui_model
+        
+        # Tarefas de código → Executor geral
         elif task_type in ["code", "execution", "debugging", "refactoring"]:
-            self.ensure_executor_loaded()
+            self.ensure_executor_loaded(task_type)
             return self.executor_model
         
         # Padrão: Brain (mais inteligente)

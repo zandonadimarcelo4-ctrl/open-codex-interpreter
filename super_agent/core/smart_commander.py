@@ -118,22 +118,26 @@ REGRAS:
         logger.info(f"   Executor: {self.executor_model}")
         logger.info(f"   Orquestração: {'Inteligente' if self.model_manager else 'Fixa'}")
     
-    def _switch_model(self, model_name: str, role: str):
+    def _switch_model(self, model_name: str, role: str, task_type: Optional[str] = None):
         """
         Alterna modelo do cliente LLM
         
         Args:
             model_name: Nome do modelo
-            role: Papel do modelo (brain ou executor)
+            role: Papel do modelo (brain, executor, ou executor_ui)
+            task_type: Tipo de tarefa (opcional, para selecionar executor UI)
         """
         if self.model_manager:
             # Usar gerenciador para alternar modelo
             if role == "brain":
                 self.model_manager.ensure_brain_loaded()
                 model_name = self.model_manager.get_brain_model()
+            elif role == "executor_ui":
+                self.model_manager.ensure_executor_loaded(task_type)
+                model_name = self.model_manager.get_executor_ui_model()
             elif role == "executor":
-                self.model_manager.ensure_executor_loaded()
-                model_name = self.model_manager.get_executor_model()
+                self.model_manager.ensure_executor_loaded(task_type)
+                model_name = self.model_manager.get_executor_model(task_type)
         
         # Atualizar cliente LLM
         api_base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -169,9 +173,11 @@ REGRAS:
             
             # Alternar modelo se necessário
             if model_role == "brain":
-                self._switch_model(self.brain_model, "brain")
+                self._switch_model(self.brain_model, "brain", task_type)
+            elif model_role == "executor_ui":
+                self._switch_model(self.executor_model, "executor_ui", task_type)
             elif model_role == "executor":
-                self._switch_model(self.executor_model, "executor")
+                self._switch_model(self.executor_model, "executor", task_type)
             
             logger.info(f"🎯 Tarefa roteada: {task_type} → {model_role}")
         

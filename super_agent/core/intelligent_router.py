@@ -18,6 +18,7 @@ class TaskType(Enum):
     EXECUTION = "execution"  # Execução de código
     DEBUGGING = "debugging"  # Debugging e correção
     REFACTORING = "refactoring"  # Refatoração
+    UI_GENERATION = "ui_generation"  # Geração de UI/HTML/CSS
     TOOL_CALLING = "tool_calling"  # Chamada de ferramentas
     REFLECTION = "reflection"  # Auto-reflexão
     CONVERSATION = "conversation"  # Conversa simples
@@ -66,6 +67,11 @@ class IntelligentRouter:
             TaskType.REFACTORING: [
                 r"refator|refactor|melhor|optim|otimiz|reestrutur",
                 r"limpar.*codigo|organizar.*codigo|melhorar.*codigo",
+            ],
+            TaskType.UI_GENERATION: [
+                r"ui|interface|html|css|frontend|dashboard|landing.*page|formulario|form",
+                r"criar.*interface|criar.*ui|gerar.*html|gerar.*css",
+                r"design|layout|pagina.*web|site.*web",
             ],
             TaskType.TOOL_CALLING: [
                 r"ferrament|tool|usar.*ferramenta|chamar.*ferramenta",
@@ -166,8 +172,21 @@ class IntelligentRouter:
             TaskType.EXECUTION,
             TaskType.DEBUGGING,
             TaskType.REFACTORING,
+            TaskType.UI_GENERATION,
         ]
         return task_type in executor_tasks
+    
+    def should_use_executor_ui(self, task_type: TaskType) -> bool:
+        """
+        Determina se deve usar modelo executor UI especializado
+        
+        Args:
+            task_type: Tipo de tarefa
+        
+        Returns:
+            True se deve usar Executor UI
+        """
+        return task_type == TaskType.UI_GENERATION
     
     def route_task(self, prompt: str, intent: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -184,16 +203,26 @@ class IntelligentRouter:
         
         use_brain = self.should_use_brain(task_type)
         use_executor = self.should_use_executor(task_type)
+        use_executor_ui = self.should_use_executor_ui(task_type)
         
         # Se ambos podem ser usados, preferir Brain (mais inteligente)
-        if use_brain and use_executor:
+        if use_brain and use_executor and not use_executor_ui:
             use_executor = False
+        
+        # Determinar papel do modelo
+        if use_executor_ui:
+            model_role = "executor_ui"
+        elif use_executor:
+            model_role = "executor"
+        else:
+            model_role = "brain"
         
         return {
             "task_type": task_type.value,
             "use_brain": use_brain,
             "use_executor": use_executor,
-            "model_role": "brain" if use_brain else "executor",
+            "use_executor_ui": use_executor_ui,
+            "model_role": model_role,
         }
 
 

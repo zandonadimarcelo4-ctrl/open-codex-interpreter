@@ -824,6 +824,24 @@ Sugira comandos diretos como:
     const elapsed = Date.now() - startTime;
     console.log(`[AutoGen] ✅ Resposta recebida em ${elapsed}ms (${ollamaResponse.length} chars)`);
 
+    // Aprender com resposta usando sistema cognitivo (opcional, não bloqueia se falhar)
+    try {
+      if (cognitiveContext) {
+        const { learnFromResponse } = await import("./cognitive_bridge");
+        await learnFromResponse(
+          task,
+          ollamaResponse,
+          true, // Assumir sucesso por enquanto
+          undefined,
+          context?.userId as string
+        );
+        console.log(`[AutoGen] 🧠 Aprendizado cognitivo registrado`);
+      }
+    } catch (learnError) {
+      // Não bloquear se aprendizagem falhar
+      console.warn(`[AutoGen] ⚠️ Erro ao aprender com resposta:`, learnError);
+    }
+
     console.log(`[AutoGen] ✅ Retornando resposta final de executeWithAutoGen (${ollamaResponse.length} chars)`);
     console.log(`[AutoGen] ========== FIM executeWithAutoGen ==========`);
     return ollamaResponse;

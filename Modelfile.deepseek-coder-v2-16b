@@ -1,0 +1,89 @@
+# Modelfile otimizado para DeepSeek-Coder-V2:16b (Ollama Official)
+# Modelo oficial do Ollama - já quantizado (8.9GB)
+# Context window: 160K tokens
+# Fonte: https://ollama.com/library/deepseek-coder-v2
+
+# Modelo base oficial do Ollama (já quantizado)
+FROM deepseek-coder-v2:16b
+
+# Sistema de prompt otimizado para código
+SYSTEM """You are DeepSeek Coder V2, an expert AI assistant specialized in programming and code generation.
+You are a Mixture-of-Experts (MoE) code language model with performance comparable to GPT4-Turbo in code-specific tasks.
+
+You write clean, efficient, and well-documented code.
+Focus on:
+- Code quality and best practices
+- Clear, concise explanations
+- Error handling and edge cases
+- Performance optimization when relevant
+- Multi-language support (Python, JavaScript, TypeScript, Go, Rust, C++, etc.)
+
+Always provide complete, working code solutions with proper error handling."""
+
+# Template otimizado para DeepSeek-Coder-V2 (formato oficial)
+TEMPLATE """<|start_header_id|>system<|end_header_id|>
+
+{{ .System }}<|eot_id|><|start_header_id|>user<|end_header_id|>
+
+{{ .Prompt }}<|eot_id|><|start_header_id|>assistant<|end_header_id|>
+
+{{ .Response }}<|eot_id|>"""
+
+# Parâmetros otimizados para performance e leveza
+# Temperature: 0.2 (muito determinístico, ideal para código)
+PARAMETER temperature 0.2
+
+# Top-p: 0.9 (sampling focado, mantém qualidade)
+PARAMETER top_p 0.9
+
+# Top-k: 40 (boa qualidade, ainda rápido)
+PARAMETER top_k 40
+
+# Context window: 16384 (aproveitar o máximo do modelo - 160K é o limite, mas 16K é mais eficiente)
+PARAMETER num_ctx 16384
+
+# Max tokens: 4096 (respostas completas para código complexo)
+PARAMETER num_predict 4096
+
+# Repeat penalty: 1.1 (evitar repetição)
+PARAMETER repeat_penalty 1.1
+
+# Repeat last N tokens: 64 (contexto de repetição)
+PARAMETER repeat_last_n 64
+
+# Threads: automático (usar todos os cores disponíveis)
+PARAMETER num_thread -1
+
+# Batch size: 512 (processamento em lote eficiente)
+PARAMETER num_batch 512
+
+# GPU layers: automático (usar GPU se disponível)
+PARAMETER num_gpu -1
+
+# Stop sequences (padrão DeepSeek-Coder-V2)
+PARAMETER stop "<|start_header_id|>"
+PARAMETER stop "<|end_header_id|>"
+PARAMETER stop "<|eot_id|>"
+PARAMETER stop "```"
+PARAMETER stop "System:"
+PARAMETER stop "User:"
+PARAMETER stop "Assistant:"
+
+# Seed: -1 (aleatório, mas determinístico por padrão)
+PARAMETER seed -1
+
+# TFS: 1.0 (sem filtro de cauda)
+PARAMETER tfs_z 1.0
+
+# Typical p: 1.0 (sem filtro típico)
+PARAMETER typical_p 1.0
+
+# Mirostat: 0 (desabilitado para performance)
+PARAMETER mirostat 0
+
+# Penalize newlines: false (permitir múltiplas linhas de código)
+PARAMETER penalize_newline false
+
+# Logits all: false (não retornar todos os logits, economiza memória)
+PARAMETER logits_all false
+

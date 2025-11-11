@@ -10,17 +10,35 @@ import { ExecutionError, NotFoundError, NetworkError, withErrorHandling } from "
 import { validateNonEmptyString } from "./validators";
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
-const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "lucasmg/deepseek-r1-8b-0528-qwen3-q4_K_M-tool-true";
+// Priorizar modelo otimizado para RTX, depois otimizado, depois oficial, depois fallback
+const DEFAULT_MODEL = process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx";
 
 // Modelos de fallback em ordem de preferência
+// PRIORIDADE: Modelos otimizados RTX primeiro, depois oficiais, depois quantizados manuais
 const FALLBACK_MODELS = [
-  "deepseek-coder-v2-16b-q4_k_m",
-  "deepseek-coder",
-  "deepseek-coder:1.3b",
-  "codellama",
-  "mistral",
-  "llama3.2",
-  "qwen2.5-coder",
+  // Modelos otimizados para RTX NVIDIA (melhor performance)
+  "deepseek-coder-v2-16b-q4_k_m-rtx", // Modelo otimizado Q4_K_M para RTX (RECOMENDADO)
+  "deepseek-coder-v2-16b-optimized",  // Modelo otimizado genérico
+  
+  // Modelos oficiais do Ollama (já quantizados, mais confiáveis)
+  "deepseek-coder-v2:16b",            // Modelo oficial (8.9GB, 160K context)
+  "deepseek-coder-v2:latest",         // Latest version
+  "deepseek-coder:latest",            // Versão anterior
+  "deepseek-coder",                   // Versão anterior (sem tag)
+  "deepseek-coder:6.7b",              // Versão menor
+  "deepseek-coder:1.3b",              // Versão muito menor
+  
+  // Modelos quantizados manuais (fallback se oficiais não disponíveis)
+  "deepseek-coder-v2-16b-q4_k_m",     // Quantização manual Q4_K_M
+  "deepseek-coder-v2-16b-q3_k_m",     // Quantização manual Q3_K_M
+  
+  // Modelos alternativos genéricos
+  "codellama:latest",
+  "codellama:7b",
+  "codellama:13b",
+  "mistral:latest",
+  "llama3.2:latest",
+  "qwen2.5-coder:latest",
 ];
 
 export interface OllamaChatMessage {
@@ -94,50 +112,98 @@ export async function listAvailableModels(): Promise<string[]> {
 }
 
 /**
+ * Verifica se um modelo é quantizado (baseado no nome)
+ * 
+ * @param modelName - Nome do modelo
+ * @returns true se o modelo é quantizado, false caso contrário
+ */
+function isQuantizedModel(modelName: string): boolean {
+  const quantizedPatterns = [
+    /q[0-9]_[km]/i,  // Q4_K_M, Q8_0, etc.
+    /q[0-9]k/i,      // Q4K, Q8K, etc.
+    /quantized/i,    // quantized
+    /-q[0-9]/i,      // -q4, -q8, etc.
+  ];
+  
+  return quantizedPatterns.some(pattern => pattern.test(modelName));
+}
+
+/**
  * Encontra o melhor modelo disponível da lista de modelos preferidos
+ * Prioriza modelos não quantizados sobre quantizados para melhor confiabilidade
  * 
  * @param preferredModels - Lista de modelos em ordem de preferência
+ * @param prioritizeUnquantized - Se true, prioriza modelos não quantizados (padrão: true)
  * @returns Nome do primeiro modelo disponível, ou null se nenhum estiver disponível
  * 
  * @example
  * ```typescript
  * const model = await findBestAvailableModel(["deepseek-coder-v2-16b-q4_k_m", "deepseek-coder"]);
- * // Retorna: "deepseek-coder-v2-16b-q4_k_m" se disponível, senão "deepseek-coder", ou null
+ * // Retorna: "deepseek-coder" (não quantizado) se disponível, senão "deepseek-coder-v2-16b-q4_k_m", ou null
  * ```
  */
 export async function findBestAvailableModel(
-  preferredModels: string[] = [DEFAULT_MODEL, ...FALLBACK_MODELS]
+  preferredModels: string[] = [DEFAULT_MODEL, ...FALLBACK_MODELS],
+  prioritizeUnquantized: boolean = true
 ): Promise<string | null> {
   return withErrorHandling(async () => {
     const availableModels = await listAvailableModels();
     
-    // Tentar encontrar modelo exato ou parcial
+    if (availableModels.length === 0) {
+      return null;
+    }
+    
+    // Separar modelos disponíveis em quantizados e não quantizados
+    const unquantizedAvailable: string[] = [];
+    const quantizedAvailable: string[] = [];
+    
+    availableModels.forEach((model) => {
+      if (isQuantizedModel(model)) {
+        quantizedAvailable.push(model);
+      } else {
+        unquantizedAvailable.push(model);
+      }
+    });
+    
+    // Se priorizar não quantizados, procurar primeiro neles
+    const searchOrder = prioritizeUnquantized 
+      ? [unquantizedAvailable, quantizedAvailable]
+      : [availableModels];
+    
+    // Tentar encontrar modelo exato ou parcial na ordem de preferência
     for (const preferred of preferredModels) {
       // Verificar match exato
-      if (availableModels.includes(preferred)) {
-        return preferred;
+      for (const modelList of searchOrder) {
+        if (modelList.includes(preferred)) {
+          console.log(`[Ollama] ✅ Modelo encontrado: '${preferred}' (${isQuantizedModel(preferred) ? 'quantizado' : 'não quantizado'})`);
+          return preferred;
+        }
       }
       
       // Verificar match parcial (ex: "deepseek-coder" matcha "deepseek-coder:1.3b")
-      const found = availableModels.find((available) => {
-        const availableBase = available.split(":")[0];
-        const preferredBase = preferred.split(":")[0];
-        return availableBase === preferredBase || available.includes(preferredBase);
-      });
-      
-      if (found) {
-        console.log(`[Ollama] Modelo '${preferred}' não encontrado, usando '${found}' como alternativa`);
-        return found;
+      for (const modelList of searchOrder) {
+        const found = modelList.find((available) => {
+          const availableBase = available.split(":")[0].toLowerCase();
+          const preferredBase = preferred.split(":")[0].toLowerCase();
+          return availableBase === preferredBase || 
+                 available.includes(preferredBase) || 
+                 preferredBase.includes(availableBase);
+        });
+        
+        if (found) {
+          console.log(`[Ollama] 🔄 Modelo '${preferred}' não encontrado, usando '${found}' como alternativa (${isQuantizedModel(found) ? 'quantizado' : 'não quantizado'})`);
+          return found;
+        }
       }
     }
     
-    // Se nenhum modelo preferido está disponível, retornar o primeiro disponível
-    if (availableModels.length > 0) {
-      console.warn(`[Ollama] Nenhum modelo preferido disponível, usando '${availableModels[0]}'`);
-      return availableModels[0];
-    }
+    // Se nenhum modelo preferido está disponível, retornar o primeiro disponível (priorizando não quantizado)
+    const fallbackModel = prioritizeUnquantized && unquantizedAvailable.length > 0
+      ? unquantizedAvailable[0]
+      : availableModels[0];
     
-    return null;
+    console.warn(`[Ollama] ⚠️ Nenhum modelo preferido disponível, usando '${fallbackModel}' como fallback`);
+    return fallbackModel;
   }, { context: "findBestAvailableModel" });
 }
 
@@ -180,9 +246,16 @@ export async function callOllamaChat(
     // Se modelo não está disponível, tentar encontrar alternativa
     let modelToUse = model;
     if (!modelAvailable) {
-      console.warn(`[Ollama] Modelo '${model}' não está disponível, procurando alternativa...`);
+      console.warn(`[Ollama] ⚠️ Modelo '${model}' não está disponível, procurando alternativa...`);
       
-      const alternativeModel = await findBestAvailableModel([model, ...FALLBACK_MODELS]);
+      // Se o modelo solicitado é quantizado e falhou, priorizar modelos não quantizados
+      const isRequestedQuantized = isQuantizedModel(model);
+      const prioritizeUnquantized = isRequestedQuantized;
+      
+      const alternativeModel = await findBestAvailableModel(
+        [model, ...FALLBACK_MODELS],
+        prioritizeUnquantized
+      );
       
       if (!alternativeModel) {
         const availableModels = await listAvailableModels();
@@ -199,7 +272,8 @@ export async function callOllamaChat(
       }
       
       modelToUse = alternativeModel;
-      console.log(`[Ollama] Usando modelo alternativo: '${modelToUse}'`);
+      const isAlternativeQuantized = isQuantizedModel(modelToUse);
+      console.log(`[Ollama] ✅ Usando modelo alternativo: '${modelToUse}' (${isAlternativeQuantized ? 'quantizado' : 'não quantizado'})`);
     }
     
     const requestBody: OllamaChatRequest = {
@@ -223,35 +297,45 @@ export async function callOllamaChat(
 
     if (!response.ok) {
       const errorText = await response.text();
-      const errorData = errorText ? (JSON.parse(errorText).catch(() => ({})) : {});
       
       // Detectar erro de modelo não encontrado
-      if (response.status === 404 || errorText.includes("model") && errorText.includes("not found")) {
-        // Tentar com modelo de fallback
+      if (response.status === 404 || (errorText && errorText.includes("model") && errorText.includes("not found"))) {
+        // Se já tentamos uma alternativa e ainda falhou, tentar outra
         if (modelToUse !== model) {
-          throw new NotFoundError(
-            `Modelo '${model}' não encontrado no Ollama`,
-            {
-              requestedModel: model,
-              triedAlternative: modelToUse,
-              error: errorText,
-              suggestion: `Execute 'ollama pull ${model}' para instalar o modelo`,
-            }
+          console.warn(`[Ollama] ⚠️ Modelo alternativo '${modelToUse}' também falhou, tentando outro fallback...`);
+          
+          // Se o modelo alternativo era quantizado, tentar não quantizado
+          const isCurrentQuantized = isQuantizedModel(modelToUse);
+          const alternativeModel = await findBestAvailableModel(
+            FALLBACK_MODELS.filter(m => m !== modelToUse && m !== model),
+            isCurrentQuantized // Se atual é quantizado, priorizar não quantizado
           );
+          
+          if (alternativeModel && alternativeModel !== modelToUse) {
+            console.log(`[Ollama] 🔄 Tentando com outro modelo de fallback: '${alternativeModel}'`);
+            return callOllamaChat(messages, alternativeModel, options);
+          }
+        } else {
+          // Primeira tentativa falhou, procurar alternativa
+          const isRequestedQuantized = isQuantizedModel(model);
+          const alternativeModel = await findBestAvailableModel(
+            FALLBACK_MODELS.filter(m => m !== model),
+            isRequestedQuantized // Se solicitado é quantizado, priorizar não quantizado
+          );
+          
+          if (alternativeModel && alternativeModel !== modelToUse) {
+            console.log(`[Ollama] 🔄 Tentando com modelo de fallback: '${alternativeModel}'`);
+            return callOllamaChat(messages, alternativeModel, options);
+          }
         }
         
-        // Tentar encontrar modelo alternativo
-        const alternativeModel = await findBestAvailableModel(FALLBACK_MODELS);
-        if (alternativeModel && alternativeModel !== modelToUse) {
-          console.log(`[Ollama] Tentando com modelo de fallback: '${alternativeModel}'`);
-          return callOllamaChat(messages, alternativeModel, options);
-        }
-        
+        // Se nenhuma alternativa funcionou, lançar erro
         const availableModels = await listAvailableModels();
         throw new NotFoundError(
           `Modelo '${model}' não encontrado no Ollama. Modelos disponíveis: ${availableModels.join(", ") || "nenhum"}`,
           {
             requestedModel: model,
+            triedModel: modelToUse,
             availableModels,
             error: errorText,
             suggestion: availableModels.length > 0

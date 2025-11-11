@@ -816,7 +816,7 @@ Sugira comandos diretos como:
     const startTime = Date.now();
     const ollamaResponse = await callOllamaWithAutoGenPrompt(
       systemPrompt,
-      task,
+      enrichedTask, // Usar tarefa enriquecida com contexto cognitivo
       modelUsed,
       intent,
       images.length > 0 ? images : undefined

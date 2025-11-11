@@ -10,6 +10,38 @@
 
 import { callOllamaChat } from "../ollama";
 
+// Fallback se callOllamaChat não estiver disponível
+async function callOllamaChatFallback(messages: any[], options: any): Promise<string> {
+  const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
+  
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: options.model || DEFAULT_CODING_MODEL,
+        messages,
+        options: {
+          temperature: options.temperature || 0.3,
+          top_p: options.top_p || 0.9,
+          top_k: options.top_k || 40,
+          num_predict: options.num_predict || 4096,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama API error: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.message?.content || "";
+  } catch (error: any) {
+    console.error(`[CodeRouter] Erro ao chamar Ollama:`, error);
+    throw error;
+  }
+}
+
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || "http://localhost:11434";
 
 // Modelos disponíveis
@@ -123,25 +155,52 @@ async function generateCodeWithOllama(
   const prompt = createCodeGenerationPrompt(request);
   
   try {
-    const response = await callOllamaChat(
-      [
+    let response: string;
+    
+    // Tentar usar callOllamaChat se disponível
+    try {
+      response = await callOllamaChat(
+        [
+          {
+            role: 'system',
+            content: `You are an expert ${request.language} programmer. Generate clean, well-documented, and efficient code.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
         {
-          role: 'system',
-          content: `You are an expert ${request.language} programmer. Generate clean, well-documented, and efficient code.`
-        },
-        {
-          role: 'user',
-          content: prompt
+          model,
+          temperature: 0.3, // Baixa temperatura para código mais determinístico
+          top_p: 0.9,
+          top_k: 40,
+          num_predict: 4096, // Permite código longo
         }
-      ],
-      {
-        model,
-        temperature: 0.3, // Baixa temperatura para código mais determinístico
-        top_p: 0.9,
-        top_k: 40,
-        num_predict: 4096, // Permite código longo
-      }
-    );
+      );
+    } catch (error: any) {
+      // Fallback para chamada direta
+      console.log(`[CodeRouter] Usando fallback para chamada Ollama`);
+      response = await callOllamaChatFallback(
+        [
+          {
+            role: 'system',
+            content: `You are an expert ${request.language} programmer. Generate clean, well-documented, and efficient code.`
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        {
+          model,
+          temperature: 0.3,
+          top_p: 0.9,
+          top_k: 40,
+          num_predict: 4096,
+        }
+      );
+    }
     
     // Extrair código da resposta
     return extractCode(response, request.language);

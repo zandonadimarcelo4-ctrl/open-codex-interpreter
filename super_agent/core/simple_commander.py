@@ -19,20 +19,25 @@ except ImportError:
     logger.error("autogen-agentchat não está instalado. Execute: pip install autogen-agentchat autogen-ext[openai]")
 
 # Importar tools
+# PRIORIDADE: NativeInterpreter (sem dependência externa)
 try:
-    from ..tools.open_interpreter_protocol_tool import create_open_interpreter_protocol_tool
-    OPEN_INTERPRETER_TOOL_AVAILABLE = True
+    from ..tools.native_interpreter_tool import create_native_interpreter_tool
+    NATIVE_INTERPRETER_TOOL_AVAILABLE = True
+    logger.info("✅ NativeInterpreter Tool disponível (sem dependência externa)")
 except ImportError:
-    OPEN_INTERPRETER_TOOL_AVAILABLE = False
-    logger.warning("Open Interpreter Protocol tool não disponível")
-    
-    # Fallback para tool sem protocolo
+    NATIVE_INTERPRETER_TOOL_AVAILABLE = False
+    logger.warning("⚠️ NativeInterpreter Tool não disponível")
+
+# Fallback: Open Interpreter com protocolo (se disponível)
+OPEN_INTERPRETER_TOOL_AVAILABLE = False
+if not NATIVE_INTERPRETER_TOOL_AVAILABLE:
     try:
-        from ..tools.open_interpreter_tool import create_open_interpreter_tool
+        from ..tools.open_interpreter_protocol_tool import create_open_interpreter_protocol_tool
         OPEN_INTERPRETER_TOOL_AVAILABLE = True
-        logger.warning("Usando Open Interpreter tool sem protocolo (fallback)")
+        logger.warning("⚠️ Usando Open Interpreter Protocol tool (fallback - requer projeto externo)")
     except ImportError:
         OPEN_INTERPRETER_TOOL_AVAILABLE = False
+        logger.warning("⚠️ Open Interpreter Protocol tool não disponível")
 
 
 def create_simple_commander(
@@ -80,33 +85,37 @@ def create_simple_commander(
     # Registrar tools (ferramentas)
     tools: List[Dict[str, Any]] = []
     
-    # Tool 1: Open Interpreter (gera e executa código) - COM PROTOCOLO DE COMUNICAÇÃO
-    if OPEN_INTERPRETER_TOOL_AVAILABLE:
+    # Tool 1: Interpretador de Código Nativo (PRIORIDADE - sem dependência externa)
+    if NATIVE_INTERPRETER_TOOL_AVAILABLE:
         try:
-            # Tentar usar tool com protocolo (preferencial)
-            try:
-                open_interpreter_tool = create_open_interpreter_protocol_tool(
-                    model=model,  # Mesmo modelo do AutoGen
-                    auto_run=True,
-                    local=True,
-                    session_id=None,  # Será gerado automaticamente
-                    enable_logging=True,
-                )
-                logger.info(f"✅ Tool registrada: open_interpreter_agent (COM PROTOCOLO)")
-            except ImportError:
-                # Fallback para tool sem protocolo
-                open_interpreter_tool = create_open_interpreter_tool(
-                    model=model,
-                    auto_run=True,
-                    local=True,
-                )
-                logger.warning(f"⚠️ Tool registrada: open_interpreter_agent (SEM PROTOCOLO - fallback)")
-            
+            native_interpreter_tool = create_native_interpreter_tool(
+                model=model,  # Mesmo modelo do AutoGen
+                workspace=None,  # Usar workspace padrão
+                auto_run=True,
+                session_id=None,  # Será gerado automaticamente
+                enable_logging=True,
+            )
+            tools.append(native_interpreter_tool)
+            logger.info(f"✅ Tool registrada: native_code_interpreter (NATIVO - sem dependência externa)")
+        except Exception as e:
+            logger.warning(f"⚠️ Falha ao registrar NativeInterpreter tool: {e}")
+    
+    # Fallback: Open Interpreter com protocolo (se NativeInterpreter não disponível)
+    elif OPEN_INTERPRETER_TOOL_AVAILABLE:
+        try:
+            open_interpreter_tool = create_open_interpreter_protocol_tool(
+                model=model,  # Mesmo modelo do AutoGen
+                auto_run=True,
+                local=True,
+                session_id=None,  # Será gerado automaticamente
+                enable_logging=True,
+            )
             tools.append(open_interpreter_tool)
+            logger.warning(f"⚠️ Tool registrada: open_interpreter_agent (FALLBACK - requer projeto externo)")
         except Exception as e:
             logger.warning(f"⚠️ Falha ao registrar Open Interpreter tool: {e}")
     else:
-        logger.warning("⚠️ Open Interpreter tool não disponível")
+        logger.error("❌ Nenhuma tool de execução de código disponível!")
     
     # TODO: Adicionar outras tools aqui (WebSearch, FileManager, etc.)
     # tools.append(web_search_tool)
@@ -131,12 +140,21 @@ FERRAMENTAS DISPONÍVEIS:
 """
     
     # Adicionar descrição das tools
-    if OPEN_INTERPRETER_TOOL_AVAILABLE:
+    if NATIVE_INTERPRETER_TOOL_AVAILABLE:
+        system_message += """
+- native_code_interpreter: Interpretador de código nativo (SEM dependência externa)
+  Gera código usando LLM (Ollama) e executa código real via subprocess
+  Use quando precisar: executar código, criar scripts, processar dados, etc.
+  Suporta: Python, Shell, JavaScript, HTML, etc.
+  Retorna: JSON com "success", "output", "code_executed", "errors"
+  Exemplo: {"success": true, "output": "Resultado da execução", "code_executed": "print('Hello')", "errors": []}
+"""
+    elif OPEN_INTERPRETER_TOOL_AVAILABLE:
         system_message += """
 - open_interpreter_agent: Gera e executa código localmente (Python, Shell, etc.)
   Use quando precisar: executar código, criar scripts, processar dados, etc.
   Retorna: JSON com "success", "output", "code_executed", "errors"
-  Exemplo de resposta: {"success": true, "output": "Resultado da execução", "code_executed": "print('Hello')", "errors": []}
+  Exemplo: {"success": true, "output": "Resultado da execução", "code_executed": "print('Hello')", "errors": []}
 """
     
     system_message += """
@@ -151,12 +169,12 @@ REGRAS:
 
 EXEMPLOS:
 - Usuário: "Executa um código para abrir o navegador"
-  → Você: Chama open_interpreter_agent("Crie um código Python que abre o navegador padrão")
+  → Você: Chama native_code_interpreter("Crie um código Python que abre o navegador padrão")
   → Resposta: {"success": true, "output": "Navegador aberto", "code_executed": "import webbrowser; webbrowser.open('http://localhost')", "errors": []}
   → Você: "✅ Navegador aberto com sucesso!"
 
 - Usuário: "Crie um arquivo texto com 'Hello World'"
-  → Você: Chama open_interpreter_agent("Crie um arquivo texto chamado hello.txt com o conteúdo 'Hello World'")
+  → Você: Chama native_code_interpreter("Crie um arquivo texto chamado hello.txt com o conteúdo 'Hello World'")
   → Resposta: {"success": true, "output": "Arquivo criado", "code_executed": "with open('hello.txt', 'w') as f: f.write('Hello World')", "errors": []}
   → Você: "✅ Arquivo hello.txt criado com sucesso!"
 

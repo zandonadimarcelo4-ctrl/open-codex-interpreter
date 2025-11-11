@@ -343,8 +343,10 @@ class ModelManager:
             "current_role": self.current_role.value if self.current_role else None,
             "brain_model": self.brain_model,
             "executor_model": self.executor_model,
+            "executor_ui_model": self.executor_ui_model,
             "brain_loaded": self._is_model_loaded(self.brain_model),
             "executor_loaded": self._is_model_loaded(self.executor_model),
+            "executor_ui_loaded": self._is_model_loaded(self.executor_ui_model),
             "vram_used_gb": vram["used_gb"],
             "vram_total_gb": vram["total_gb"],
             "vram_used_percent": vram["used_percent"],
@@ -362,7 +364,8 @@ def get_model_manager() -> ModelManager:
     if _model_manager is None:
         _model_manager = ModelManager(
             brain_model=os.getenv("DEFAULT_MODEL", "qwen2.5-32b-instruct-moe-rtx"),
-            executor_model=os.getenv("EXECUTOR_MODEL", "qwen2.5-coder:14b"),
+            executor_model=os.getenv("EXECUTOR_MODEL", "networkjohnny/deepseek-coder-v2-lite-base-q4_k_m-gguf"),
+            executor_ui_model=os.getenv("EXECUTOR_UI_MODEL", "MHKetbi/UIGEN-T1-Qwen-14:q4_K_S"),
             ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         )
     return _model_manager

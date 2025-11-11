@@ -115,7 +115,8 @@ REGRAS:
         
         logger.info(f"✅ SmartCommander inicializado")
         logger.info(f"   Brain: {self.brain_model}")
-        logger.info(f"   Executor: {self.executor_model}")
+        logger.info(f"   Executor (código): {self.executor_model}")
+        logger.info(f"   Executor (UI): {self.executor_ui_model}")
         logger.info(f"   Orquestração: {'Inteligente' if self.model_manager else 'Fixa'}")
     
     def _switch_model(self, model_name: str, role: str, task_type: Optional[str] = None):
@@ -196,6 +197,7 @@ REGRAS:
         status = {
             "brain_model": self.brain_model,
             "executor_model": self.executor_model,
+            "executor_ui_model": self.executor_ui_model,
             "orchestration": "intelligent" if self.model_manager else "fixed",
         }
         

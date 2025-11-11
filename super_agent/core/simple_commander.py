@@ -85,23 +85,9 @@ def create_simple_commander(
     # Registrar tools (ferramentas)
     tools: List[Dict[str, Any]] = []
     
-    # Tool 1: Interpretador de Código Nativo (PRIORIDADE - sem dependência externa)
-    if NATIVE_INTERPRETER_TOOL_AVAILABLE:
-        try:
-            native_interpreter_tool = create_native_interpreter_tool(
-                model=model,  # Mesmo modelo do AutoGen
-                workspace=None,  # Usar workspace padrão
-                auto_run=True,
-                session_id=None,  # Será gerado automaticamente
-                enable_logging=True,
-            )
-            tools.append(native_interpreter_tool)
-            logger.info(f"✅ Tool registrada: native_code_interpreter (NATIVO - sem dependência externa)")
-        except Exception as e:
-            logger.warning(f"⚠️ Falha ao registrar NativeInterpreter tool: {e}")
-    
-    # Fallback: Open Interpreter com protocolo (se NativeInterpreter não disponível)
-    elif OPEN_INTERPRETER_TOOL_AVAILABLE:
+    # DECISÃO TÉCNICA: Usar Open Interpreter Externo (projeto já existe, código testado, funcionalidades completas)
+    # Prioridade: Open Interpreter com protocolo (projeto estático no repositório)
+    if OPEN_INTERPRETER_TOOL_AVAILABLE:
         try:
             open_interpreter_tool = create_open_interpreter_protocol_tool(
                 model=model,  # Mesmo modelo do AutoGen
@@ -111,9 +97,39 @@ def create_simple_commander(
                 enable_logging=True,
             )
             tools.append(open_interpreter_tool)
-            logger.warning(f"⚠️ Tool registrada: open_interpreter_agent (FALLBACK - requer projeto externo)")
+            logger.info(f"✅ Tool registrada: open_interpreter_agent (OPEN INTERPRETER EXTERNO - projeto estático)")
+            logger.info(f"   ✅ Código testado, funcionalidades completas, baixo custo de manutenção")
         except Exception as e:
             logger.warning(f"⚠️ Falha ao registrar Open Interpreter tool: {e}")
+            # Fallback: NativeInterpreter (se Open Interpreter não disponível)
+            if NATIVE_INTERPRETER_TOOL_AVAILABLE:
+                try:
+                    native_interpreter_tool = create_native_interpreter_tool(
+                        model=model,
+                        workspace=None,
+                        auto_run=True,
+                        session_id=None,
+                        enable_logging=True,
+                    )
+                    tools.append(native_interpreter_tool)
+                    logger.warning(f"⚠️ Tool registrada: native_code_interpreter (FALLBACK - reimplementação)")
+                except Exception as e2:
+                    logger.error(f"❌ Falha ao registrar NativeInterpreter tool: {e2}")
+    elif NATIVE_INTERPRETER_TOOL_AVAILABLE:
+        # Fallback: NativeInterpreter (se Open Interpreter não disponível)
+        try:
+            native_interpreter_tool = create_native_interpreter_tool(
+                model=model,
+                workspace=None,
+                auto_run=True,
+                session_id=None,
+                enable_logging=True,
+            )
+            tools.append(native_interpreter_tool)
+            logger.warning(f"⚠️ Tool registrada: native_code_interpreter (FALLBACK - reimplementação)")
+            logger.warning(f"   ⚠️ Funcionalidades parciais, código novo, maior risco de bugs")
+        except Exception as e:
+            logger.error(f"❌ Falha ao registrar NativeInterpreter tool: {e}")
     else:
         logger.error("❌ Nenhuma tool de execução de código disponível!")
     
@@ -140,19 +156,21 @@ FERRAMENTAS DISPONÍVEIS:
 """
     
     # Adicionar descrição das tools
-    if NATIVE_INTERPRETER_TOOL_AVAILABLE:
+    # DECISÃO TÉCNICA: Priorizar Open Interpreter Externo (código testado, funcionalidades completas)
+    if OPEN_INTERPRETER_TOOL_AVAILABLE:
         system_message += """
-- native_code_interpreter: Interpretador de código nativo (SEM dependência externa)
-  Gera código usando LLM (Ollama) e executa código real via subprocess
+- open_interpreter_agent: Gera e executa código localmente (Python, Shell, JavaScript, HTML, etc.)
+  Código testado com funcionalidades completas: Python interativo, active line tracking, output truncation, etc.
   Use quando precisar: executar código, criar scripts, processar dados, etc.
-  Suporta: Python, Shell, JavaScript, HTML, etc.
   Retorna: JSON com "success", "output", "code_executed", "errors"
   Exemplo: {"success": true, "output": "Resultado da execução", "code_executed": "print('Hello')", "errors": []}
 """
-    elif OPEN_INTERPRETER_TOOL_AVAILABLE:
+    elif NATIVE_INTERPRETER_TOOL_AVAILABLE:
         system_message += """
-- open_interpreter_agent: Gera e executa código localmente (Python, Shell, etc.)
+- native_code_interpreter: Interpretador de código nativo (reimplementação)
+  Gera código usando LLM (Ollama) e executa código real via subprocess
   Use quando precisar: executar código, criar scripts, processar dados, etc.
+  Suporta: Python, Shell, JavaScript, HTML, etc. (funcionalidades parciais)
   Retorna: JSON com "success", "output", "code_executed", "errors"
   Exemplo: {"success": true, "output": "Resultado da execução", "code_executed": "print('Hello')", "errors": []}
 """
@@ -169,12 +187,12 @@ REGRAS:
 
 EXEMPLOS:
 - Usuário: "Executa um código para abrir o navegador"
-  → Você: Chama native_code_interpreter("Crie um código Python que abre o navegador padrão")
+  → Você: Chama open_interpreter_agent("Crie um código Python que abre o navegador padrão")
   → Resposta: {"success": true, "output": "Navegador aberto", "code_executed": "import webbrowser; webbrowser.open('http://localhost')", "errors": []}
   → Você: "✅ Navegador aberto com sucesso!"
 
 - Usuário: "Crie um arquivo texto com 'Hello World'"
-  → Você: Chama native_code_interpreter("Crie um arquivo texto chamado hello.txt com o conteúdo 'Hello World'")
+  → Você: Chama open_interpreter_agent("Crie um arquivo texto chamado hello.txt com o conteúdo 'Hello World'")
   → Resposta: {"success": true, "output": "Arquivo criado", "code_executed": "with open('hello.txt', 'w') as f: f.write('Hello World')", "errors": []}
   → Você: "✅ Arquivo hello.txt criado com sucesso!"
 

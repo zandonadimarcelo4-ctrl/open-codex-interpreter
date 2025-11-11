@@ -69,9 +69,6 @@ PARAMETER num_batch 2048
 # RTX 4080 Super 16GB: usar todas as camadas na GPU para máxima performance
 PARAMETER num_gpu 99
 
-# Flash Attention: habilitado (acelera muito em RTX)
-PARAMETER flash_attention true
-
 # Stop sequences (padrão DeepSeek-Coder-V2)
 PARAMETER stop "<|start_header_id|>"
 PARAMETER stop "<|end_header_id|>"
@@ -95,16 +92,4 @@ PARAMETER mirostat 0
 
 # Penalize newlines: false (permitir múltiplas linhas de código)
 PARAMETER penalize_newline false
-
-# Logits all: false (não retornar todos os logits, economiza memória GPU)
-PARAMETER logits_all false
-
-# Use mmap: true (mapeamento de memória, mais eficiente em GPU)
-PARAMETER use_mmap true
-
-# Use mlock: false (não travar memória, deixa GPU gerenciar)
-PARAMETER use_mlock false
-
-# NUMA: false (NVIDIA não precisa de NUMA)
-PARAMETER numa false
 

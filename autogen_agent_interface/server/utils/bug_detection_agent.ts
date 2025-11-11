@@ -238,7 +238,7 @@ export async function detectBugsInFiles(
 /**
  * Gerar relatório de bugs
  */
-export function generateBugReport(result: BugDetectionResult): string {
+export function generateBugReport(result: BugDetectionResult, language: string = 'unknown'): string {
   let report = `# 🐛 Bug Detection Report\n\n`;
   
   report += `## Summary\n\n`;

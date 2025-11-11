@@ -411,6 +411,100 @@ Sugira comandos diretos como:
       // O Code Executor já funciona bem e é mais rápido
       console.log(`[AutoGen] 🔧 Processando tarefa complexa com Code Executor...`);
       
+      // Verificar se é uma tarefa de geração de código
+      const isCodeGenerationTask = task.toLowerCase().includes('write') || 
+                                   task.toLowerCase().includes('create') || 
+                                   task.toLowerCase().includes('generate') ||
+                                   task.toLowerCase().includes('make') ||
+                                   task.toLowerCase().includes('build');
+      
+      // Se for tarefa de geração de código, usar Code Router
+      if (isCodeGenerationTask && (intent.type === "action" || intent.actionType === "code")) {
+        try {
+          const { generateCode, estimateCodeComplexity } = await import("./code_router");
+          const language = detectLanguage(task);
+          const complexity = estimateCodeComplexity(task);
+          
+          console.log(`[AutoGen] 🎯 Gerando código: linguagem=${language}, complexidade=${complexity}`);
+          
+          const codeResult = await generateCode({
+            description: task,
+            language,
+            context: JSON.stringify(context),
+            complexity
+          });
+          
+          console.log(`[AutoGen] ✅ Código gerado com sucesso usando ${codeResult.model} (${codeResult.executionTime}ms)`);
+          
+          // Executar código gerado
+          const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
+          const { verifyCodeExecution } = await import("./verification_agent");
+          
+          const codeBlocks = [{ language: codeResult.language, code: codeResult.code }];
+          
+          if (codeBlocks.length > 0) {
+            console.log(`[AutoGen] 📝 Executando código gerado...`);
+            const results = await executeCodeBlocks(codeBlocks, {
+              timeout: 60000,
+              workspace: process.cwd(),
+              autoApprove: true,
+            });
+            
+            // Verificar qualidade
+            console.log(`[AutoGen] 🔍 Verificando qualidade do código...`);
+            const verificationResults = await Promise.all(
+              results.map(async (result, i) => {
+                const verification = await verifyCodeExecution(
+                  codeBlocks[i].code,
+                  result,
+                  { task, context }
+                );
+                return { result, verification, codeBlock: codeBlocks[i] };
+              })
+            );
+            
+            // Formatar resultados
+            let resultText = `✅ Código gerado e executado com sucesso!\n\n`;
+            resultText += `**Modelo usado**: ${codeResult.model}\n`;
+            resultText += `**Linguagem**: ${codeResult.language}\n`;
+            resultText += `**Complexidade**: ${complexity}\n`;
+            resultText += `**Tempo de geração**: ${codeResult.executionTime}ms\n\n`;
+            
+            for (let i = 0; i < verificationResults.length; i++) {
+              const { result, verification, codeBlock } = verificationResults[i];
+              const qualityEmoji = verification.quality === "excellent" ? "✨" :
+                                  verification.quality === "good" ? "✅" :
+                                  verification.quality === "fair" ? "⚠️" : "❌";
+              
+              resultText += `${qualityEmoji} **Código ${i + 1} (${result.language}) - Qualidade: ${verification.quality}:**\n`;
+              resultText += `\`\`\`${result.language}\n${codeBlock.code}\n\`\`\`\n\n`;
+              
+              if (result.success) {
+                resultText += `**Saída:**\n\`\`\`\n${result.output}\n\`\`\`\n\n`;
+              } else {
+                resultText += `**Erro:**\n\`\`\`\n${result.error}\n\`\`\`\n\n`;
+              }
+              
+              if (verification.issues.length > 0) {
+                resultText += `**⚠️ Problemas identificados:**\n`;
+                for (const issue of verification.issues) {
+                  resultText += `- ${issue.severity.toUpperCase()}: ${issue.message}\n`;
+                  if (issue.suggestion) {
+                    resultText += `  💡 Sugestão: ${issue.suggestion}\n`;
+                  }
+                }
+                resultText += `\n`;
+              }
+            }
+            
+            return resultText;
+          }
+        } catch (error: any) {
+          console.error(`[AutoGen] ❌ Erro ao gerar código:`, error);
+          // Continuar com fluxo normal se geração de código falhar
+        }
+      }
+      
       // Extrair código da tarefa se houver
       const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
       const { verifyCodeExecution } = await import("./verification_agent");

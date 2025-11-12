@@ -70,6 +70,16 @@ Suporta:
 - **Funcionalidades**: [FUNCIONALIDADES_STATUS.md](./FUNCIONALIDADES_STATUS.md)
 - **Setup**: Veja `autogen_agent_interface/env.example`
 
+### 🎓 Guias para Iniciantes
+
+**Novo no projeto? Comece aqui:**
+
+- 📖 **[GUIA_PARA_INICIANTES.md](./GUIA_PARA_INICIANTES.md)** - Guia completo explicando a arquitetura do projeto usando conceitos básicos de Python
+- 📊 **[DIAGRAMA_VISUAL.md](./DIAGRAMA_VISUAL.md)** - Diagramas visuais mostrando como o sistema funciona
+- 🏗️ **[AUTOGEN_COMANDA_TUDO.md](./AUTOGEN_COMANDA_TUDO.md)** - Documentação técnica sobre como o AutoGen comanda tudo
+
+**Se você sabe Python básico (variáveis, if/else, loops, funções), você consegue entender e modificar este projeto!** 🚀
+
 ## 🛠️ Scripts Disponíveis
 
 ```bash

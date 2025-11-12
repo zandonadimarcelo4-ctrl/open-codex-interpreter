@@ -30,6 +30,18 @@ import argparse
 from pathlib import Path
 from typing import List, Optional
 import platform
+import io
+
+# Configurar encoding UTF-8 no Windows ANTES de qualquer print
+if platform.system() == 'Windows':
+    try:
+        # Tentar configurar stdout para UTF-8
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 # Cores para terminal (Windows/Linux/Mac)
 class Colors:
@@ -55,7 +67,7 @@ class Colors:
         Colors.MAGENTA = ''
         Colors.CYAN = ''
 
-# Desabilitar cores no Windows se necessário
+# Configurar colorama no Windows
 if platform.system() == 'Windows':
     try:
         import colorama
@@ -517,14 +529,22 @@ def main():
     parser.add_argument("--no-frontend", action="store_true", help="Não inicia o servidor TypeScript")
     args = parser.parse_args()
     
-    # Banner
-    print(f"""
+    # Banner (sem emojis para evitar problemas de encoding no Windows)
+    try:
+        print(f"""
 {Colors.BOLD}{Colors.CYAN}
 ╔══════════════════════════════════════════════════════════════╗
-║   🚀 Super Agent - Iniciar Servidores e Fazer Build         ║
+║   Super Agent - Iniciar Servidores e Fazer Build             ║
 ╚══════════════════════════════════════════════════════════════╝
 {Colors.RESET}
-    """)
+        """)
+    except UnicodeEncodeError:
+        # Fallback para ASCII se houver erro de encoding
+        print("""
+===========================================================================
+   Super Agent - Iniciar Servidores e Fazer Build
+===========================================================================
+        """)
     
     # Verificar dependências
     if not check_dependencies():
@@ -569,30 +589,53 @@ def main():
         else:
             print_warning("Erro ao iniciar frontend Streamlit (continuando sem ele)")
     
-    # Informações finais
-    print(f"""
+    # Informações finais (sem emojis para evitar problemas de encoding)
+    try:
+        print(f"""
 {Colors.BOLD}{Colors.GREEN}
 ╔══════════════════════════════════════════════════════════════╗
-║   ✅ Servidores Iniciados com Sucesso!                       ║
+║   Servidores Iniciados com Sucesso!                          ║
 ╚══════════════════════════════════════════════════════════════╝
 {Colors.RESET}
-    """)
+        """)
+    except UnicodeEncodeError:
+        print("""
+===========================================================================
+   Servidores Iniciados com Sucesso!
+===========================================================================
+        """)
     
-    if not args.no_backend:
-        print(f"{Colors.GREEN}✓ Backend Python:{Colors.RESET} http://localhost:8000")
-        print(f"{Colors.GREEN}✓ WebSocket:{Colors.RESET} ws://localhost:8000/ws")
+    try:
+        if not args.no_backend:
+            print(f"{Colors.GREEN}[OK] Backend Python:{Colors.RESET} http://localhost:8000")
+            print(f"{Colors.GREEN}[OK] WebSocket:{Colors.RESET} ws://localhost:8000/ws")
+        
+        if not args.no_frontend:
+            print(f"{Colors.GREEN}[OK] Frontend React (Apple):{Colors.RESET} http://localhost:3000")
+        
+        if args.streamlit:
+            print(f"{Colors.GREEN}[OK] Frontend Streamlit (Basico):{Colors.RESET} http://localhost:8501")
+    except UnicodeEncodeError:
+        if not args.no_backend:
+            print("[OK] Backend Python: http://localhost:8000")
+            print("[OK] WebSocket: ws://localhost:8000/ws")
+        
+        if not args.no_frontend:
+            print("[OK] Frontend React (Apple): http://localhost:3000")
+        
+        if args.streamlit:
+            print("[OK] Frontend Streamlit (Basico): http://localhost:8501")
     
-    if not args.no_frontend:
-        print(f"{Colors.GREEN}✓ Frontend React (Apple):{Colors.RESET} http://localhost:3000")
-    
-    if args.streamlit:
-        print(f"{Colors.GREEN}✓ Frontend Streamlit (Básico):{Colors.RESET} http://localhost:8501")
-    
-    print(f"""
+    try:
+        print(f"""
 {Colors.YELLOW}
 Pressione Ctrl+C para encerrar os servidores
 {Colors.RESET}
-    """)
+        """)
+    except UnicodeEncodeError:
+        print("""
+Pressione Ctrl+C para encerrar os servidores
+        """)
     
     # Aguardar processos
     try:

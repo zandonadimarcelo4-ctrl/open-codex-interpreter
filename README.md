@@ -4,7 +4,50 @@ Sistema completo de agentes AI colaborativos com AutoGen Framework, otimizado pa
 
 ## ⚡ Início Rápido
 
-### Opção 1: Script Moderno (Recomendado) ✨
+### Opção 1: Script Python Completo (Recomendado) ⭐
+
+**Windows:**
+```bash
+iniciar_servidor.bat
+```
+
+**Linux/Mac:**
+```bash
+python iniciar_servidor.py
+```
+
+Este script:
+- ✅ Faz build do frontend React (Apple)
+- ✅ Inicia o backend Python (FastAPI) na porta 8000
+- ✅ Inicia o servidor TypeScript (frontend React) na porta 3000
+- ✅ Opcionalmente inicia o frontend Streamlit (básico) na porta 8501
+- ✅ Verifica dependências automaticamente
+- ✅ Gerencia processos de forma organizada
+
+**Opções disponíveis:**
+```bash
+# Iniciar todos os servidores
+iniciar_servidor.bat
+
+# Iniciar com Streamlit também
+iniciar_servidor.bat --streamlit
+
+# Apenas backend Python
+iniciar_servidor.bat --no-frontend --no-build
+
+# Apenas frontend React
+iniciar_servidor.bat --no-backend
+
+# Ver todas as opções
+iniciar_servidor.bat --help
+```
+
+**Scripts auxiliares:**
+- `iniciar_servidor_streamlit.bat` - Inicia todos os servidores incluindo Streamlit
+- `iniciar_servidor_backend_only.bat` - Inicia apenas o backend Python
+- `iniciar_servidor_frontend_only.bat` - Inicia apenas o frontend React
+
+### Opção 2: Script Moderno (TypeScript apenas)
 
 **Windows:**
 ```bash
@@ -29,7 +72,7 @@ O script moderno:
 - ✅ Output colorido e informativo
 - ✅ Cross-platform (Windows/Linux/Mac)
 
-### Opção 2: Manual
+### Opção 3: Manual
 
 ```bash
 cd autogen_agent_interface

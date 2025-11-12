@@ -74,11 +74,37 @@ Suporta:
 
 **Novo no projeto? Comece aqui:**
 
-- 📖 **[GUIA_PARA_INICIANTES.md](./GUIA_PARA_INICIANTES.md)** - Guia completo explicando a arquitetura do projeto usando conceitos básicos de Python
+- 🚀 **[PRIMEIRO_PASSO.md](./PRIMEIRO_PASSO.md)** ⭐ **COMECE AQUI!** - Execute o programa agora (super simples!)
+- 📖 **[COMECE_AQUI.md](./COMECE_AQUI.md)** - Guia completo para iniciantes (só Python básico!)
+- 📊 **[GUIA_PARA_INICIANTES.md](./GUIA_PARA_INICIANTES.md)** - Guia completo explicando a arquitetura do projeto usando conceitos básicos de Python
 - 📊 **[DIAGRAMA_VISUAL.md](./DIAGRAMA_VISUAL.md)** - Diagramas visuais mostrando como o sistema funciona
 - 🏗️ **[AUTOGEN_COMANDA_TUDO.md](./AUTOGEN_COMANDA_TUDO.md)** - Documentação técnica sobre como o AutoGen comanda tudo
+- 📘 **[GUIA_TYPESCRIPT_PARA_INICIANTES.md](./GUIA_TYPESCRIPT_PARA_INICIANTES.md)** - Guia TypeScript em português para iniciantes
+- 🐍 **[GUIA_PYTHON_PURO.md](./GUIA_PYTHON_PURO.md)** - Guia Python puro (100% Python, sem TypeScript)
+- 🐍 **[BACKEND_PYTHON_SIMPLES.md](./BACKEND_PYTHON_SIMPLES.md)** ⭐ **BACKEND 100% PYTHON** - Backend Python simplificado para iniciantes
+- 🎨 **[Frontends Disponíveis](./super_agent/README_FRONTENDS.md)** - Guia dos frontends (Streamlit simples e React estilo Apple)
 
 **Se você sabe Python básico (variáveis, if/else, loops, funções), você consegue entender e modificar este projeto!** 🚀
+
+### 🎯 Versões Disponíveis
+
+#### 1. **Backend TypeScript + Frontend React** (Original)
+- Backend: TypeScript/Node.js
+- Frontend: React/TypeScript
+- **Para**: Desenvolvedores que conhecem TypeScript
+
+#### 2. **Backend Python + Frontend Streamlit** ⭐ **RECOMENDADO PARA INICIANTES**
+- Backend: Python (FastAPI)
+- Frontend: Streamlit (Python)
+- **Para**: Iniciantes que só sabem Python básico
+- **Arquivos**: `super_agent/backend_python.py`, `super_agent/frontend_streamlit.py`
+
+#### 3. **Backend Python + Frontend React** (Híbrido)
+- Backend: Python (FastAPI)
+- Frontend: React/TypeScript
+- **Para**: Quem quer backend Python com frontend bonito
+
+**Todas as versões mantêm TODAS as funcionalidades!** 🚀
 
 ## 🛠️ Scripts Disponíveis
 

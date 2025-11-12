@@ -39,20 +39,23 @@ uvicorn>=0.24.0
 
 # Web Automation
 selenium>=4.0.0
+webdriver-manager>=4.0.0
 playwright>=1.40.0
 
 # GUI Automation (UFO + PyAutoGUI)
+# OpenCV deve ser < 4.10.0 para compatibilidade com NumPy < 2.0
 pyautogui>=0.9.54
 pygetwindow>=0.0.9
 pyscreeze>=1.0.1
-opencv-python>=4.8.0
+opencv-python>=4.8.0,<4.10.0
 Pillow>=10.0.0
 
 # ChromaDB - Memória Vetorial Persistente
 chromadb>=0.4.0
 
-# NumPy
-numpy>=1.24.0
+# NumPy - Versão < 2.0 para compatibilidade com OpenCV e outras bibliotecas
+# OpenCV foi compilado com NumPy 1.x e não é compatível com NumPy 2.x
+numpy>=1.24.0,<2.0.0
 
 # Logging
 loguru>=0.7.0

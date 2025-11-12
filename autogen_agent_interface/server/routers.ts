@@ -355,7 +355,36 @@ export const appRouter = router({
         const userId = ctx.user?.id || 1; // ID demo padrão
         
         // Detectar intenção da mensagem (função local)
-        const intent = detectIntentLocal(input.message);
+        // Detecção de intenção híbrida (regras rápidas + LLM para casos complexos)
+        let intent: { type: string; confidence: number; actionType?: string; reason?: string };
+        try {
+          // Primeiro: tentar regras rápidas (baixa latência)
+          const rulesIntent = detectIntentLocal(input.message);
+          
+          // Se confiança alta (>0.9), usar diretamente
+          if (rulesIntent.confidence > 0.9) {
+            intent = rulesIntent;
+            console.log(`[Chat] ✅ Intent detectado por regras: ${intent.type} (confiança: ${intent.confidence})`);
+          } else {
+            // Casos ambíguos: usar LLM (classificação mais precisa)
+            console.log(`[Chat] 🔄 Intent ambíguo (confiança: ${rulesIntent.confidence}), usando LLM...`);
+            const { classifyIntentHybrid } = await import("./utils/intent_classifier_bridge");
+            const llmIntent = await classifyIntentHybrid(input.message, rulesIntent);
+            
+            // Converter formato LLM para formato local
+            intent = {
+              type: llmIntent.intent === "execution" ? "action" : llmIntent.intent,
+              confidence: llmIntent.confidence,
+              actionType: llmIntent.action_type || undefined,
+              reason: llmIntent.reasoning,
+            };
+            console.log(`[Chat] ✅ Intent detectado por LLM: ${intent.type} (confiança: ${intent.confidence})`);
+          }
+        } catch (error) {
+          // Fallback para regras se LLM falhar
+          console.warn(`[Chat] ⚠️ Erro ao usar LLM para classificação, usando regras: ${error}`);
+          intent = detectIntentLocal(input.message);
+        }
         
         // Extrair blocos de código da mensagem
         const codeBlocks = extractCodeBlocks(input.message);

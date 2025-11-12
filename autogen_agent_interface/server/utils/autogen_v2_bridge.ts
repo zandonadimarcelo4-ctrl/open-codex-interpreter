@@ -77,11 +77,12 @@ import sys
 sys.path.insert(0, "${path.join(__dirname, "../../../super_agent")}")
 try:
     from autogen_agentchat.agents import AssistantAgent
-    from autogen_agentchat.teams import RoundRobinTeam
+    from autogen_agentchat.teams import RoundRobinGroupChat
     from autogen_ext.models.ollama import OllamaChatCompletionClient
     print("SUCCESS")
 except ImportError as e:
-    print(f"IMPORT_ERROR: {e}")
+    error_msg = "IMPORT_ERROR: " + str(e)
+    print(error_msg)
     sys.exit(1)
 `;
 
@@ -139,7 +140,7 @@ export async function executeWithAutoGenV2(
         context: request.context || {},
         userId: request.userId || "default",
         conversationId: request.conversationId || 0,
-        model: request.model || process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx",
+        model: request.model || process.env.DEFAULT_MODEL || "qwen2.5:7b",
       });
 
       // Criar script Python temporário que chama o orchestrator
@@ -156,50 +157,74 @@ sys.path.insert(0, str(super_agent_path))
 
 # Configurar variáveis de ambiente
 os.environ.setdefault("OLLAMA_BASE_URL", "${process.env.OLLAMA_BASE_URL || "http://localhost:11434"}")
-os.environ.setdefault("DEFAULT_MODEL", "${process.env.DEFAULT_MODEL || "deepseek-coder-v2-16b-q4_k_m-rtx"}")
+os.environ.setdefault("DEFAULT_MODEL", "${process.env.DEFAULT_MODEL || "qwen2.5:7b"}")
 
 try:
-    from super_agent.core.orchestrator import SuperAgentOrchestrator, SuperAgentConfig
-    
     # Ler payload do stdin
     payload_str = sys.stdin.read()
     payload = json.loads(payload_str)
     
-    # Configurar AutoGen v2
-    config = SuperAgentConfig(
-        autogen_model=payload.get("model", "deepseek-coder-v2-16b-q4_k_m-rtx"),
-        autogen_base_url="${process.env.OLLAMA_BASE_URL || "http://localhost:11434"}",
-        autogen_api_key=None,  # Usar Ollama
-        workspace=Path("${process.cwd()}"),
-        memory_enabled=True,
-        chromadb_path=Path("${path.join(process.cwd(), "super_agent/memory")}"),
-        open_interpreter_enabled=True,
-        open_interpreter_auto_run=True,
-        ufo_enabled=False,
-        multimodal_enabled=False,
+    # Usar simple_commander (mais simples e direto, evita importações desnecessárias)
+    from super_agent.core.simple_commander import create_simple_commander
+    from autogen_agentchat.teams import RoundRobinGroupChat
+    
+    # Criar comandante AutoGen com Open Interpreter integrado diretamente (não como ferramenta)
+    # O AutonomousInterpreterAgent reutiliza 100% da lógica do Open Interpreter
+    # AutoGen comanda TUDO - Open Interpreter está integrado diretamente na lógica
+    
+    # Calcular workdir (dentro do Python, não no template TypeScript)
+    workspace_path = os.environ.get("WORKSPACE_PATH")
+    if not workspace_path:
+        workspace_path = str(Path.cwd() / "workspace")
+    
+    commander = create_simple_commander(
+        model=payload.get("model", "${process.env.DEFAULT_MODEL || "qwen2.5:7b"}"),
+        api_base="${process.env.OLLAMA_BASE_URL || "http://localhost:11434"}",
+        use_autonomous_agent=True,  # ✅ Open Interpreter integrado diretamente (não como ferramenta)
+        workdir=workspace_path,
+        executor_model="${process.env.EXECUTOR_MODEL || "qwen2.5-coder:7b"}",
     )
     
-    # Criar orchestrator
-    orchestrator = SuperAgentOrchestrator(config)
+    # Criar team com comandante (RoundRobinGroupChat é a API correta do AutoGen v2 0.7.5)
+    team = RoundRobinGroupChat(agents=[commander])
     
     # Executar tarefa
     async def run_task():
         try:
-            result = await orchestrator.execute(
-                task=payload["task"],
-                context=payload.get("context", {})
+            # Executar tarefa usando o team
+            import asyncio
+            from autogen_agentchat.messages import TextMessage
+            
+            # Criar mensagem
+            message = TextMessage(
+                content=payload["task"],
+                source="user"
             )
+            
+            # Executar team
+            result = await team.run(task=payload["task"])
+            
+            # Extrair resposta
+            if result and len(result.messages) > 0:
+                last_message = result.messages[-1]
+                response_text = last_message.content if hasattr(last_message, 'content') else str(last_message)
+            else:
+                response_text = "Tarefa executada, mas nenhuma resposta foi gerada"
+            
             return {
                 "success": True,
-                "result": str(result.get("result", result)),
-                "executionTime": result.get("executionTime", 0),
-                "agent": result.get("agent", "autogen_v2"),
-                "tools": result.get("tools", [])
+                "result": response_text,
+                "executionTime": 0,  # TODO: calcular tempo de execução
+                "agent": "autogen_commander",
+                "tools": ["open_interpreter_agent", "web_browsing"]  # Tools disponíveis
             }
         except Exception as e:
+            import traceback
+            error_msg = str(e)
+            traceback_msg = traceback.format_exc()
             return {
                 "success": False,
-                "error": str(e)
+                "error": error_msg + "\\n" + traceback_msg
             }
     
     # Executar async
@@ -207,15 +232,17 @@ try:
     print(json.dumps(result))
     
 except ImportError as e:
+    error_msg = "AutoGen v2 não disponível: " + str(e)
     print(json.dumps({
         "success": False,
-        "error": f"AutoGen v2 não disponível: {e}"
+        "error": error_msg
     }))
     sys.exit(1)
 except Exception as e:
+    error_msg = "Erro ao executar: " + str(e)
     print(json.dumps({
         "success": False,
-        "error": f"Erro ao executar: {e}"
+        "error": error_msg
     }))
     sys.exit(1)
 `;

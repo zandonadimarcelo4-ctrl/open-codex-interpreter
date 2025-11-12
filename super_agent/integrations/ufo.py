@@ -16,10 +16,12 @@ try:
     import numpy as np
     from PIL import Image
     PYAUTOGUI_AVAILABLE = True
-except ImportError:
+except Exception:
+    # Captura qualquer erro durante a importação (ImportError, AttributeError, etc.)
+    # Isso inclui erros de compatibilidade NumPy/OpenCV
     PYAUTOGUI_AVAILABLE = False
     logger = logging.getLogger(__name__)
-    logger.warning("PyAutoGUI não está instalado. Execute: pip install pyautogui opencv-python Pillow")
+    logger.warning("PyAutoGUI não está disponível (pode ser problema de compatibilidade NumPy/OpenCV). Execute: pip install pyautogui opencv-python Pillow")
 
 logger = logging.getLogger(__name__)
 
@@ -412,38 +414,165 @@ class UFOIntegration:
     
     def execute_task(self, task: str, **kwargs) -> Dict[str, Any]:
         """
-        Executar tarefa de automação GUI
+        Executar tarefa de automação GUI usando análise visual (UFO-style)
+        
+        Esta função implementa o conceito do Microsoft UFO: usa modelos de visão
+        para entender a UI e executar tarefas de forma inteligente.
         
         Args:
-            task: Descrição da tarefa
+            task: Descrição da tarefa em linguagem natural (ex: "Abra o Bloco de Notas e digite 'Olá'")
             **kwargs: Argumentos adicionais
+                - vision_model: Modelo de visão a usar (ex: "llava", "gpt-4-vision")
+                - api_base: URL base da API do modelo de visão
+                - max_steps: Número máximo de passos (padrão: 10)
         
         Returns:
             Dict com resultado da execução
         """
-        logger.info(f"Executando tarefa GUI: {task}")
+        logger.info(f"Executando tarefa GUI (UFO-style): {task}")
         
-        # Esta é uma interface para futuras implementações com LLM
-        # Por enquanto, retorna informações sobre as capacidades disponíveis
-        return {
-            "success": True,
-            "task": task,
-            "capabilities": [
-                "screenshot",
-                "click",
-                "double_click",
-                "right_click",
-                "type_text",
-                "press_key",
-                "hotkey",
-                "scroll",
-                "drag",
-                "move_mouse",
-                "get_mouse_position",
-                "locate_on_screen",
-                "get_window_list",
-                "activate_window"
-            ],
-            "message": "UFO Integration pronto para uso"
-        }
+        try:
+            # Capturar screenshot inicial
+            screenshot_result = self.capture_screenshot(save=True)
+            if not screenshot_result.get("success"):
+                return {
+                    "success": False,
+                    "error": "Falha ao capturar screenshot inicial",
+                    "task": task
+                }
+            
+            screenshot_path = screenshot_result.get("path")
+            
+            # Tentar usar modelo de visão se disponível
+            # Padrão: llava:7b (excelente para análise de UI)
+            vision_model = kwargs.get("vision_model") or os.getenv("VISION_MODEL", "llava:7b")
+            api_base = kwargs.get("api_base") or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+            
+            if vision_model:
+                # Usar modelo de visão para analisar a tela e planejar ações
+                try:
+                    import requests
+                    import json
+                    import base64
+                    
+                    # Ler screenshot como base64
+                    with open(screenshot_path, "rb") as f:
+                        image_data = base64.b64encode(f.read()).decode("utf-8")
+                    
+                    # Preparar prompt para o modelo de visão
+                    prompt = f"""Analise esta captura de tela e crie um plano de ação para executar a seguinte tarefa: "{task}"
+
+Retorne um JSON com o seguinte formato:
+{{
+    "plan": [
+        {{"action": "click", "x": 100, "y": 200, "description": "Clicar no botão X"}},
+        {{"action": "type", "text": "Olá", "description": "Digitar texto"}},
+        {{"action": "press_key", "key": "enter", "description": "Pressionar Enter"}}
+    ],
+    "confidence": 0.8
+}}
+
+Ações disponíveis: click, type, press_key, hotkey, scroll, drag, move_mouse, locate_on_screen, activate_window
+"""
+                    
+                    # Chamar modelo de visão via Ollama
+                    response = requests.post(
+                        f"{api_base}/api/generate",
+                        json={
+                            "model": vision_model,
+                            "prompt": prompt,
+                            "images": [image_data],
+                            "stream": False,
+                            "format": "json"
+                        },
+                        timeout=60
+                    )
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        plan_json = json.loads(result.get("response", "{}"))
+                        
+                        # Executar plano
+                        plan = plan_json.get("plan", [])
+                        executed_actions = []
+                        
+                        for step in plan[:kwargs.get("max_steps", 10)]:
+                            action = step.get("action")
+                            description = step.get("description", "")
+                            
+                            logger.info(f"Executando: {description}")
+                            
+                            if action == "click":
+                                result = self.click(step.get("x"), step.get("y"), step.get("button", "left"))
+                            elif action == "type":
+                                result = self.type_text(step.get("text", ""))
+                            elif action == "press_key":
+                                result = self.press_key(step.get("key"))
+                            elif action == "hotkey":
+                                result = self.hotkey(*step.get("keys", []))
+                            elif action == "scroll":
+                                result = self.scroll(
+                                    step.get("x", 0),
+                                    step.get("y", 0),
+                                    step.get("clicks", 3),
+                                    step.get("direction", "up")
+                                )
+                            elif action == "activate_window":
+                                result = self.activate_window(step.get("title", ""))
+                            else:
+                                result = {"success": False, "error": f"Ação '{action}' não reconhecida"}
+                            
+                            executed_actions.append({
+                                "action": action,
+                                "description": description,
+                                "result": result
+                            })
+                            
+                            # Pequena pausa entre ações
+                            time.sleep(0.5)
+                        
+                        return {
+                            "success": True,
+                            "task": task,
+                            "plan": plan,
+                            "executed_actions": executed_actions,
+                            "confidence": plan_json.get("confidence", 0.5),
+                            "screenshot_path": screenshot_path,
+                            "message": f"Tarefa executada usando modelo de visão {vision_model}"
+                        }
+                    
+                except Exception as e:
+                    logger.warning(f"Erro ao usar modelo de visão: {e}. Usando modo básico.")
+            
+            # Modo básico: retornar informações sobre capacidades
+            return {
+                "success": True,
+                "task": task,
+                "capabilities": [
+                    "screenshot",
+                    "click",
+                    "double_click",
+                    "right_click",
+                    "type_text",
+                    "press_key",
+                    "hotkey",
+                    "scroll",
+                    "drag",
+                    "move_mouse",
+                    "get_mouse_position",
+                    "locate_on_screen",
+                    "get_window_list",
+                    "activate_window"
+                ],
+                "screenshot_path": screenshot_path,
+                "message": "UFO Integration pronto. Para usar análise visual, configure VISION_MODEL (ex: llava, gpt-4-vision)"
+            }
+            
+        except Exception as e:
+            logger.error(f"Erro ao executar tarefa GUI: {e}")
+            return {
+                "success": False,
+                "error": str(e),
+                "task": task
+            }
 

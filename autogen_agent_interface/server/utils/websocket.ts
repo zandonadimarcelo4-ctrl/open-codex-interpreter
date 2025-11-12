@@ -5,7 +5,6 @@
 import { WebSocketServer, WebSocket } from "ws";
 import { Server } from "http";
 import { IncomingMessage } from "http";
-import { detectIntent } from "../../client/src/utils/intentDetector";
 import { executeWithAutoGen } from "./autogen";
 
 export interface WebSocketMessage {
@@ -101,8 +100,36 @@ export class ChatWebSocketServer {
         timestamp: new Date().toISOString(),
       });
 
-      // Detectar intenção
-      const intent = detectIntent(text);
+      // Detectar intenção (usando mesma lógica do routers.ts)
+      let intent: { type: string; confidence: number; actionType?: string; reason?: string };
+      try {
+        // Primeiro: tentar regras rápidas (baixa latência)
+        const rulesIntent = detectIntentLocal(text);
+        
+        // Se confiança alta (>0.9), usar diretamente
+        if (rulesIntent.confidence > 0.9) {
+          intent = rulesIntent;
+          console.log(`[WebSocket] ✅ Intent detectado por regras: ${intent.type} (confiança: ${intent.confidence})`);
+        } else {
+          // Casos ambíguos: usar LLM (classificação mais precisa)
+          console.log(`[WebSocket] 🔄 Intent ambíguo (confiança: ${rulesIntent.confidence}), usando LLM...`);
+          const { classifyIntentHybrid } = await import("./intent_classifier_bridge");
+          const llmIntent = await classifyIntentHybrid(text, rulesIntent);
+          
+          // Converter formato LLM para formato local
+          intent = {
+            type: llmIntent.intent === "execution" ? "action" : llmIntent.intent,
+            confidence: llmIntent.confidence,
+            actionType: llmIntent.action_type || undefined,
+            reason: llmIntent.reasoning,
+          };
+          console.log(`[WebSocket] ✅ Intent detectado por LLM: ${intent.type} (confiança: ${intent.confidence})`);
+        }
+      } catch (error) {
+        // Fallback para regras se LLM falhar
+        console.warn(`[WebSocket] ⚠️ Erro ao usar LLM para classificação, usando regras: ${error}`);
+        intent = detectIntentLocal(text);
+      }
 
       // Atualizar agentes ativos
       this.send(ws, {
@@ -171,5 +198,117 @@ export class ChatWebSocketServer {
   getConnectionCount(): number {
     return this.connections.size;
   }
+}
+
+/**
+ * Detecção de intenção local (regras rápidas)
+ * Mesma lógica do routers.ts
+ */
+function detectIntentLocal(message: string): { type: string; confidence: number; actionType?: string; reason?: string } {
+  const lowerMessage = message.toLowerCase();
+  
+  // Palavras-chave para comandos diretos (alta prioridade) - EXECUTAR AUTOMATICAMENTE
+  const commandKeywords = [
+    'faça', 'execute', 'rode', 'crie', 'delete', 'executa', 'abrir', 'abre', 
+    'abrir meu', 'abrir o', 'abrir a', 'abre meu', 'abre o', 'abre a', 
+    'abrir vs code', 'abrir code', 'executa vs code', 'executa code', 
+    'abre vs code', 'abre code', 'fazer', 'faz', 'criar', 'cria',
+    'rodar', 'roda', 'iniciar', 'inicia', 'abrir aplicativo', 'abrir programa',
+    'executar', 'rodar aplicativo', 'rodar programa', 'abrir arquivo',
+    'criar arquivo', 'escrever código', 'buscar', 'pesquisar', 'pesquisa',
+    'instalar', 'instala', 'baixar', 'baixa', 'copiar', 'copia', 'mover', 'move',
+    'deletar', 'apagar', 'apaga', 'editar', 'edita', 'modificar', 'modifica'
+  ];
+  
+  // Palavras-chave para ações (média prioridade) - EXECUTAR AUTOMATICAMENTE
+  const actionKeywords = [
+    'criar', 'fazer', 'executar', 'rodar', 'buscar', 'pesquisar', 
+    'criar arquivo', 'escrever código', 'abrir aplicativo', 'abrir programa', 
+    'iniciar', 'inicia', 'rodar aplicativo', 'rodar programa', 'abrir arquivo',
+    'instalar', 'baixar', 'copiar', 'mover', 'deletar', 'apagar', 'editar', 'modificar'
+  ];
+  
+  // Palavras-chave para conversa/cumprimentos (alta prioridade - NÃO executar)
+  const conversationKeywords = [
+    'tudo bem', 'tudo bom', 'tudo certo', 'tudo certo?', 'tudo bem?', 'tudo bom?',
+    'eai', 'e aí', 'e ai', 'eae', 'e aê',
+    'oi', 'olá', 'opa', 'eae', 'e aê',
+    'como vai', 'como está', 'como vai?', 'como está?',
+    'beleza', 'beleza?', 'tranquilo', 'tranquilo?',
+    'bom dia', 'boa tarde', 'boa noite',
+    'tchau', 'até logo', 'até mais', 'falou',
+    'obrigado', 'obrigada', 'valeu', 'vlw',
+    'ok', 'okay', 'ok?', 'okay?',
+    'sim', 'não', 'talvez',
+    'entendi', 'entendeu?', 'sabe?',
+    'legal', 'massa', 'top', 'show'
+  ];
+  
+  // Palavras-chave para perguntas (apenas perguntas explícitas)
+  const questionKeywords = ['o que é', 'o que significa', 'como funciona', 'quando usar', 'onde fica', 'quem é', 'qual é', 'por que', 'explique', 'me diga sobre', 'me fale sobre', 'o que é isso', 'o que é aquilo'];
+  
+  // Verificar comandos diretos primeiro (maior confiança) - SEMPRE EXECUTAR
+  if (commandKeywords.some(kw => lowerMessage.includes(kw))) {
+    // Detectar tipo de ação específica
+    let actionType = 'execute';
+    if (lowerMessage.includes('abrir') || lowerMessage.includes('abre') || lowerMessage.includes('pesquisar') || lowerMessage.includes('pesquisa')) {
+      actionType = 'web';
+    } else if (lowerMessage.includes('executar') || lowerMessage.includes('executa')) {
+      actionType = 'execute';
+    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie') || lowerMessage.includes('cria')) {
+      actionType = 'create';
+    } else if (lowerMessage.includes('delete') || lowerMessage.includes('deletar') || lowerMessage.includes('apagar') || lowerMessage.includes('apaga')) {
+      actionType = 'delete';
+    } else if (lowerMessage.includes('instalar') || lowerMessage.includes('instala')) {
+      actionType = 'install';
+    } else if (lowerMessage.includes('baixar') || lowerMessage.includes('baixa')) {
+      actionType = 'download';
+    } else if (lowerMessage.includes('editar') || lowerMessage.includes('edita') || lowerMessage.includes('modificar') || lowerMessage.includes('modifica')) {
+      actionType = 'edit';
+    }
+    
+    return { type: 'action', confidence: 0.98, actionType, reason: 'Comando direto detectado - EXECUTAR AUTOMATICAMENTE' };
+  }
+  
+  // Verificar ações - SEMPRE EXECUTAR
+  if (actionKeywords.some(kw => lowerMessage.includes(kw))) {
+    let actionType = 'execute';
+    if (lowerMessage.includes('abrir') || lowerMessage.includes('abre') || lowerMessage.includes('pesquisar') || lowerMessage.includes('pesquisa')) {
+      actionType = 'web';
+    } else if (lowerMessage.includes('criar') || lowerMessage.includes('crie') || lowerMessage.includes('cria')) {
+      actionType = 'create';
+    } else if (lowerMessage.includes('instalar') || lowerMessage.includes('instala')) {
+      actionType = 'install';
+    } else if (lowerMessage.includes('baixar') || lowerMessage.includes('baixa')) {
+      actionType = 'download';
+    }
+    
+    return { type: 'action', confidence: 0.90, actionType, reason: 'Ação detectada - EXECUTAR AUTOMATICAMENTE' };
+  }
+  
+  // Verificar conversa/cumprimentos PRIMEIRO (antes de perguntas e ações)
+  // Isso evita que "tudo bem?" seja tratado como ação
+  if (conversationKeywords.some(kw => lowerMessage.includes(kw))) {
+    return { type: 'conversation', confidence: 0.9, reason: 'Conversa/cumprimento detectado' };
+  }
+  
+  // Verificar perguntas explícitas (apenas perguntas claras)
+  if (questionKeywords.some(kw => lowerMessage.includes(kw))) {
+    return { type: 'question', confidence: 0.7, reason: 'Pergunta detectada' };
+  }
+  
+  // Se a mensagem contém nomes de aplicativos/arquivos/coisas que podem ser executadas, tratar como ação
+  const executablePatterns = [
+    /vs code|code|visual studio|chrome|firefox|edge|notepad|word|excel|powerpoint|spotify|discord|telegram|whatsapp|google/i,
+    /\.py$|\.js$|\.ts$|\.html$|\.css$|\.json$|\.md$|\.txt$/i,
+    /arquivo|file|pasta|folder|diretorio|directory/i
+  ];
+  
+  if (executablePatterns.some(pattern => pattern.test(message))) {
+    return { type: 'action', confidence: 0.75, actionType: 'execute', reason: 'Padrão executável detectado' };
+  }
+  
+  // Padrão: tratar como conversa (mais seguro)
+  return { type: 'conversation', confidence: 0.5, reason: 'Padrão padrão: conversa' };
 }
 

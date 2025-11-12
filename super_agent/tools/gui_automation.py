@@ -128,7 +128,16 @@ class GUIAutomationTool:
             
             elif action == "execute_task":
                 task = kwargs.get("task", "")
-                return self.ufo.execute_task(task=task, **kwargs)
+                vision_model = kwargs.get("vision_model")
+                api_base = kwargs.get("api_base")
+                max_steps = kwargs.get("max_steps", 10)
+                return self.ufo.execute_task(
+                    task=task,
+                    vision_model=vision_model,
+                    api_base=api_base,
+                    max_steps=max_steps,
+                    **kwargs
+                )
             
             else:
                 return {
@@ -251,6 +260,18 @@ class GUIAutomationTool:
                     "task": {
                         "type": "string",
                         "description": "Descrição da tarefa (para execute_task)"
+                    },
+                    "vision_model": {
+                        "type": "string",
+                        "description": "Modelo de visão a usar para análise (ex: 'llava', 'gpt-4-vision') - opcional"
+                    },
+                    "api_base": {
+                        "type": "string",
+                        "description": "URL base da API do modelo de visão - opcional"
+                    },
+                    "max_steps": {
+                        "type": "integer",
+                        "description": "Número máximo de passos para execute_task (padrão: 10)"
                     }
                 },
                 "required": ["action"]

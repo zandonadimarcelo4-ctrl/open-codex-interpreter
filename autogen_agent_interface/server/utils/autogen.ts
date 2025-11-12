@@ -434,461 +434,132 @@ Sugira comandos diretos como:
     // Extrair imagens do contexto se disponíveis
     const images = context?.images || [];
 
-    // IMPORTANTE: Sempre usar AutoGen v2 para processar tarefas
-    // AutoGen v2 comanda TUDO e decide quando usar Open Interpreter, UFO, Browser-Use, etc.
-    // NÃO executar comandos diretamente - deixar o AutoGen v2 processar
+    // ⚠️ CRÍTICO: AutoGen Python comanda TUDO
+    // Open Interpreter está integrado diretamente no AutoGen (não como ferramenta)
+    // NÃO há fallback - AutoGen Python é obrigatório para tarefas de execução
     if (intent.type === "action" || intent.type === "command") {
-      console.log(`[AutoGen] 🚀 Processando tarefa com AutoGen v2 (AutoGen comanda tudo)...`);
+      console.log(`[AutoGen] 🚀 Processando tarefa com AutoGen Python (AutoGen comanda TUDO)...`);
+      console.log(`[AutoGen] 📋 Open Interpreter integrado diretamente (não como ferramenta)`);
       
-      // SEMPRE usar AutoGen v2 para processar tarefas
-      // O AutoGen v2 vai decidir quando usar Open Interpreter, executar comandos, etc.
+      // SEMPRE usar AutoGen Python - é obrigatório
+      // AutoGen Python tem Open Interpreter integrado diretamente + Web Browsing Tool
       try {
         const autogenV2Available = await checkAutoGenV2Available();
         
-        if (autogenV2Available) {
-          console.log(`[AutoGen] ✅ AutoGen v2 disponível - delegando tarefa para AutoGen v2`);
+        if (!autogenV2Available) {
+          const errorMsg = `❌ AutoGen Python não está disponível. É OBRIGATÓRIO para executar tarefas.
           
-          // Delegar para AutoGen v2 Python
-          const autogenV2Response = await executeWithAutoGenV2({
-            task: enrichedTask,
-            intent: intent,
-            context: context || {},
-            userId: context?.userId as string || "default",
-            conversationId: context?.conversationId as number || 0,
-            model: DEFAULT_MODEL,
-          });
-          
-          if (autogenV2Response.success) {
-            console.log(`[AutoGen] ✅ AutoGen v2 executou tarefa com sucesso`);
-            return autogenV2Response.result || "✅ Tarefa executada com sucesso";
-          } else {
-            console.warn(`[AutoGen] ⚠️ AutoGen v2 falhou: ${autogenV2Response.error}`);
-            // Continuar para fallback se AutoGen v2 falhar
-          }
+Por favor, instale o AutoGen v2:
+  pip install autogen-agentchat autogen-ext[openai] autogen-ext[ollama]
+
+O AutoGen Python comanda TUDO:
+- Open Interpreter integrado diretamente (não como ferramenta)
+- Web Browsing Tool (Selenium)
+- Todas as ferramentas e execuções
+
+Sem o AutoGen Python, não é possível executar tarefas.`;
+          console.error(`[AutoGen] ${errorMsg}`);
+          return errorMsg;
+        }
+        
+        console.log(`[AutoGen] ✅ AutoGen Python disponível - delegando tarefa...`);
+        
+        // Delegar para AutoGen Python (comanda TUDO)
+        const autogenV2Response = await executeWithAutoGenV2({
+          task: enrichedTask,
+          intent: intent,
+          context: context || {},
+          userId: context?.userId as string || "default",
+          conversationId: context?.conversationId as number || 0,
+          model: DEFAULT_MODEL,
+        });
+        
+        if (autogenV2Response.success) {
+          console.log(`[AutoGen] ✅ AutoGen Python executou tarefa com sucesso`);
+          console.log(`[AutoGen] 🔧 Tools usadas: ${autogenV2Response.tools?.join(", ") || "N/A"}`);
+          return autogenV2Response.result || "✅ Tarefa executada com sucesso";
         } else {
-          console.warn(`[AutoGen] ⚠️ AutoGen v2 não disponível - usando fallback`);
+          const errorMsg = `❌ Erro ao executar tarefa com AutoGen Python:
+          
+${autogenV2Response.error || "Erro desconhecido"}
+
+O AutoGen Python comanda TUDO e tem acesso a:
+- Open Interpreter (integrado diretamente)
+- Web Browsing Tool (Selenium)
+- Todas as ferramentas de execução`;
+          console.error(`[AutoGen] ${errorMsg}`);
+          return errorMsg;
         }
       } catch (autogenV2Error) {
-        console.warn(`[AutoGen] ⚠️ Erro ao usar AutoGen v2: ${autogenV2Error}`);
-        // Continuar para fallback se AutoGen v2 falhar
-      }
-      
-      // Fallback: usar Code Executor apenas se AutoGen v2 não estiver disponível
-      console.log(`[AutoGen] 🔧 Usando fallback: Code Executor...`);
-      
-      // Verificar se é tarefa de refatoração
-      const isRefactoringTask = task.toLowerCase().includes('refactor') || 
-                                task.toLowerCase().includes('refatorar') ||
-                                task.toLowerCase().includes('improve code') ||
-                                task.toLowerCase().includes('melhorar código');
-      
-      // Verificar se é tarefa de detecção de bugs
-      const isBugDetectionTask = task.toLowerCase().includes('detect bugs') || 
-                                 task.toLowerCase().includes('find bugs') ||
-                                 task.toLowerCase().includes('analisar bugs') ||
-                                 task.toLowerCase().includes('check errors');
-      
-      // Verificar se é tarefa de geração de código a partir de imagem
-      const isVisualCodeTask = task.toLowerCase().includes('image') || 
-                              task.toLowerCase().includes('screenshot') ||
-                              task.toLowerCase().includes('visual') ||
-                              task.toLowerCase().includes('from image') ||
-                              task.toLowerCase().includes('from screenshot');
-      
-      // Verificar se é uma tarefa de geração de código
-      const isCodeGenerationTask = task.toLowerCase().includes('write') || 
-                                   task.toLowerCase().includes('create') || 
-                                   task.toLowerCase().includes('generate') ||
-                                   task.toLowerCase().includes('make') ||
-                                   task.toLowerCase().includes('build');
-      
-      // Se for tarefa de refatoração, usar Refactoring Agent
-      if (isRefactoringTask && (intent.type === "action" || intent.actionType === "code")) {
-        try {
-          const { executeRefactoring, applyRefactoringToFile } = await import("./refactoring_agent");
-          const language = detectLanguage(task);
-          
-          console.log(`[AutoGen] 🔧 Refatorando código: linguagem=${language}`);
-          
-          // Tentar extrair caminho do arquivo da tarefa
-          const filePathMatch = task.match(/(?:file|arquivo|path):\s*([^\s]+)/i);
-          const filePath = filePathMatch ? filePathMatch[1] : undefined;
-          
-          let refactoringResult;
-          if (filePath) {
-            refactoringResult = await applyRefactoringToFile(filePath, {
-              language,
-              refactoringType: 'all',
-              description: task,
-              backup: true,
-            });
-          } else {
-            // Extrair código da tarefa
-            const codeMatch = task.match(/```[\s\S]*?```/);
-            const code = codeMatch ? codeMatch[0].replace(/```\w*\n?/g, '').replace(/```/g, '').trim() : undefined;
-            
-            if (code) {
-              refactoringResult = await executeRefactoring({
-                code,
-                language,
-                refactoringType: 'all',
-                description: task,
-              });
-            } else {
-              throw new Error("No code or file path found for refactoring");
-            }
-          }
-          
-          let resultText = `✅ Refatoração concluída com sucesso!\n\n`;
-          resultText += `**Linguagem**: ${language}\n`;
-          resultText += `**Risco**: ${refactoringResult.plan.riskLevel}\n`;
-          resultText += `**Tempo estimado**: ${refactoringResult.plan.estimatedTime} minutos\n\n`;
-          
-          resultText += `**Melhorias**:\n`;
-          for (const improvement of refactoringResult.improvements) {
-            resultText += `- ${improvement}\n`;
-          }
-          resultText += `\n`;
-          
-          resultText += `**Código Refatorado**:\n`;
-          resultText += `\`\`\`${language}\n${refactoringResult.refactoredCode}\n\`\`\`\n\n`;
-          
-          if (refactoringResult.warnings.length > 0) {
-            resultText += `**⚠️ Avisos**:\n`;
-            for (const warning of refactoringResult.warnings) {
-              resultText += `- ${warning}\n`;
-            }
-            resultText += `\n`;
-          }
-          
-          return resultText;
-        } catch (error: any) {
-          console.error(`[AutoGen] ❌ Erro ao refatorar código:`, error);
-          // Continuar com fluxo normal se refatoração falhar
-        }
-      }
-      
-      // Se for tarefa de detecção de bugs, usar Bug Detection Agent
-      if (isBugDetectionTask && (intent.type === "action" || intent.actionType === "code")) {
-        try {
-          const { detectBugs, generateBugReport } = await import("./bug_detection_agent");
-          const language = detectLanguage(task);
-          
-          console.log(`[AutoGen] 🐛 Detectando bugs: linguagem=${language}`);
-          
-          // Tentar extrair caminho do arquivo da tarefa
-          const filePathMatch = task.match(/(?:file|arquivo|path):\s*([^\s]+)/i);
-          const filePath = filePathMatch ? filePathMatch[1] : undefined;
-          
-          // Extrair código da tarefa
-          const codeMatch = task.match(/```[\s\S]*?```/);
-          const code = codeMatch ? codeMatch[0].replace(/```\w*\n?/g, '').replace(/```/g, '').trim() : undefined;
-          
-          const bugResult = await detectBugs({
-            filePath,
-            code,
-            language,
-            severityFilter: 'all',
-          });
-          
-          return generateBugReport(bugResult, language);
-        } catch (error: any) {
-          console.error(`[AutoGen] ❌ Erro ao detectar bugs:`, error);
-          // Continuar com fluxo normal se detecção de bugs falhar
-        }
-      }
-      
-      // Se for tarefa visual, usar Visual Code Agent
-      if (isVisualCodeTask && (intent.type === "action" || intent.actionType === "code")) {
-        try {
-          const { generateCodeFromImage, analyzeInterfaceAndGenerateCode, extractCodeFromScreenshot } = await import("./visual_code_agent");
-          const language = detectLanguage(task);
-          
-          console.log(`[AutoGen] 🖼️ Gerando código a partir de imagem: linguagem=${language}`);
-          
-          // Tentar extrair URL da imagem da tarefa
-          const imageUrlMatch = task.match(/(?:image|url|screenshot):\s*([^\s]+)/i) || 
-                               task.match(/(https?:\/\/[^\s]+)/i) ||
-                               task.match(/(data:image\/[^;]+;base64,[^\s]+)/i);
-          const imageUrl = imageUrlMatch ? imageUrlMatch[1] : undefined;
-          
-          if (!imageUrl && images.length > 0) {
-            // Usar imagem do contexto se disponível
-            const imageUrlFromContext = images[0];
-            if (imageUrlFromContext) {
-              const visualResult = await generateCodeFromImage({
-                imageUrl: imageUrlFromContext,
-                language,
-                description: task,
-              });
-              
-              let resultText = `✅ Código gerado a partir de imagem com sucesso!\n\n`;
-              resultText += `**Linguagem**: ${visualResult.language}\n`;
-              resultText += `**Confiança**: ${(visualResult.confidence * 100).toFixed(0)}%\n\n`;
-              resultText += `**Código Gerado**:\n`;
-              resultText += `\`\`\`${visualResult.language}\n${visualResult.code}\n\`\`\`\n\n`;
-              
-              if (visualResult.suggestions.length > 0) {
-                resultText += `**💡 Sugestões**:\n`;
-                for (const suggestion of visualResult.suggestions) {
-                  resultText += `- ${suggestion}\n`;
-                }
-                resultText += `\n`;
-              }
-              
-              return resultText;
-            }
-          }
-          
-          if (!imageUrl) {
-            throw new Error("No image URL found in task or context");
-          }
-          
-          let visualResult;
-          if (task.toLowerCase().includes('interface') || task.toLowerCase().includes('ui')) {
-            visualResult = await analyzeInterfaceAndGenerateCode(imageUrl, task, language);
-          } else if (task.toLowerCase().includes('screenshot')) {
-            visualResult = await extractCodeFromScreenshot(imageUrl, language);
-          } else {
-            visualResult = await generateCodeFromImage({
-              imageUrl,
-              language,
-              description: task,
-            });
-          }
-          
-          let resultText = `✅ Código gerado a partir de imagem com sucesso!\n\n`;
-          resultText += `**Linguagem**: ${visualResult.language}\n`;
-          resultText += `**Confiança**: ${(visualResult.confidence * 100).toFixed(0)}%\n\n`;
-          resultText += `**Código Gerado**:\n`;
-          resultText += `\`\`\`${visualResult.language}\n${visualResult.code}\n\`\`\`\n\n`;
-          
-          if (visualResult.suggestions.length > 0) {
-            resultText += `**💡 Sugestões**:\n`;
-            for (const suggestion of visualResult.suggestions) {
-              resultText += `- ${suggestion}\n`;
-            }
-            resultText += `\n`;
-          }
-          
-          return resultText;
-        } catch (error: any) {
-          console.error(`[AutoGen] ❌ Erro ao gerar código a partir de imagem:`, error);
-          // Continuar com fluxo normal se geração visual falhar
-        }
-      }
-      
-      // Se for tarefa de geração de código, usar Code Router
-      if (isCodeGenerationTask && (intent.type === "action" || intent.actionType === "code")) {
-        try {
-          const { generateCode, estimateCodeComplexity } = await import("./code_router");
-          const language = detectLanguage(task);
-          const complexity = estimateCodeComplexity(task);
-          
-          console.log(`[AutoGen] 🎯 Gerando código: linguagem=${language}, complexidade=${complexity}`);
-          
-          const codeResult = await generateCode({
-            description: task,
-            language,
-            context: JSON.stringify(context),
-            complexity
-          });
-          
-          console.log(`[AutoGen] ✅ Código gerado com sucesso usando ${codeResult.model} (${codeResult.executionTime}ms)`);
-          
-          // Executar código gerado
-          const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
-          const { verifyCodeExecution } = await import("./verification_agent");
-          
-          const codeBlocks = [{ language: codeResult.language, code: codeResult.code }];
-          
-          if (codeBlocks.length > 0) {
-            console.log(`[AutoGen] 📝 Executando código gerado...`);
-            const results = await executeCodeBlocks(codeBlocks, {
-              timeout: 60000,
-              workspace: process.cwd(),
-              autoApprove: true,
-            });
-            
-            // Verificar qualidade
-            console.log(`[AutoGen] 🔍 Verificando qualidade do código...`);
-            const verificationResults = await Promise.all(
-              results.map(async (result, i) => {
-                const verification = await verifyCodeExecution(
-                  codeBlocks[i].code,
-                  result,
-                  { task, context }
-                );
-                return { result, verification, codeBlock: codeBlocks[i] };
-              })
-            );
-            
-            // Formatar resultados
-            let resultText = `✅ Código gerado e executado com sucesso!\n\n`;
-            resultText += `**Modelo usado**: ${codeResult.model}\n`;
-            resultText += `**Linguagem**: ${codeResult.language}\n`;
-            resultText += `**Complexidade**: ${complexity}\n`;
-            resultText += `**Tempo de geração**: ${codeResult.executionTime}ms\n\n`;
-            
-            for (let i = 0; i < verificationResults.length; i++) {
-              const { result, verification, codeBlock } = verificationResults[i];
-              const qualityEmoji = verification.quality === "excellent" ? "✨" :
-                                  verification.quality === "good" ? "✅" :
-                                  verification.quality === "fair" ? "⚠️" : "❌";
-              
-              resultText += `${qualityEmoji} **Código ${i + 1} (${result.language}) - Qualidade: ${verification.quality}:**\n`;
-              resultText += `\`\`\`${result.language}\n${codeBlock.code}\n\`\`\`\n\n`;
-              
-              if (result.success) {
-                resultText += `**Saída:**\n\`\`\`\n${result.output}\n\`\`\`\n\n`;
-              } else {
-                resultText += `**Erro:**\n\`\`\`\n${result.error}\n\`\`\`\n\n`;
-              }
-              
-              if (verification.issues.length > 0) {
-                resultText += `**⚠️ Problemas identificados:**\n`;
-                for (const issue of verification.issues) {
-                  resultText += `- ${issue.severity.toUpperCase()}: ${issue.message}\n`;
-                  if (issue.suggestion) {
-                    resultText += `  💡 Sugestão: ${issue.suggestion}\n`;
-                  }
-                }
-                resultText += `\n`;
-              }
-            }
-            
-            return resultText;
-          }
-        } catch (error: any) {
-          console.error(`[AutoGen] ❌ Erro ao gerar código:`, error);
-          // Continuar com fluxo normal se geração de código falhar
-        }
-      }
-      
-      // Extrair código da tarefa se houver
-      const { extractCodeBlocks, executeCodeBlocks } = await import("./code_executor");
-      const { verifyCodeExecution } = await import("./verification_agent");
-      const codeBlocks = extractCodeBlocks(task);
-      
-      if (codeBlocks.length > 0) {
-        // Executar blocos de código encontrados
-        console.log(`[AutoGen] 📝 Encontrados ${codeBlocks.length} blocos de código, executando...`);
-        try {
-          const results = await executeCodeBlocks(codeBlocks, {
-            timeout: 60000, // 60 segundos por bloco
-            workspace: process.cwd(),
-            autoApprove: true,
-          });
-          
-          // Verificar qualidade e correção usando Verification Agent (inspirado no Manus AI)
-          console.log(`[AutoGen] 🔍 Verificando qualidade e correção dos resultados...`);
-          const verificationResults = await Promise.all(
-            results.map(async (result, i) => {
-              const verification = await verifyCodeExecution(
-                codeBlocks[i].code,
-                result,
-                {
-                  task,
-                  context,
-                }
-              );
-              return { result, verification, codeBlock: codeBlocks[i] };
-            })
-          );
-          
-          // Formatar resultados com verificação
-          let resultText = "";
-          for (let i = 0; i < verificationResults.length; i++) {
-            const { result, verification, codeBlock } = verificationResults[i];
-            const qualityEmoji = verification.quality === "excellent" ? "✨" : 
-                                verification.quality === "good" ? "✅" : 
-                                verification.quality === "fair" ? "⚠️" : "❌";
-            
-            if (result.success) {
-              resultText += `\n\n${qualityEmoji} **Código ${i + 1} executado com sucesso (${result.language}) - Qualidade: ${verification.quality}:**\n\`\`\`${result.language}\n${codeBlock.code}\n\`\`\`\n\n**Saída:**\n\`\`\`\n${result.output}\n\`\`\``;
-              
-              // Adicionar problemas e sugestões se houver
-              if (verification.issues.length > 0) {
-                resultText += `\n\n**⚠️ Problemas identificados:**\n`;
-                for (const issue of verification.issues) {
-                  resultText += `- ${issue.severity.toUpperCase()}: ${issue.message}\n`;
-                  if (issue.suggestion) {
-                    resultText += `  💡 Sugestão: ${issue.suggestion}\n`;
-                  }
-                }
-              }
-              
-              if (verification.suggestions.length > 0) {
-                resultText += `\n\n**💡 Sugestões de melhoria:**\n`;
-                for (const suggestion of verification.suggestions) {
-                  resultText += `- ${suggestion}\n`;
-                }
-              }
-            } else {
-              resultText += `\n\n❌ **Erro na execução ${i + 1} (${result.language}):**\n\`\`\`${result.language}\n${codeBlock.code}\n\`\`\`\n\n**Erro:**\n\`\`\`\n${result.error}\n\`\`\``;
-              
-              // Adicionar sugestões de correção da verificação
-              if (verification.suggestions.length > 0) {
-                resultText += `\n\n**💡 Sugestões de correção:**\n`;
-                for (const suggestion of verification.suggestions) {
-                  resultText += `- ${suggestion}\n`;
-                }
-              }
-            }
-          }
-          
-          return `Tarefa executada com sucesso.${resultText}`;
-        } catch (error) {
-          console.warn("[AutoGen] Erro ao executar código:", error);
-          // Continuar para processar com Ollama
-        }
-      }
-      
-      // Se não há código para executar, ou se a execução falhou, processar com Ollama
-      // O Ollama com function calling já pode executar código automaticamente
-      console.log(`[AutoGen] 💬 Processando tarefa com Ollama (function calling habilitado)...`);
-    }
+        const errorMsg = `❌ Erro crítico ao usar AutoGen Python:
+        
+${autogenV2Error instanceof Error ? autogenV2Error.message : String(autogenV2Error)}
 
-    // Para perguntas/conversas, usar Ollama diretamente (muito mais rápido)
-    // ⚠️ REMOVIDO: Open Interpreter não é mais chamado diretamente
-    // Tudo passa pelo AutoGen v2 Python que orquestra Open Interpreter, UFO, Browser-Use, etc.
-    const modelUsed = (framework as any)?.model || DEFAULT_MODEL;
-    console.log(`[AutoGen] Usando modelo: ${modelUsed}, intent: ${intent.type}, prompt length: ${systemPrompt.length}`);
+O AutoGen Python é OBRIGATÓRIO para executar tarefas.
+Verifique se o AutoGen v2 está instalado corretamente.`;
+        console.error(`[AutoGen] ${errorMsg}`);
+        return errorMsg;
+      }
+      
+      // ⚠️ NÃO DEVE CHEGAR AQUI - AutoGen Python é obrigatório
+      // Se chegou aqui, significa que AutoGen Python não está disponível ou falhou
+      return `❌ AutoGen Python não está disponível ou falhou. É OBRIGATÓRIO para executar tarefas.
+      
+Por favor, instale o AutoGen v2:
+  pip install autogen-agentchat autogen-ext[openai] autogen-ext[ollama]
+
+O AutoGen Python comanda TUDO:
+- Open Interpreter integrado diretamente (não como ferramenta)
+- Web Browsing Tool (Selenium)
+- Todas as ferramentas e execuções`;
+    }
     
-    // Usar prompt já definido (curto para conversas, completo para ações)
-    console.log(`[AutoGen] Chamando Ollama...`);
-    const startTime = Date.now();
-    const ollamaResponse = await callOllamaWithAutoGenPrompt(
-      systemPrompt,
-      enrichedTask, // Usar tarefa enriquecida com contexto cognitivo
-      modelUsed,
-      intent,
-      images.length > 0 ? images : undefined
-    );
-    const elapsed = Date.now() - startTime;
-    console.log(`[AutoGen] ✅ Resposta recebida em ${elapsed}ms (${ollamaResponse.length} chars)`);
+    // Para conversas/perguntas, usar Ollama diretamente (mais rápido)
+    // Apenas conversas/perguntas usam Ollama diretamente - ações/comandos SEMPRE usam AutoGen Python
+    // NÃO executar código ou ações para conversas/perguntas - apenas responder
+    if (intent.type === "conversation" || intent.type === "question") {
+      // Usar Ollama diretamente para conversas/perguntas (mais rápido)
+      const modelUsed = (framework as any)?.model || DEFAULT_MODEL;
+      console.log(`[AutoGen] 💬 Processando conversa/pergunta com Ollama (intent: ${intent.type})...`);
+      console.log(`[AutoGen] Usando modelo: ${modelUsed}, prompt length: ${systemPrompt.length}`);
+      
+      const startTime = Date.now();
+      const ollamaResponse = await callOllamaWithAutoGenPrompt(
+        systemPrompt,
+        enrichedTask,
+        modelUsed,
+        intent,
+        images.length > 0 ? images : undefined
+      );
+      const elapsed = Date.now() - startTime;
+      console.log(`[AutoGen] ✅ Resposta recebida em ${elapsed}ms (${ollamaResponse.length} chars)`);
 
-    // Aprender com resposta usando sistema cognitivo (opcional, não bloqueia se falhar)
-    try {
-      if (cognitiveContext) {
-        const { learnFromResponse } = await import("./cognitive_bridge");
-        await learnFromResponse(
-          task,
-          ollamaResponse,
-          true, // Assumir sucesso por enquanto
-          undefined,
-          context?.userId as string
-        );
-        console.log(`[AutoGen] 🧠 Aprendizado cognitivo registrado`);
+      // Aprender com resposta usando sistema cognitivo (opcional, não bloqueia se falhar)
+      try {
+        if (cognitiveContext) {
+          const { learnFromResponse } = await import("./cognitive_bridge");
+          await learnFromResponse(
+            task,
+            ollamaResponse,
+            true, // Assumir sucesso por enquanto
+            undefined,
+            context?.userId as string
+          );
+          console.log(`[AutoGen] 🧠 Aprendizado cognitivo registrado`);
+        }
+      } catch (learnError) {
+        // Não bloquear se aprendizagem falhar
+        console.warn(`[AutoGen] ⚠️ Erro ao aprender com resposta:`, learnError);
       }
-    } catch (learnError) {
-      // Não bloquear se aprendizagem falhar
-      console.warn(`[AutoGen] ⚠️ Erro ao aprender com resposta:`, learnError);
+
+      console.log(`[AutoGen] ✅ Retornando resposta final de executeWithAutoGen (${ollamaResponse.length} chars)`);
+      console.log(`[AutoGen] ========== FIM executeWithAutoGen ==========`);
+      return ollamaResponse;
     }
 
-    console.log(`[AutoGen] ✅ Retornando resposta final de executeWithAutoGen (${ollamaResponse.length} chars)`);
-    console.log(`[AutoGen] ========== FIM executeWithAutoGen ==========`);
-    return ollamaResponse;
+    // ⚠️ NÃO DEVE CHEGAR AQUI - todas as intenções devem ser tratadas acima
+    console.error(`[AutoGen] ❌ Intent type não tratado: ${intent.type}`);
+    return `❌ Erro: Intent type não tratado: ${intent.type}`;
   } catch (error) {
     console.error("[AutoGen] ========== ERRO no executeWithAutoGen ==========");
     console.error("[AutoGen] ❌ Erro ao executar:", error);

@@ -54,15 +54,166 @@ const COMMAND_KEYWORDS = [
 ];
 
 /**
- * Detecta a intenção do usuário baseado na mensagem
+ * Detecta a intenção do usuário baseado na mensagem (Abordagem Híbrida)
+ * Usa regras rápidas primeiro, chama LLM apenas para casos complexos/ambíguos
  */
-export function detectIntent(message: string): IntentResult {
+export async function detectIntent(message: string): Promise<IntentResult> {
   const lowerMessage = message.toLowerCase().trim();
+  
+  // PRÉ-FILTRO RÁPIDO: Padrões de alta confiança (não precisa de LLM)
   
   // Verificar se é uma saudação ou conversa casual primeiro
   const greetingKeywords = ['oi', 'olá', 'tudo bem', 'tudo bom', 'e aí', 'eai', 'e ai', 'beleza', 'blz', 'salve', 'opa', 'eae', 'e aê', 'fala', 'fala aí', 'bom dia', 'boa tarde', 'boa noite'];
-  if (greetingKeywords.some(keyword => lowerMessage.includes(keyword))) {
+  const isGreetingOnly = greetingKeywords.some(keyword => {
+    const regex = new RegExp(`^${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$|^${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s+[^\\w]`, 'i');
+    return regex.test(message);
+  });
+  
+  if (isGreetingOnly) {
     // Se for apenas uma saudação sem palavras de ação, é conversa
+    const hasActionKeywords = Object.values(ACTION_KEYWORDS).flat().some(keyword => 
+      lowerMessage.includes(keyword)
+    );
+    
+    if (!hasActionKeywords) {
+      return {
+        type: 'conversation',
+        confidence: 0.95,
+        reason: 'Saudação detectada (regras)',
+      };
+    }
+  }
+  
+  // Verificar padrões de código (alta confiança)
+  if (message.includes('```') || message.includes('function') || message.includes('const ') || message.includes('import ') || message.includes('def ') || message.includes('class ')) {
+    return {
+      type: 'action',
+      confidence: 0.9,
+      actionType: 'code',
+      reason: 'Código detectado na mensagem (regras)',
+    };
+  }
+  
+  // Verificar URLs (alta confiança)
+  if (message.match(/https?:\/\/|www\.|\.com|\.org|\.net/)) {
+    return {
+      type: 'action',
+      confidence: 0.9,
+      actionType: 'web',
+      reason: 'URL detectada na mensagem (regras)',
+    };
+  }
+  
+  // Verificar caminhos de arquivo (alta confiança)
+  if (message.match(/[a-zA-Z]:\\|\.\/|\/\w+|\w+\.\w{2,4}/)) {
+    return {
+      type: 'action',
+      confidence: 0.85,
+      actionType: 'file',
+      reason: 'Caminho de arquivo detectado (regras)',
+    };
+  }
+  
+  // Verificar comandos diretos (alta confiança)
+  const directCommandPattern = /^(faça|execute|rode|crie|delete|executa|abrir|abre|fazer|faz|criar|cria|rodar|roda|iniciar|inicia|instalar|instala|baixar|baixa|deletar|apagar|editar|edita|modificar|modifica)\s+/i;
+  if (directCommandPattern.test(message)) {
+    // Determinar tipo de ação
+    for (const [actionType, keywords] of Object.entries(ACTION_KEYWORDS)) {
+      if (keywords.some(keyword => lowerMessage.includes(keyword))) {
+        return {
+          type: 'action',
+          confidence: 0.9,
+          actionType: actionType as IntentResult['actionType'],
+          reason: `Comando direto detectado: ${actionType} (regras)`,
+        };
+      }
+    }
+    
+    return {
+      type: 'command',
+      confidence: 0.85,
+      reason: 'Comando direto detectado (regras)',
+    };
+  }
+  
+  // Verificar palavras de ação (média confiança)
+  let actionMatches = 0;
+  let detectedActionType: IntentResult['actionType'] | undefined;
+  for (const [actionType, keywords] of Object.entries(ACTION_KEYWORDS)) {
+    const matches = keywords.filter(keyword => lowerMessage.includes(keyword));
+    if (matches.length > 0) {
+      actionMatches += matches.length;
+      if (!detectedActionType) {
+        detectedActionType = actionType as IntentResult['actionType'];
+      }
+    }
+  }
+  
+  if (actionMatches > 0 && actionMatches <= 2) {
+    // Poucas correspondências: média confiança
+    return {
+      type: 'action',
+      confidence: 0.7 + (actionMatches * 0.05),
+      actionType: detectedActionType,
+      reason: `Ação detectada: ${detectedActionType} (regras)`,
+    };
+  }
+  
+  // CASOS AMBÍGUOS: Se confiança baixa ou múltiplas correspondências, usar LLM
+  // Verificar se há palavras de conversa E ação (ambiguidade)
+  const hasConversationKeywords = CONVERSATION_KEYWORDS.some(keyword => lowerMessage.includes(keyword));
+  const hasActionKeywords = Object.values(ACTION_KEYWORDS).flat().some(keyword => lowerMessage.includes(keyword));
+  
+  if (hasConversationKeywords && hasActionKeywords) {
+    // Ambiguidade detectada: usar LLM
+    try {
+      const response = await fetch('/api/intent/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      
+      if (response.ok) {
+        const llmResult = await response.json();
+        return {
+          type: llmResult.intent === 'execution' ? 'action' : llmResult.intent,
+          confidence: llmResult.confidence || 0.8,
+          actionType: llmResult.action_type as IntentResult['actionType'],
+          reason: llmResult.reasoning || 'Classificação por LLM',
+        };
+      }
+    } catch (error) {
+      console.warn('[IntentDetector] Erro ao chamar LLM, usando fallback:', error);
+    }
+  }
+  
+  // Verificar se é uma pergunta direta (sem ação)
+  if (hasConversationKeywords && !hasActionKeywords) {
+    return {
+      type: 'question',
+      confidence: 0.8,
+      reason: 'Pergunta direta detectada (regras)',
+    };
+  }
+  
+  // Se não detectar nada específico, tratar como conversa (seguro)
+  return {
+    type: 'conversation',
+    confidence: 0.6,
+    reason: 'Nenhuma ação específica detectada, tratando como conversa (regras)',
+  };
+}
+
+/**
+ * Versão síncrona (fallback para compatibilidade)
+ * Usa apenas regras, sem LLM
+ */
+export function detectIntentSync(message: string): IntentResult {
+  const lowerMessage = message.toLowerCase().trim();
+  
+  // Mesma lógica do pré-filtro rápido acima
+  const greetingKeywords = ['oi', 'olá', 'tudo bem', 'tudo bom', 'e aí', 'eai', 'e ai', 'beleza', 'blz', 'salve', 'opa', 'eae', 'e aê', 'fala', 'fala aí', 'bom dia', 'boa tarde', 'boa noite'];
+  if (greetingKeywords.some(keyword => lowerMessage.includes(keyword))) {
     const hasActionKeywords = Object.values(ACTION_KEYWORDS).flat().some(keyword => 
       lowerMessage.includes(keyword)
     );
@@ -76,25 +227,34 @@ export function detectIntent(message: string): IntentResult {
     }
   }
   
-  // Verificar se é uma pergunta direta
-  if (CONVERSATION_KEYWORDS.some(keyword => lowerMessage.includes(keyword))) {
-    // Mas verificar se também tem palavras de ação
-    const hasActionKeywords = Object.values(ACTION_KEYWORDS).flat().some(keyword => 
-      lowerMessage.includes(keyword)
-    );
-    
-    if (!hasActionKeywords) {
-      return {
-        type: 'question',
-        confidence: 0.8,
-        reason: 'Pergunta direta detectada',
-      };
-    }
+  if (message.includes('```') || message.includes('function') || message.includes('const ') || message.includes('import ')) {
+    return {
+      type: 'action',
+      confidence: 0.8,
+      actionType: 'code',
+      reason: 'Código detectado na mensagem',
+    };
   }
   
-  // Verificar comandos diretos
+  if (lowerMessage.match(/https?:\/\/|www\.|\.com|\.org|\.net/)) {
+    return {
+      type: 'action',
+      confidence: 0.75,
+      actionType: 'web',
+      reason: 'URL detectada na mensagem',
+    };
+  }
+  
+  if (lowerMessage.match(/[a-zA-Z]:\\|\.\/|\/\w+|\w+\.\w{2,4}/)) {
+    return {
+      type: 'action',
+      confidence: 0.7,
+      actionType: 'file',
+      reason: 'Caminho de arquivo detectado',
+    };
+  }
+  
   if (COMMAND_KEYWORDS.some(keyword => lowerMessage.startsWith(keyword) || lowerMessage.includes(` ${keyword} `))) {
-    // Determinar tipo de ação
     for (const [actionType, keywords] of Object.entries(ACTION_KEYWORDS)) {
       if (keywords.some(keyword => lowerMessage.includes(keyword))) {
         return {
@@ -113,7 +273,6 @@ export function detectIntent(message: string): IntentResult {
     };
   }
   
-  // Verificar palavras de ação
   for (const [actionType, keywords] of Object.entries(ACTION_KEYWORDS)) {
     const matches = keywords.filter(keyword => lowerMessage.includes(keyword));
     if (matches.length > 0) {
@@ -127,37 +286,6 @@ export function detectIntent(message: string): IntentResult {
     }
   }
   
-  // Verificar padrões de código
-  if (lowerMessage.includes('```') || lowerMessage.includes('function') || lowerMessage.includes('const ') || lowerMessage.includes('import ')) {
-    return {
-      type: 'action',
-      confidence: 0.8,
-      actionType: 'code',
-      reason: 'Código detectado na mensagem',
-    };
-  }
-  
-  // Verificar URLs
-  if (lowerMessage.match(/https?:\/\/|www\.|\.com|\.org|\.net/)) {
-    return {
-      type: 'action',
-      confidence: 0.75,
-      actionType: 'web',
-      reason: 'URL detectada na mensagem',
-    };
-  }
-  
-  // Verificar caminhos de arquivo
-  if (lowerMessage.match(/[a-zA-Z]:\\|\.\/|\/\w+|\w+\.\w{2,4}/)) {
-    return {
-      type: 'action',
-      confidence: 0.7,
-      actionType: 'file',
-      reason: 'Caminho de arquivo detectado',
-    };
-  }
-  
-  // Se não detectar nada específico, é conversa
   return {
     type: 'conversation',
     confidence: 0.6,

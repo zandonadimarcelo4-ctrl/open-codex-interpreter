@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 # ⚠️ IMPORTANTE: AutoGen v2 (autogen-agentchat) é OBRIGATÓRIO - não há mais fallback para AutoGen v1
 try:
     from autogen_agentchat.agents import AssistantAgent
-    from autogen_agentchat.teams import RoundRobinTeam
+    from autogen_agentchat.teams import RoundRobinGroupChat
     from autogen_ext.models.openai import OpenAIChatCompletionClient
     AUTOGEN_V2_AVAILABLE = True
     
@@ -56,11 +56,34 @@ except ImportError as e:
 from ..agents.base_agent import BaseAgent
 from ..agents.base_agent_with_memory import AgentWithMemory
 from ..tools.code_execution import CodeExecutionTool
-from ..tools.web_browsing import WebBrowsingTool
-from ..tools.video_editing import VideoEditingTool
-from ..tools.gui_automation import GUIAutomationTool
-from ..tools.multimodal_ai import MultimodalAITool
-from ..tools.memory_store import MemoryStoreTool
+
+# Importações opcionais (podem falhar se dependências não estiverem instaladas)
+try:
+    from ..tools.web_browsing import WebBrowsingTool
+except Exception:
+    # Captura qualquer erro durante a importação (inclui erros de compatibilidade NumPy/OpenCV)
+    WebBrowsingTool = None
+
+try:
+    from ..tools.video_editing import VideoEditingTool
+except Exception:
+    VideoEditingTool = None
+
+try:
+    from ..tools.gui_automation import GUIAutomationTool
+except Exception:
+    GUIAutomationTool = None
+
+try:
+    from ..tools.multimodal_ai import MultimodalAITool
+except Exception:
+    MultimodalAITool = None
+
+try:
+    from ..tools.memory_store import MemoryStoreTool
+except Exception:
+    MemoryStoreTool = None
+
 from ..memory.chromadb_backend import ChromaDBBackend
 
 
@@ -149,7 +172,7 @@ class SuperAgentFramework:
         self._create_autogen_v2_agents()
         
         # Team (AutoGen v2)
-        self.team: Optional[RoundRobinTeam] = None
+        self.team: Optional[RoundRobinGroupChat] = None
         self._setup_team()
         
         # Marcar como inicializado
@@ -419,12 +442,12 @@ class SuperAgentFramework:
             logger.warning("Nenhum agente disponível")
             return
         
-        # AutoGen v2 - Usar RoundRobinTeam
-        self.team = RoundRobinTeam(
+        # AutoGen v2 - Usar RoundRobinGroupChat (API correta do AutoGen v2 0.7.5)
+        self.team = RoundRobinGroupChat(
             agents=agent_list,
             max_turns=50,
         )
-        logger.info(f"Team (RoundRobinTeam) configurado com {len(agent_list)} agentes")
+        logger.info(f"Team (RoundRobinGroupChat) configurado com {len(agent_list)} agentes")
     
     async def execute(
         self,

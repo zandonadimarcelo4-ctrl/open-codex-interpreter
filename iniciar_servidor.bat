@@ -19,8 +19,35 @@ REM Verificar se Python esta instalado
 python --version >nul 2>&1
 if errorlevel 1 (
     echo [ERRO] Python nao encontrado. Instale Python 3.10+
+    echo [INFO] Download: https://www.python.org/downloads/
     pause
     exit /b 1
+)
+
+REM Verificar se Node.js esta instalado
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo [ERRO] Node.js nao encontrado. Instale Node.js 20+
+    echo [INFO] Download: https://nodejs.org/
+    pause
+    exit /b 1
+)
+
+REM Verificar se pnpm ou npm esta instalado
+pnpm --version >nul 2>&1
+if errorlevel 1 (
+    npm --version >nul 2>&1
+    if errorlevel 1 (
+        echo [ERRO] pnpm ou npm nao encontrado. Instale pnpm ou npm
+        echo [INFO] Instalar pnpm: npm install -g pnpm
+        echo [INFO] Ou instale npm junto com Node.js: https://nodejs.org/
+        pause
+        exit /b 1
+    ) else (
+        echo [INFO] npm encontrado
+    )
+) else (
+    echo [INFO] pnpm encontrado
 )
 
 REM Verificar se o script Python existe

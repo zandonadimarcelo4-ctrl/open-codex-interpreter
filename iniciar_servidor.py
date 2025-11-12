@@ -95,23 +95,77 @@ def print_warning(message: str):
 def check_command(command: str) -> bool:
     """Verifica se um comando está disponível"""
     try:
-        subprocess.run(
-            [command, "--version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True
-        )
+        # No Windows, usar shell=True pode ajudar a encontrar comandos no PATH
+        if platform.system() == "Windows":
+            result = subprocess.run(
+                f"{command} --version",
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=5
+            )
+        else:
+            result = subprocess.run(
+                [command, "--version"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                timeout=5
+            )
         return True
-    except (subprocess.CalledProcessError, FileNotFoundError):
+    except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired, OSError):
         return False
 
 def find_node_manager() -> Optional[str]:
     """Encontra o gerenciador de pacotes Node.js (pnpm ou npm)"""
+    # Tentar encontrar pnpm primeiro
     if check_command("pnpm"):
         return "pnpm"
+    # Tentar encontrar npm
     elif check_command("npm"):
         return "npm"
     else:
+        # Tentar encontrar através do comando where (Windows) ou which (Linux/Mac)
+        try:
+            if platform.system() == "Windows":
+                result = subprocess.run(
+                    "where pnpm",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False
+                )
+                if result.returncode == 0 and result.stdout:
+                    return "pnpm"
+                result = subprocess.run(
+                    "where npm",
+                    shell=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False
+                )
+                if result.returncode == 0 and result.stdout:
+                    return "npm"
+            else:
+                result = subprocess.run(
+                    ["which", "pnpm"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False
+                )
+                if result.returncode == 0 and result.stdout:
+                    return "pnpm"
+                result = subprocess.run(
+                    ["which", "npm"],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False
+                )
+                if result.returncode == 0 and result.stdout:
+                    return "npm"
+        except Exception:
+            pass
         return None
 
 def check_dependencies():
@@ -119,22 +173,69 @@ def check_dependencies():
     print_info("Verificando dependências...")
     
     # Verificar Python
-    if not check_command("python") and not check_command("python3"):
+    python_cmd = None
+    if check_command("python"):
+        python_cmd = "python"
+    elif check_command("python3"):
+        python_cmd = "python3"
+    
+    if not python_cmd:
         print_error("Python não encontrado. Instale Python 3.10+")
+        print_info("Download: https://www.python.org/downloads/")
         return False
+    
+    print_success(f"Python encontrado: {python_cmd}")
     
     # Verificar Node.js
     if not check_command("node"):
         print_error("Node.js não encontrado. Instale Node.js 20+")
+        print_info("Download: https://nodejs.org/")
         return False
+    
+    # Verificar versão do Node.js
+    try:
+        if platform.system() == "Windows":
+            result = subprocess.run("node --version", shell=True, capture_output=True, text=True, timeout=5)
+        else:
+            result = subprocess.run(["node", "--version"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            print_success(f"Node.js encontrado: {result.stdout.strip()}")
+    except Exception:
+        pass
     
     # Verificar gerenciador de pacotes
     node_manager = find_node_manager()
     if not node_manager:
-        print_error("pnpm ou npm não encontrado. Instale pnpm ou npm")
-        return False
+        print_info("Verificando manualmente no PATH...")
+        
+        # Tentar verificar diretamente no PATH usando shutil.which
+        import shutil
+        pnpm_path = shutil.which("pnpm")
+        npm_path = shutil.which("npm")
+        
+        if pnpm_path:
+            print_success(f"pnpm encontrado: {pnpm_path}")
+            node_manager = "pnpm"
+        elif npm_path:
+            print_success(f"npm encontrado: {npm_path}")
+            node_manager = "npm"
+        else:
+            print_error("pnpm ou npm não encontrado no PATH")
+            print_info("Instalar pnpm: npm install -g pnpm")
+            print_info("Ou instale npm junto com Node.js: https://nodejs.org/")
+            print_info("Certifique-se de adicionar ao PATH e reiniciar o terminal")
+            return False
     
-    print_success(f"Node.js encontrado: {node_manager}")
+    # Verificar versão do gerenciador
+    try:
+        if platform.system() == "Windows":
+            result = subprocess.run(f"{node_manager} --version", shell=True, capture_output=True, text=True, timeout=5)
+        else:
+            result = subprocess.run([node_manager, "--version"], capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            print_success(f"{node_manager.upper()} encontrado: {result.stdout.strip()}")
+    except Exception:
+        pass
     
     # Verificar se dependências Python estão instaladas
     try:
@@ -143,16 +244,33 @@ def check_dependencies():
         print_success("FastAPI e uvicorn encontrados")
     except ImportError:
         print_warning("FastAPI não encontrado. Instale com: pip install fastapi uvicorn")
+        print_info("Tentando instalar automaticamente...")
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "fastapi", "uvicorn"], check=True)
+            print_success("FastAPI e uvicorn instalados")
+        except Exception:
+            print_warning("Não foi possível instalar FastAPI automaticamente. Instale manualmente.")
     
     # Verificar se dependências Node.js estão instaladas
     node_modules = FRONTEND_REACT / "node_modules"
     if not node_modules.exists():
         print_warning("Dependências Node.js não instaladas. Instalando...")
-        if node_manager == "pnpm":
-            subprocess.run(["pnpm", "install"], cwd=FRONTEND_REACT, check=True)
-        else:
-            subprocess.run(["npm", "install"], cwd=FRONTEND_REACT, check=True)
-        print_success("Dependências Node.js instaladas")
+        try:
+            if platform.system() == "Windows":
+                if node_manager == "pnpm":
+                    subprocess.run("pnpm install", shell=True, cwd=FRONTEND_REACT, check=True)
+                else:
+                    subprocess.run("npm install", shell=True, cwd=FRONTEND_REACT, check=True)
+            else:
+                if node_manager == "pnpm":
+                    subprocess.run(["pnpm", "install"], cwd=FRONTEND_REACT, check=True)
+                else:
+                    subprocess.run(["npm", "install"], cwd=FRONTEND_REACT, check=True)
+            print_success("Dependências Node.js instaladas")
+        except subprocess.CalledProcessError as e:
+            print_error(f"Erro ao instalar dependências Node.js: {e}")
+            print_info("Tente instalar manualmente: cd autogen_agent_interface && pnpm install")
+            return False
     
     return True
 
@@ -162,22 +280,42 @@ def build_frontend_react(node_manager: str) -> bool:
     
     try:
         # Fazer build
-        if node_manager == "pnpm":
-            result = subprocess.run(
-                ["pnpm", "build"],
-                cwd=FRONTEND_REACT,
-                check=True,
-                capture_output=True,
-                text=True
-            )
+        if platform.system() == "Windows":
+            if node_manager == "pnpm":
+                result = subprocess.run(
+                    "pnpm build",
+                    shell=True,
+                    cwd=FRONTEND_REACT,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+            else:
+                result = subprocess.run(
+                    "npm run build",
+                    shell=True,
+                    cwd=FRONTEND_REACT,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
         else:
-            result = subprocess.run(
-                ["npm", "run", "build"],
-                cwd=FRONTEND_REACT,
-                check=True,
-                capture_output=True,
-                text=True
-            )
+            if node_manager == "pnpm":
+                result = subprocess.run(
+                    ["pnpm", "build"],
+                    cwd=FRONTEND_REACT,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
+            else:
+                result = subprocess.run(
+                    ["npm", "run", "build"],
+                    cwd=FRONTEND_REACT,
+                    check=True,
+                    capture_output=True,
+                    text=True
+                )
         
         print_success("Build do frontend React concluído")
         return True
@@ -229,26 +367,50 @@ def start_server_typescript(node_manager: str) -> Optional[subprocess.Popen]:
     
     try:
         # Iniciar servidor TypeScript
-        if node_manager == "pnpm":
-            process = subprocess.Popen(
-                ["pnpm", "dev"],
-                cwd=SERVER_TYPESCRIPT,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
+        if platform.system() == "Windows":
+            if node_manager == "pnpm":
+                process = subprocess.Popen(
+                    "pnpm dev",
+                    shell=True,
+                    cwd=SERVER_TYPESCRIPT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+            else:
+                process = subprocess.Popen(
+                    "npm run dev",
+                    shell=True,
+                    cwd=SERVER_TYPESCRIPT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
         else:
-            process = subprocess.Popen(
-                ["npm", "run", "dev"],
-                cwd=SERVER_TYPESCRIPT,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                universal_newlines=True
-            )
+            if node_manager == "pnpm":
+                process = subprocess.Popen(
+                    ["pnpm", "dev"],
+                    cwd=SERVER_TYPESCRIPT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
+            else:
+                process = subprocess.Popen(
+                    ["npm", "run", "dev"],
+                    cwd=SERVER_TYPESCRIPT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    universal_newlines=True
+                )
         
         # Aguardar porta ficar disponível
         if wait_for_port(3000, timeout=15, name="Servidor TypeScript"):

@@ -123,7 +123,10 @@ export function useVoice(options: UseVoiceOptions = {}) {
       console.log(`📝 Texto limpo (primeiros 100 chars): ${cleanedText.substring(0, 100)}`);
       
       try {
-        const apiUrl = '/api/tts';
+        // TTS do backend Python (se disponível)
+        // Por enquanto, usar endpoint local do servidor TypeScript (que faz proxy para Python)
+        const PYTHON_BACKEND_URL = import.meta.env.VITE_PYTHON_BACKEND_URL || 'http://localhost:8000';
+        const apiUrl = `${PYTHON_BACKEND_URL}/api/tts`;
         console.log(`[TTS] Enviando requisição para: ${apiUrl}`);
         console.log(`[TTS] Texto a ser enviado: ${cleanedText.substring(0, 200)}...`);
         
@@ -917,5 +920,32 @@ export function useVoice(options: UseVoiceOptions = {}) {
     setError, // Expor setError para poder limpar erros manualmente
   };
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

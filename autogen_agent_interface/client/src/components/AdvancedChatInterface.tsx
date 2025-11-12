@@ -68,24 +68,26 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
   const sounds = useSoundEffects(true);
   
   // WebSocket para chat em tempo real
-  // Detectar host automaticamente (localhost ou IP da rede)
+  // IMPORTANTE: Conecta diretamente ao backend Python na porta 8000
+  // O backend Python agora gerencia WebSocket, não o servidor TypeScript
   const getWebSocketUrl = () => {
+    // URL do backend Python (padrão: ws://localhost:8000/ws)
+    const PYTHON_BACKEND_WS_URL = import.meta.env.VITE_PYTHON_BACKEND_WS_URL || "ws://localhost:8000/ws";
+    
+    // Se estiver em produção ou usando variável de ambiente, usar a URL configurada
+    if (import.meta.env.VITE_PYTHON_BACKEND_WS_URL) {
+      return PYTHON_BACKEND_WS_URL;
+    }
+    
+    // Em desenvolvimento, conectar diretamente ao backend Python na porta 8000
     if (typeof window !== 'undefined') {
       const hostname = window.location.hostname;
-      const protocol = window.location.protocol;
-      const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
-      
-      // Se a porta estiver vazia, significa que é porta padrão (80 para HTTP, 443 para HTTPS)
-      const port = window.location.port;
-      
-      // Se a porta estiver vazia ou for padrão, não incluir na URL
-      if (!port || port === '80' || port === '443') {
-        return `${wsProtocol}//${hostname}/ws`;
-      } else {
-        return `${wsProtocol}//${hostname}:${port}/ws`;
-      }
+      // Usar porta 8000 do backend Python diretamente
+      return `ws://${hostname}:8000/ws`;
     }
-    return `ws://localhost:${import.meta.env.VITE_PORT || 3000}/ws`;
+    
+    // Fallback para localhost:8000
+    return "ws://localhost:8000/ws";
   };
   
   const { isConnected, isConnecting, send: sendWebSocket } = useWebSocket({
@@ -1171,4 +1173,22 @@ export function AdvancedChatInterface({ onNewChat }: AdvancedChatInterfaceProps 
       </div>
     </motion.div>
   );
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
+}
+
 }

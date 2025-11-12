@@ -465,9 +465,42 @@ async function startServer() {
     }
   });
   
-  // tRPC API - DEVE estar configurado ANTES do serveStatic para não interferir
-  // IMPORTANTE: Este middleware processa TODAS as rotas que começam com /api/trpc
-  console.log('[tRPC] 🔧 Configurando middleware do tRPC em /api/trpc');
+  // ============================================================================
+  // PROXY PARA BACKEND PYTHON (APENAS PYTHON - DESABILITAR BACKEND TYPESCRIPT)
+  // ============================================================================
+  // IMPORTANTE: O backend Python agora comanda TUDO!
+  // O servidor TypeScript serve APENAS:
+  // - Frontend React (via Vite)
+  // - Proxy para backend Python
+  // - tRPC (apenas para compatibilidade com frontend existente)
+  
+  // Configurar proxy para backend Python
+  try {
+    const { setupPythonBackendProxy, checkPythonBackend } = await import('./python_backend_proxy');
+    
+    // Verificar se o backend Python está rodando
+    const pythonBackendAvailable = await checkPythonBackend();
+    if (pythonBackendAvailable) {
+      console.log('[Proxy] ✅ Backend Python está rodando');
+      setupPythonBackendProxy(app, server);
+    } else {
+      console.warn('[Proxy] ⚠️ Backend Python não está rodando');
+      console.warn('[Proxy] 💡 Para usar o backend Python, execute: python super_agent/backend_python.py');
+      console.warn('[Proxy] 💡 O servidor TypeScript continuará funcionando, mas sem proxy para backend Python');
+    }
+  } catch (error) {
+    console.error('[Proxy] ❌ Erro ao configurar proxy para backend Python:', error);
+    console.warn('[Proxy] 💡 O servidor TypeScript continuará funcionando sem proxy');
+  }
+  
+  // ============================================================================
+  // tRPC API - MANTIDO PARA COMPATIBILIDADE COM FRONTEND EXISTENTE
+  // ============================================================================
+  // IMPORTANTE: Por enquanto, mantemos tRPC para compatibilidade
+  // Mas as requisições de chat serão redirecionadas para o backend Python via proxy
+  // OU o frontend pode se conectar diretamente ao backend Python na porta 8000
+  
+  console.log('[tRPC] 🔧 Configurando middleware do tRPC em /api/trpc (compatibilidade)');
   
   const trpcHandler = createExpressMiddleware({
       router: appRouter,
@@ -489,7 +522,7 @@ async function startServer() {
     trpcHandler(req, res, next);
   });
   
-  console.log('[tRPC] ✅ Middleware do tRPC configurado');
+  console.log('[tRPC] ✅ Middleware do tRPC configurado (compatibilidade)');
   
   // production mode uses static files
   if (process.env.NODE_ENV !== "development") {
@@ -635,6 +668,303 @@ async function startServer() {
         if (err.code === 'EADDRINUSE') {
           console.error(`[Server] ❌ Porta ${attemptPort} está em uso!`);
           if (maxAttempts > 0) {
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
+            const nextPort = attemptPort + 1;
+            console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
+            server.removeAllListeners('listening');
+            server.removeAllListeners('error');
+            // Tentar novamente com a próxima porta
+            tryListen(nextPort, maxAttempts - 1).then(resolve).catch(reject);
+          } else {
+            reject(new Error(`Não foi possível encontrar uma porta disponível (tentou de ${preferredPort} até ${attemptPort})`));
+          }
+        } else {
+          reject(err);
+        }
+      };
+
+      server.once('listening', listenHandler);
+      server.once('error', errorHandler);
+      server.listen(attemptPort, '0.0.0.0');
+    });
+  };
+
+  try {
+    const actualPort = await tryListen(preferredPort);
+    if (actualPort !== preferredPort) {
+      console.log(`[Server] ⚠️ Porta ${preferredPort} estava em uso, usando porta ${actualPort} ao invés`);
+    }
+  } catch (error) {
+    console.error('[Server] ❌ Erro ao iniciar servidor:', error);
+    process.exit(1);
+  }
+}
+
+startServer().catch(console.error);
+
             const nextPort = attemptPort + 1;
             console.log(`[Server] 🔄 Tentando porta ${nextPort}...`);
             server.removeAllListeners('listening');

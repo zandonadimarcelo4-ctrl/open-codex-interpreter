@@ -48,19 +48,19 @@ export function useCodeExecution(options: UseCodeExecutionOptions = {}) {
     const lang = codeLanguage || language;
 
     try {
-      // Enviar código para o backend via tRPC para execução segura
-      // Por enquanto, usar fetch direto, depois integrar com tRPC
-      const apiUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/trpc/code.execute`, {
+      // Enviar código para o backend Python via API REST
+      // IMPORTANTE: Backend Python agora processa tudo via /api/chat
+      const PYTHON_BACKEND_URL = import.meta.env.VITE_PYTHON_BACKEND_URL || 'http://localhost:8000';
+      const response = await fetch(`${PYTHON_BACKEND_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          json: {
-            code,
+          message: `Executa código ${lang}: ${code}`,
+          context: {
             language: lang,
-            timeout,
+            timeout: timeout,
           },
         }),
       });

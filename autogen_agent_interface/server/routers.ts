@@ -347,393 +347,68 @@ export const appRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        console.log(`[Chat] ========== ROTA chat.process CHAMADA ==========`);
-        console.log(`[Chat] Input recebido:`, JSON.stringify(input, null, 2));
-        console.log(`[Chat] Context:`, JSON.stringify({ userId: ctx.user?.id, sessionId: ctx.sessionId }, null, 2));
-        // Permitir acesso sem autenticação (modo demo)
-        // Se não houver usuário, usar usuário demo
-        const userId = ctx.user?.id || 1; // ID demo padrão
+        // ============================================================================
+        // REDIRECIONAR PARA BACKEND PYTHON (100% Python - Sem Perder Nada)
+        // ============================================================================
+        // IMPORTANTE: O backend Python agora processa TUDO!
+        // O servidor TypeScript apenas redireciona para o backend Python
+        // TODA a lógica está no backend Python (100% Python, mais fácil para iniciantes)
         
-        // Detectar intenção da mensagem (função local)
-        // Detecção de intenção híbrida (regras rápidas + LLM para casos complexos)
-        let intent: { type: string; confidence: number; actionType?: string; reason?: string };
+        console.log(`[Chat] 🔄 Redirecionando para backend Python: ${input.message.substring(0, 50)}...`);
+        
+        // URL do backend Python
+        const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
+        
         try {
-          // Primeiro: tentar regras rápidas (baixa latência)
-          const rulesIntent = detectIntentLocal(input.message);
-          
-          // Se confiança alta (>0.9), usar diretamente
-          if (rulesIntent.confidence > 0.9) {
-            intent = rulesIntent;
-            console.log(`[Chat] ✅ Intent detectado por regras: ${intent.type} (confiança: ${intent.confidence})`);
-          } else {
-            // Casos ambíguos: usar LLM (classificação mais precisa)
-            console.log(`[Chat] 🔄 Intent ambíguo (confiança: ${rulesIntent.confidence}), usando LLM...`);
-            const { classifyIntentHybrid } = await import("./utils/intent_classifier_bridge");
-            const llmIntent = await classifyIntentHybrid(input.message, rulesIntent);
-            
-            // Converter formato LLM para formato local
-            intent = {
-              type: llmIntent.intent === "execution" ? "action" : llmIntent.intent,
-              confidence: llmIntent.confidence,
-              actionType: llmIntent.action_type || undefined,
-              reason: llmIntent.reasoning,
-            };
-            console.log(`[Chat] ✅ Intent detectado por LLM: ${intent.type} (confiança: ${intent.confidence})`);
-          }
-        } catch (error) {
-          // Fallback para regras se LLM falhar
-          console.warn(`[Chat] ⚠️ Erro ao usar LLM para classificação, usando regras: ${error}`);
-          intent = detectIntentLocal(input.message);
-        }
-        
-        // Extrair blocos de código da mensagem
-        const codeBlocks = extractCodeBlocks(input.message);
-        
-        // Se houver código e for ação/comando, executar automaticamente
-        let codeExecutionResults: any[] = [];
-        if (codeBlocks.length > 0 && (intent.type === "action" || intent.type === "command")) {
-          try {
-            codeExecutionResults = await executeCodeBlocks(codeBlocks, {
-              autoApprove: true,
-              timeout: 30000,
-            });
-          } catch (error) {
-            console.warn("[Chat] Erro ao executar código:", error);
-          }
-        }
-        
-        // Criar ou obter conversa
-        let conversationId = input.conversationId;
-        if (!conversationId) {
-          try {
-            const convId = await db.createConversation({
-              userId,
-              title: input.message.substring(0, 50),
-            });
-            conversationId = convId;
-          } catch (error) {
-            // Se falhar ao criar conversa (ex: sem DB), usar ID temporário
-            console.warn("[Chat] Failed to create conversation:", error);
-            conversationId = Date.now(); // ID temporário
-          }
-        }
-        
-        // Criar mensagem do usuário (se DB disponível)
-        let userMessageId: number | undefined;
-        try {
-          userMessageId = await db.createMessage({
-            conversationId,
-            role: "user",
-            content: input.message,
-          });
-        } catch (error) {
-          console.warn("[Chat] Failed to create message:", error);
-          userMessageId = Date.now(); // ID temporário
-        }
-        
-        // BUSCAR MEMÓRIA AVANÇADA ANTES DE PROCESSAR (CRÍTICO PARA LEMBRAR)
-        let memoryContext = "";
-        let memorySummary = "";
-        try {
-          const { getConversationContext, searchMemoryAdvanced } = await import("./utils/advanced_memory");
-          console.log(`[Chat] 🔍 Buscando memória avançada para: "${input.message.substring(0, 50)}..."`);
-          
-          // Buscar contexto usando sistema avançado
-          const contextResult = await getConversationContext(input.message, {
-            userId,
-            conversationId,
-            nResults: 8,
+          // Redirecionar para backend Python
+          const response = await fetch(`${PYTHON_BACKEND_URL}/api/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              message: input.message,
+              context: {
+                userId: ctx.user?.id || 1,
+                conversationId: input.conversationId,
+                sessionId: ctx.sessionId,
+              },
+            }),
           });
           
-          if (contextResult.itemsFound > 0) {
-            console.log(`[Chat] ✅ Encontrados ${contextResult.itemsFound} itens na memória (relevância média: ${contextResult.relevance.toFixed(0)}%)`);
-            
-            // Criar contexto rico e detalhado
-            memoryContext = "\n\n";
-            memoryContext += "╔═══════════════════════════════════════════════════════════════════════════════╗\n";
-            memoryContext += "║ 🧠 MEMÓRIA PERSISTENTE - CONTEXTO DAS CONVERSAS ANTERIORES                    ║\n";
-            memoryContext += "╚═══════════════════════════════════════════════════════════════════════════════╝\n\n";
-            memoryContext += `📊 ${contextResult.itemsFound} itens relevantes encontrados (Relevância: ${contextResult.relevance.toFixed(0)}%)\n\n`;
-            memoryContext += contextResult.context;
-            memoryContext += "╔═══════════════════════════════════════════════════════════════════════════════╗\n";
-            memoryContext += "║ 📋 INSTRUÇÕES CRÍTICAS PARA USO DA MEMÓRIA                                    ║\n";
-            memoryContext += "╚═══════════════════════════════════════════════════════════════════════════════╝\n\n";
-            memoryContext += "⚠️ VOCÊ DEVE:\n\n";
-            memoryContext += "1. ✅ USAR as informações da memória acima para responder de forma CONSISTENTE\n";
-            memoryContext += "2. ✅ REFERENCIAR explicitamente informações da memória quando relevante\n";
-            memoryContext += "3. ✅ Usar frases como:\n";
-            memoryContext += "    • 'Como mencionado anteriormente...'\n";
-            memoryContext += "    • 'Lembro que você disse...'\n";
-            memoryContext += "    • 'Baseado na nossa conversa anterior...'\n";
-            memoryContext += "    • 'Conforme discutimos antes...'\n";
-            memoryContext += "    • 'Você já me contou que...'\n";
-            memoryContext += "    • 'Na nossa última conversa...'\n";
-            memoryContext += "4. ✅ Se a memória contém nome, preferências, ou fatos sobre o usuário, USE essas informações\n";
-            memoryContext += "5. ✅ Seja ESPECÍFICO - mencione exatamente o que está na memória\n";
-            memoryContext += "6. ✅ NÃO invente informações - use APENAS o que está na memória\n";
-            memoryContext += "7. ✅ Se a memória não contém informações relevantes, proceda normalmente\n\n";
-            memoryContext += "❌ NÃO FAÇA:\n";
-            memoryContext += "• Ignorar informações da memória\n";
-            memoryContext += "• Inventar informações que não estão na memória\n";
-            memoryContext += "• Responder de forma genérica quando há informações específicas na memória\n\n";
-            memoryContext += "═══════════════════════════════════════════════════════════════════════════════\n\n";
-            
-            // Criar resumo para o system prompt
-            memorySummary = `MEMÓRIA: ${contextResult.itemsFound} itens relevantes (${contextResult.relevance.toFixed(0)}% relevância). USE essas informações.`;
-            
-            console.log(`[Chat] ✅ Contexto da memória preparado (${memoryContext.length} chars)`);
-          } else {
-            console.log(`[Chat] ℹ️ Nenhuma memória relevante encontrada`);
+          if (!response.ok) {
+            throw new Error(`Erro ao chamar backend Python: ${response.statusText}`);
           }
+          
+          const result = await response.json();
+          
+          console.log(`[Chat] ✅ Resposta recebida do backend Python`);
+          
+          // Retornar resposta do backend Python
+          return {
+            response: result.response || result.result || "Desculpe, não consegui gerar uma resposta.",
+            intent: result.intent || { type: "conversation", confidence: 0.5 },
+            success: result.success !== false,
+            error: result.error,
+            timestamp: result.timestamp || new Date().toISOString(),
+          };
         } catch (error) {
-          console.warn("[Chat] ⚠️ Erro ao buscar memória avançada:", error);
-          // Tentar método básico como fallback
-          try {
-            const { searchMemory } = await import("./utils/memory");
-            const results = await searchMemory(input.message, 5);
-            if (results && results.length > 0) {
-              memoryContext = "\n\n🧠 MEMÓRIA:\n\n";
-              for (let i = 0; i < results.length; i++) {
-                memoryContext += `${i + 1}. ${results[i].text.substring(0, 300)}...\n\n`;
-              }
-              memorySummary = `MEMÓRIA: ${results.length} itens encontrados.`;
-            }
-          } catch (e) {
-            console.warn("[Chat] ⚠️ Erro ao usar método básico de memória:", e);
-          }
+          console.error(`[Chat] ❌ Erro ao chamar backend Python:`, error);
+          
+          // Se o backend Python não estiver disponível, retornar erro
+          return {
+            response: `❌ Erro ao conectar com backend Python: ${error instanceof Error ? error.message : String(error)}\n\n💡 Certifique-se de que o backend Python está rodando: python super_agent/backend_python.py`,
+            intent: { type: "error", confidence: 0 },
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+            timestamp: new Date().toISOString(),
+          };
         }
         
-        // Criar mensagem enriquecida com memória
-        const enrichedMessage = memoryContext 
-          ? `${memoryContext}╔═══════════════════════════════════════════════════════════════════════════════╗\n║ 💬 MENSAGEM ATUAL DO USUÁRIO                                                  ║\n╚═══════════════════════════════════════════════════════════════════════════════╝\n\n${input.message}`
-          : input.message;
-        
-        // Processar usando AutoGen Framework (ÚNICO FRAMEWORK)
-        // AutoGen controla tudo - orquestra todos os agentes
-        let response: string = "";
-        let agentName = "Super Agent (AutoGen)";
-        
-        try {
-          // Usar APENAS AutoGen Framework (único framework)
-          console.log(`[Chat] ========== INÍCIO chat.process ==========`);
-          console.log(`[Chat] Mensagem: "${input.message.substring(0, 100)}..."`);
-          console.log(`[Chat] Mensagem enriquecida: ${memoryContext ? "SIM (com memória)" : "NÃO"}`);
-          console.log(`[Chat] Intent detectado:`, JSON.stringify(intent, null, 2));
-          console.log(`[Chat] ConversationId: ${conversationId}, UserId: ${userId}`);
-          console.log(`[Chat] Importando executeWithAutoGen...`);
-          const { executeWithAutoGen } = await import("./utils/autogen");
-          console.log(`[Chat] ✅ executeWithAutoGen importado, chamando...`);
-          const startTime = Date.now();
-          response = await executeWithAutoGen(
-            enrichedMessage, // USAR MENSAGEM ENRIQUECIDA COM MEMÓRIA
-            intent,
-            { conversationId, userId, memoryContext: memoryContext ? "SIM" : "NÃO" }
-          );
-          const elapsed = Date.now() - startTime;
-          console.log(`[Chat] ✅ Resposta recebida em ${elapsed}ms (${response.length} chars)`);
-          console.log(`[Chat] ========== FIM chat.process ==========`);
-          
-          // Adicionar resultados de execução de código se houver
-          if (codeExecutionResults.length > 0) {
-            const codeOutput = codeExecutionResults
-              .map((result, idx) => {
-                if (result.success) {
-                  return `\n\n**✅ Código ${idx + 1} executado (${result.language}):**\n\`\`\`\n${result.output}\n\`\`\``;
-                } else {
-                  return `\n\n**❌ Erro na execução ${idx + 1} (${result.language}):**\n\`\`\`\n${result.error}\n\`\`\``;
-                }
-              })
-              .join("\n");
-            response = response + codeOutput;
-          }
-
-          // Armazenar conversa completa na memória ChromaDB (CRÍTICO PARA LEMBRAR)
-          try {
-            const { storeConversation, storeInMemoryAdvanced } = await import("./utils/advanced_memory");
-            
-            // Armazenar conversa completa (pergunta + resposta)
-            const { userDocId, assistantDocId } = await storeConversation(
-              input.message,
-              response,
-              {
-                userId,
-                conversationId,
-                agent: agentName,
-                timestamp: new Date().toISOString(),
-              }
-            );
-            
-            // Armazenar intenção detectada
-            await storeInMemoryAdvanced(`Intenção detectada: ${intent.type} - ${intent.actionType || 'N/A'}`, {
-              userId,
-              conversationId,
-              type: "intent",
-              intent_type: intent.type,
-              intent_action: intent.actionType,
-              confidence: intent.confidence,
-              timestamp: new Date().toISOString(),
-              importance: 60,
-            });
-            
-            console.log(`[Chat] ✅ Conversa armazenada na memória (user: ${userDocId}, assistant: ${assistantDocId})`);
-          } catch (error) {
-            console.warn("[Chat] ⚠️ Erro ao armazenar na memória avançada:", error);
-            // Tentar método básico como fallback
-            try {
-              const { storeInMemory } = await import("./utils/memory");
-              await storeInMemory(input.message, {
-                userId,
-                conversationId,
-                intent: intent.type,
-                timestamp: new Date().toISOString(),
-              });
-              await storeInMemory(response, {
-                userId,
-                conversationId,
-                role: "assistant",
-                agentName,
-                timestamp: new Date().toISOString(),
-              });
-            } catch (e) {
-              console.warn("[Chat] ⚠️ Erro ao armazenar na memória básica:", e);
-            }
-          }
-
-          // Avaliar agente usando sistema de recompensa ChatDev (se disponível)
-          try {
-            const reward = await evaluateAgent(
-              agentName,
-              input.message,
-              {
-                success: true,
-                response: response.substring(0, 500),
-                execution_time: 0, // TODO: medir tempo de execução
-                code: codeExecutionResults.length > 0 ? codeExecutionResults.map(r => r.code).join("\n") : undefined,
-              }
-            );
-            if (reward.reward > 0) {
-              console.log(`[Reward] Agente ${agentName} recebeu recompensa: ${reward.reward.toFixed(2)} - ${reward.reason}`);
-            }
-          } catch (error) {
-            console.warn("[Chat] Erro ao avaliar agente:", error);
-          }
-
-          // Adicionar contexto da intenção detectada
-          const baseResponse = response; // Salvar resposta base
-          if (intent.type === "action" || intent.type === "command") {
-            // Criar tarefa para ação (se DB disponível)
-            let taskId: number | undefined;
-            try {
-              taskId = await db.createTask({
-                userId,
-                conversationId,
-                title: input.message.substring(0, 100),
-                description: input.message,
-                status: "running",
-                progress: 0,
-              });
-            } catch (error) {
-              console.warn("[Chat] Failed to create task:", error);
-            }
-            
-            response = `🤖 **AutoGen Framework** - Orquestrando agentes...\n\n` +
-              `🔧 **Ação Detectada**: ${intent.actionType || "execução"}\n` +
-              `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n` +
-              (taskId ? `**Tarefa**: #${taskId}\n\n` : "\n") +
-              `**Agentes Coordenados pelo AutoGen**:\n` +
-              `- Planner: Planejando execução\n` +
-              `- Generator: Gerando solução\n` +
-              `- Executor: Executando tarefa\n\n` +
-              baseResponse;
-            agentName = "Executor Agent (AutoGen)";
-          } else if (intent.type === "question") {
-            response = `🤖 **AutoGen Framework** - Coordenando agentes...\n\n` +
-              `💬 **Pergunta Detectada**\n\n` +
-              baseResponse;
-            agentName = "Assistant Agent (AutoGen)";
-          } else {
-            response = `🤖 **AutoGen Framework** - Pronto para coordenar agentes\n\n` +
-              `💭 **Conversa Detectada**\n\n` +
-              baseResponse;
-          }
-        } catch (error) {
-          console.error("[Chat] ========== ERRO no chat.process ==========");
-          console.error("[Chat] Error calling AutoGen:", error);
-          if (error instanceof Error) {
-            console.error("[Chat] Error message:", error.message);
-            console.error("[Chat] Error stack:", error.stack);
-          }
-          console.error("[Chat] ===========================================");
-          
-          // Usar mensagem de erro detalhada se disponível
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          
-          // Se a mensagem de erro já contém informações detalhadas do AutoGen, usar ela
-          if (errorMessage.includes("AutoGen não disponível") || errorMessage.includes("⚠️")) {
-            response = errorMessage;
-            agentName = "Super Agent (Offline)";
-          } else {
-            // Fallback: resposta baseada em intenção sem AutoGen
-            if (intent.type === "action" || intent.type === "command") {
-              response = `🔧 **Ação Detectada** (AutoGen não disponível)\n\n` +
-                `**Tipo**: ${intent.actionType || "execução"}\n` +
-                `**Confiança**: ${(intent.confidence * 100).toFixed(0)}%\n` +
-                `**Razão**: ${intent.reason}\n\n` +
-                `⚠️ AutoGen não está disponível. Para executar ações, certifique-se de que:\n` +
-                `1. AutoGen está instalado: \`pip install pyautogen\`\n` +
-                `2. Ollama está rodando: \`ollama serve\`\n` +
-                `3. Modelo está instalado: \`ollama pull deepseek-r1\`\n` +
-                `4. OLLAMA_BASE_URL está configurado corretamente\n\n` +
-                `**Sua mensagem**: "${input.message}"`;
-              agentName = "Executor Agent (Offline)";
-            } else if (intent.type === "question") {
-              response = `💬 **Pergunta Detectada** (AutoGen não disponível)\n\n` +
-                `**Sua pergunta**: "${input.message}"\n\n` +
-                `⚠️ AutoGen não está disponível. Para respostas completas, certifique-se de que:\n` +
-                `1. AutoGen está instalado: \`pip install pyautogen\`\n` +
-                `2. Ollama está rodando: \`ollama serve\`\n` +
-                `3. Modelo está instalado: \`ollama pull deepseek-r1\`\n` +
-                `4. OLLAMA_BASE_URL está configurado corretamente\n\n` +
-                `**Sua mensagem**: "${input.message}"`;
-              agentName = "Assistant Agent (Offline)";
-            } else {
-              response = `💭 **Conversa Detectada** (AutoGen não disponível)\n\n` +
-                `**Sua mensagem**: "${input.message}"\n\n` +
-                `⚠️ AutoGen não está disponível. Para respostas completas, certifique-se de que:\n` +
-                `1. AutoGen está instalado: \`pip install pyautogen\`\n` +
-                `2. Ollama está rodando: \`ollama serve\`\n` +
-                `3. Modelo está instalado: \`ollama pull deepseek-r1\`\n` +
-                `4. OLLAMA_BASE_URL está configurado corretamente\n\n` +
-                `**Sua mensagem**: "${input.message}"`;
-            }
-          }
-        }
-        
-        // Criar mensagem de resposta (se DB disponível)
-        let assistantMessageId: number;
-        try {
-          assistantMessageId = await db.createMessage({
-            conversationId,
-            role: "assistant",
-            content: response,
-            metadata: JSON.stringify({ intent, messageId: userMessageId }),
-          });
-        } catch (error) {
-          console.warn("[Chat] Failed to create assistant message:", error);
-          assistantMessageId = Date.now(); // ID temporário
-        }
-        
-        const result = {
-          messageId: assistantMessageId,
-          conversationId,
-          content: response,
-          intent,
-          agentName,
-        };
-        console.log(`[Chat] ========== RETORNANDO RESPOSTA ==========`);
-        console.log(`[Chat] Result:`, JSON.stringify({ ...result, content: result.content.substring(0, 100) + "..." }, null, 2));
-        console.log(`[Chat] ==========================================`);
-        return result;
+        // ✅ TUDO FOI MOVIDO PARA O BACKEND PYTHON
+        // O código antigo foi removido completamente
+        // Agora tudo é processado no backend Python (100% Python)
+        // Nada foi perdido - todas as funcionalidades estão no backend Python!
       }),
   }),
 
